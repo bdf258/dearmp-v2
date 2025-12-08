@@ -12,6 +12,7 @@ import CampaignsPage from '@/pages/policy/CampaignsPage';
 import PolicyEmailsPage from '@/pages/policy/PolicyEmailsPage';
 import PolicyEmailGroupDetailPage from '@/pages/policy/PolicyEmailGroupDetailPage';
 import OfficeStylePage from '@/pages/policy/OfficeStylePage';
+import MPApprovalPage from '@/pages/mp/MPApprovalPage';
 
 function RootLayout() {
   const { currentOfficeMode, setCurrentOfficeMode } = useDummyData();
@@ -48,6 +49,7 @@ function RootLayout() {
             <Route path="/office/letters" element={<LettersPage />} />
             <Route path="/office/third-parties" element={<ThirdPartiesPage />} />
             <Route path="/office/constituents" element={<ConstituentsPage />} />
+            <Route path="/mp-approval" element={<MPApprovalPage />} />
           </Routes>
         </main>
       </div>

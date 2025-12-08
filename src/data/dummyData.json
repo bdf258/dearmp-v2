@@ -414,6 +414,44 @@
       "color": "#EF4444"
     }
   ],
+  "approvalQueue": [
+    {
+      "id": "approval-1",
+      "type": "bulk_response",
+      "title": "Climate Action Campaign - Bulk Response",
+      "content": "<p>Dear [Constituent Name],</p><p>Thank you for writing to me about the upcoming Climate Legislation Bill. I share your concerns about the urgent need for action on climate change.</p><p>I want to assure you that I am committed to supporting strong environmental legislation that will help us meet our net-zero targets. The Climate Bill represents a significant step forward in our fight against climate change, and I will be voting in favor of it when it comes before Parliament.</p><p>Your voice, along with those of many other constituents, has helped shape my understanding of how important this issue is to our community. I will continue to push for ambitious climate action in Westminster.</p><p>Thank you again for taking the time to contact me.</p><p>Best regards,<br/>Your MP</p>",
+      "context": "Response to 127 emails received as part of Climate Action Campaign. This will be sent to all constituents who wrote in about the Climate Legislation Bill.",
+      "created_by_user_id": "user-2",
+      "created_at": "2024-03-15T10:30:00Z"
+    },
+    {
+      "id": "approval-2",
+      "type": "draft_letter",
+      "title": "Letter to Secretary of State - NHS Funding",
+      "content": "<p>Dear Secretary of State for Health and Social Care,</p><p>I am writing to you on behalf of my constituents who have expressed serious concerns about the current state of NHS funding and the resulting impact on healthcare services in our area.</p><p>Over recent months, I have received numerous reports of:</p><ul><li>Extended waiting times for specialist appointments, with some constituents waiting over 12 months</li><li>Difficulty accessing GP appointments in a timely manner</li><li>Staff shortages affecting the quality and availability of care</li></ul><p>I urge you to consider additional funding allocations for our local NHS trust and to address the systemic issues that are preventing our constituents from receiving the timely care they deserve.</p><p>I would welcome the opportunity to discuss this matter further and would be grateful for your response outlining what steps the Department is taking to address these concerns.</p><p>Yours sincerely,<br/>[MP Name]</p>",
+      "context": "Letter drafted in response to NHS Funding Campaign (campaign-2). Will be sent to the Secretary of State for Health and Social Care on behalf of constituents.",
+      "created_by_user_id": "user-1",
+      "created_at": "2024-03-14T15:45:00Z"
+    },
+    {
+      "id": "approval-3",
+      "type": "policy_statement",
+      "title": "Statement on Local Housing Development",
+      "content": "<p><strong>Statement from [MP Name] on Proposed Housing Development</strong></p><p>Following extensive consultation with residents and careful consideration of the planning proposals for the Green Lane development site, I am announcing my position on this important local matter.</p><p>While I recognize the critical need for additional housing in our constituency, I have significant concerns about the current proposal:</p><ol><li><strong>Infrastructure capacity:</strong> The local schools, GP surgeries, and transport links are already operating at capacity</li><li><strong>Green space preservation:</strong> The development would result in the loss of valuable community green space</li><li><strong>Affordable housing:</strong> The proportion of affordable housing units is below what our community needs</li></ol><p>I am therefore calling on the developers to revise their plans to address these concerns. I will be making formal representations to the planning committee and will continue to fight for a development that truly serves our community's interests.</p><p>I remain committed to ensuring that any development in our area is sustainable, benefits local residents, and includes adequate infrastructure to support new families.</p>",
+      "context": "Policy statement for publication on website and distribution to local media. Related to ongoing casework about local housing development concerns.",
+      "created_by_user_id": "user-1",
+      "created_at": "2024-03-13T09:20:00Z"
+    },
+    {
+      "id": "approval-4",
+      "type": "bulk_response",
+      "title": "NHS Funding Campaign - Response to Constituents",
+      "content": "<p>Dear [Constituent Name],</p><p>Thank you for contacting me about NHS funding. I have heard from many constituents about this vital issue, and I want to update you on the actions I am taking.</p><p>I have written to the Secretary of State for Health and Social Care outlining the specific concerns raised by my constituents, including the extended waiting times and staffing shortages affecting our local services. I will be pushing for increased funding allocation for our area in upcoming parliamentary discussions.</p><p>In Parliament, I will continue to advocate for:</p><ul><li>Increased NHS funding to reduce waiting times</li><li>Better workforce planning to address staff shortages</li><li>Improved resources for primary care services</li></ul><p>I will keep you informed of any developments and responses I receive from the Government.</p><p>Thank you for making your voice heard on this crucial matter.</p><p>Warm regards,<br/>Your MP</p>",
+      "context": "Follow-up response to constituents who wrote about NHS funding (campaign-2). To be sent after the letter to Secretary of State is approved and sent.",
+      "created_by_user_id": "user-2",
+      "created_at": "2024-03-15T14:00:00Z"
+    }
+  ],
   "currentUser": {
     "id": "user-1",
     "office_id": "office-1"

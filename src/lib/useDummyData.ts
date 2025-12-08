@@ -99,6 +99,16 @@ export interface Tag {
   color: string;
 }
 
+export interface ApprovalItem {
+  id: string;
+  type: 'bulk_response' | 'draft_letter' | 'policy_statement';
+  title: string;
+  content: string;
+  context: string;
+  created_by_user_id: string;
+  created_at: string;
+}
+
 export interface DummyData {
   offices: Office[];
   users: User[];
@@ -109,6 +119,7 @@ export interface DummyData {
   tags: Tag[];
   bulk_responses: BulkResponse[];
   bulk_response_log: BulkResponseLog[];
+  approvalQueue: ApprovalItem[];
   currentUser: {
     id: string;
     office_id: string;
@@ -148,6 +159,7 @@ export function useDummyData() {
     tags: filterByOffice(data.tags),
     bulkResponses: data.bulk_responses,
     bulkResponseLog: data.bulk_response_log,
+    approvalQueue: data.approvalQueue,
 
     // Current user/office info
     currentUser,
