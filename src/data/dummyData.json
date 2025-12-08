@@ -120,7 +120,10 @@
       "name": "Climate Action Campaign",
       "description": "Coordinated campaign regarding environmental legislation",
       "status": "active",
-      "created_at": "2024-01-05T09:00:00Z"
+      "subject_pattern": "Climate.*Legislation|Support.*Climate Bill",
+      "fingerprint_hash": "climate-bill-2024-hash",
+      "created_at": "2024-01-05T09:00:00Z",
+      "email_count": 127
     },
     {
       "id": "campaign-2",
@@ -128,7 +131,43 @@
       "name": "NHS Funding Campaign",
       "description": "Campaign for increased NHS funding and resources",
       "status": "active",
-      "created_at": "2024-02-01T10:00:00Z"
+      "subject_pattern": "NHS.*Funding|Healthcare.*Crisis",
+      "fingerprint_hash": "nhs-funding-2024-hash",
+      "created_at": "2024-02-01T10:00:00Z",
+      "email_count": 89
+    },
+    {
+      "id": "campaign-3",
+      "office_id": "office-1",
+      "name": "Education Funding Campaign",
+      "description": "Campaign for improved school funding and teacher pay",
+      "status": "active",
+      "subject_pattern": "Education.*Funding|School.*Budget|Teacher.*Pay",
+      "fingerprint_hash": "education-funding-hash",
+      "created_at": "2024-02-15T11:00:00Z",
+      "email_count": 56
+    },
+    {
+      "id": "campaign-4",
+      "office_id": "office-1",
+      "name": "Public Transport Investment",
+      "description": "Campaign for better public transport infrastructure",
+      "status": "active",
+      "subject_pattern": "Public.*Transport|Rail.*Investment|Bus.*Service",
+      "fingerprint_hash": "transport-investment-hash",
+      "created_at": "2024-03-01T09:30:00Z",
+      "email_count": 34
+    },
+    {
+      "id": "campaign-5",
+      "office_id": "office-1",
+      "name": "Housing Crisis Response",
+      "description": "Campaign addressing affordable housing shortage",
+      "status": "active",
+      "subject_pattern": "Affordable.*Housing|Housing.*Crisis|Social.*Housing",
+      "fingerprint_hash": "housing-crisis-hash",
+      "created_at": "2024-01-20T14:00:00Z",
+      "email_count": 78
     }
   ],
   "messages": [
@@ -139,11 +178,12 @@
       "from_name": "Concerned Citizen",
       "subject": "Support for Climate Legislation",
       "body": "I urge you to support the upcoming climate legislation bill...",
-      "is_triage_needed": true,
+      "is_triage_needed": false,
       "is_policy_email": true,
       "case_id": null,
       "campaign_id": "campaign-1",
-      "assigned_to_user_id": null,
+      "fingerprint_hash": "climate-bill-2024-hash",
+      "assigned_to_user_id": "user-1",
       "created_at": "2024-03-01T14:30:00Z"
     },
     {
@@ -157,6 +197,7 @@
       "is_policy_email": false,
       "case_id": "case-1",
       "campaign_id": null,
+      "fingerprint_hash": null,
       "assigned_to_user_id": "user-4",
       "created_at": "2024-01-18T10:15:00Z"
     },
@@ -167,11 +208,12 @@
       "from_name": "Policy Advocate",
       "subject": "NHS Funding - Urgent Action Needed",
       "body": "As a healthcare professional, I'm writing to emphasize the critical need for increased NHS funding...",
-      "is_triage_needed": true,
+      "is_triage_needed": false,
       "is_policy_email": true,
       "case_id": null,
       "campaign_id": "campaign-2",
-      "assigned_to_user_id": null,
+      "fingerprint_hash": "nhs-funding-2024-hash",
+      "assigned_to_user_id": "user-2",
       "created_at": "2024-02-15T16:00:00Z"
     },
     {
@@ -185,6 +227,7 @@
       "is_policy_email": false,
       "case_id": "case-2",
       "campaign_id": null,
+      "fingerprint_hash": null,
       "assigned_to_user_id": "user-3",
       "created_at": "2024-02-28T11:30:00Z"
     },
@@ -199,8 +242,144 @@
       "is_policy_email": false,
       "case_id": null,
       "campaign_id": null,
+      "fingerprint_hash": null,
       "assigned_to_user_id": null,
       "created_at": "2024-03-05T09:45:00Z"
+    },
+    {
+      "id": "msg-6",
+      "office_id": "office-1",
+      "from_email": "john.public@email.com",
+      "from_name": "John Public",
+      "subject": "Support Climate Bill - Act Now",
+      "body": "Dear MP, I am writing to urge you to support the Climate Bill currently before Parliament. This is a critical moment for our planet...",
+      "is_triage_needed": false,
+      "is_policy_email": true,
+      "case_id": null,
+      "campaign_id": "campaign-1",
+      "fingerprint_hash": "climate-bill-2024-hash",
+      "assigned_to_user_id": "user-1",
+      "created_at": "2024-03-02T10:15:00Z"
+    },
+    {
+      "id": "msg-7",
+      "office_id": "office-1",
+      "from_email": "mary.green@email.com",
+      "from_name": "Mary Green",
+      "subject": "Climate Legislation Support",
+      "body": "I'm writing as a concerned constituent to ask you to vote in favor of the upcoming climate legislation...",
+      "is_triage_needed": false,
+      "is_policy_email": true,
+      "case_id": null,
+      "campaign_id": "campaign-1",
+      "fingerprint_hash": "climate-bill-2024-hash",
+      "assigned_to_user_id": "user-1",
+      "created_at": "2024-03-03T08:45:00Z"
+    },
+    {
+      "id": "msg-8",
+      "office_id": "office-1",
+      "from_email": "healthcare.worker@email.com",
+      "from_name": "NHS Worker",
+      "subject": "NHS Crisis - We Need More Funding",
+      "body": "As an NHS worker on the frontlines, I see firsthand how underfunding affects patient care. Please support increased NHS funding...",
+      "is_triage_needed": false,
+      "is_policy_email": true,
+      "case_id": null,
+      "campaign_id": "campaign-2",
+      "fingerprint_hash": "nhs-funding-2024-hash",
+      "assigned_to_user_id": "user-2",
+      "created_at": "2024-02-16T11:20:00Z"
+    },
+    {
+      "id": "msg-9",
+      "office_id": "office-1",
+      "from_email": "parent.concerned@email.com",
+      "from_name": "Concerned Parent",
+      "subject": "Education Funding Crisis in Our Schools",
+      "body": "I am a parent of two children and I'm deeply concerned about the state of education funding. Our schools are struggling...",
+      "is_triage_needed": false,
+      "is_policy_email": true,
+      "case_id": null,
+      "campaign_id": "campaign-3",
+      "fingerprint_hash": "education-funding-hash",
+      "assigned_to_user_id": "user-2",
+      "created_at": "2024-02-20T14:30:00Z"
+    },
+    {
+      "id": "msg-10",
+      "office_id": "office-1",
+      "from_email": "teacher.advocate@email.com",
+      "from_name": "Teacher",
+      "subject": "Teacher Pay and School Budget Cuts",
+      "body": "As a teacher with 15 years of experience, I've watched funding decrease year after year. We need better investment in education...",
+      "is_triage_needed": false,
+      "is_policy_email": true,
+      "case_id": null,
+      "campaign_id": "campaign-3",
+      "fingerprint_hash": "education-funding-hash",
+      "assigned_to_user_id": "user-2",
+      "created_at": "2024-02-21T09:00:00Z"
+    },
+    {
+      "id": "msg-11",
+      "office_id": "office-1",
+      "from_email": "commuter.daily@email.com",
+      "from_name": "Daily Commuter",
+      "subject": "Public Transport Investment Needed",
+      "body": "Our local bus services are unreliable and overcrowded. We need investment in public transport infrastructure...",
+      "is_triage_needed": false,
+      "is_policy_email": true,
+      "case_id": null,
+      "campaign_id": "campaign-4",
+      "fingerprint_hash": "transport-investment-hash",
+      "assigned_to_user_id": "user-1",
+      "created_at": "2024-03-05T16:45:00Z"
+    },
+    {
+      "id": "msg-12",
+      "office_id": "office-1",
+      "from_email": "housing.advocate@email.com",
+      "from_name": "Housing Advocate",
+      "subject": "Affordable Housing Crisis - Immediate Action Required",
+      "body": "The affordable housing shortage in our constituency is reaching crisis levels. We need more social housing...",
+      "is_triage_needed": false,
+      "is_policy_email": true,
+      "case_id": null,
+      "campaign_id": "campaign-5",
+      "fingerprint_hash": "housing-crisis-hash",
+      "assigned_to_user_id": "user-1",
+      "created_at": "2024-01-25T10:00:00Z"
+    },
+    {
+      "id": "msg-13",
+      "office_id": "office-1",
+      "from_email": "new.policy.email@email.com",
+      "from_name": "New Constituent",
+      "subject": "Climate Action - Please Vote Yes",
+      "body": "This is another email about climate action...",
+      "is_triage_needed": true,
+      "is_policy_email": true,
+      "case_id": null,
+      "campaign_id": null,
+      "fingerprint_hash": "climate-bill-2024-hash",
+      "assigned_to_user_id": null,
+      "created_at": "2024-03-07T13:20:00Z"
+    },
+    {
+      "id": "msg-14",
+      "office_id": "office-1",
+      "from_email": "another.nhs@email.com",
+      "from_name": "NHS Supporter",
+      "subject": "Healthcare Crisis - Act Now",
+      "body": "Our NHS is in crisis. Please support funding increases...",
+      "is_triage_needed": true,
+      "is_policy_email": true,
+      "case_id": null,
+      "campaign_id": null,
+      "fingerprint_hash": "nhs-funding-2024-hash",
+      "assigned_to_user_id": null,
+      "created_at": "2024-03-07T14:00:00Z"
     }
   ],
   "tags": [
@@ -274,7 +453,85 @@
     }
   ],
   "currentUser": {
-    "id": "user-3",
-    "office_id": "office-2"
-  }
+    "id": "user-1",
+    "office_id": "office-1"
+  },
+  "bulk_responses": [
+    {
+      "id": "bulk-resp-1",
+      "campaign_id": "campaign-1",
+      "fingerprint_hash": "climate-bill-2024-hash",
+      "subject": "Re: Climate Legislation",
+      "body_template": "Dear {{constituent_name}},\n\nThank you for contacting me about the Climate Bill. I share your concerns about the urgent need for climate action.\n\nI am carefully reviewing the legislation and will be voting in support of measures that genuinely address the climate emergency while supporting a just transition for workers and communities.\n\nBest regards,\n{{mp_name}}",
+      "status": "draft",
+      "created_by_user_id": "user-1",
+      "created_at": "2024-03-04T10:00:00Z",
+      "sent_count": 0,
+      "total_recipients": 127
+    },
+    {
+      "id": "bulk-resp-2",
+      "campaign_id": "campaign-2",
+      "fingerprint_hash": "nhs-funding-2024-hash",
+      "subject": "Re: NHS Funding",
+      "body_template": "Dear {{constituent_name}},\n\nThank you for writing to me about NHS funding. I completely agree that our NHS needs proper investment.\n\nI have been consistently campaigning for increased NHS funding and will continue to push for the resources our healthcare system desperately needs.\n\nBest regards,\n{{mp_name}}",
+      "status": "sent",
+      "created_by_user_id": "user-2",
+      "created_at": "2024-02-18T09:00:00Z",
+      "sent_at": "2024-02-18T11:30:00Z",
+      "sent_count": 89,
+      "total_recipients": 89
+    },
+    {
+      "id": "bulk-resp-3",
+      "campaign_id": "campaign-3",
+      "fingerprint_hash": "education-funding-hash",
+      "subject": "Re: Education Funding",
+      "body_template": "Dear {{constituent_name}},\n\nThank you for contacting me regarding education funding and teacher pay.\n\nI recognize the challenges facing our schools and education system. I am committed to advocating for better funding and support for our teachers and students.\n\nBest regards,\n{{mp_name}}",
+      "status": "sent",
+      "created_by_user_id": "user-2",
+      "created_at": "2024-02-22T14:00:00Z",
+      "sent_at": "2024-02-23T10:00:00Z",
+      "sent_count": 56,
+      "total_recipients": 56
+    }
+  ],
+  "bulk_response_log": [
+    {
+      "id": "log-1",
+      "bulk_response_id": "bulk-resp-2",
+      "message_id": "msg-3",
+      "recipient_email": "policy.advocate@email.com",
+      "recipient_name": "Policy Advocate",
+      "sent_at": "2024-02-18T11:30:15Z",
+      "status": "sent"
+    },
+    {
+      "id": "log-2",
+      "bulk_response_id": "bulk-resp-2",
+      "message_id": "msg-8",
+      "recipient_email": "healthcare.worker@email.com",
+      "recipient_name": "NHS Worker",
+      "sent_at": "2024-02-18T11:30:18Z",
+      "status": "sent"
+    },
+    {
+      "id": "log-3",
+      "bulk_response_id": "bulk-resp-3",
+      "message_id": "msg-9",
+      "recipient_email": "parent.concerned@email.com",
+      "recipient_name": "Concerned Parent",
+      "sent_at": "2024-02-23T10:00:12Z",
+      "status": "sent"
+    },
+    {
+      "id": "log-4",
+      "bulk_response_id": "bulk-resp-3",
+      "message_id": "msg-10",
+      "recipient_email": "teacher.advocate@email.com",
+      "recipient_name": "Teacher",
+      "sent_at": "2024-02-23T10:00:15Z",
+      "status": "sent"
+    }
+  ]
 }
