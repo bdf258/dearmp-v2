@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
+import { EmailDisplay, ResponseComposer } from '@/components/mail';
 import {
   Table,
   TableBody,
@@ -33,20 +33,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   Mail,
   TrendingUp,
   BookOpen,
-  Send,
   Eye,
-  Save,
   ChevronDown,
   Sparkles,
   AlertCircle,
@@ -55,12 +45,10 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function PolicyEmailGroupDetailPage() {
   const { groupId } = useParams<{ groupId: string }>();
-  const { messages, campaigns, bulkResponses, currentUser } = useDummyData();
+  const { messages, campaigns, bulkResponses } = useDummyData();
 
-  const [draftSubject, setDraftSubject] = useState('');
-  const [draftBody, setDraftBody] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
-  const [showSendDialog, setShowSendDialog] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<any>(null);
   const [researchExpanded, setResearchExpanded] = useState(true);
 
   const decodedGroupId = groupId ? decodeURIComponent(groupId) : '';
@@ -80,13 +68,6 @@ export default function PolicyEmailGroupDetailPage() {
     return bulkResponses.find((br) => br.fingerprint_hash === decodedGroupId);
   }, [bulkResponses, decodedGroupId]);
 
-  // Load existing draft if available
-  useMemo(() => {
-    if (existingBulkResponse && !draftSubject && !draftBody) {
-      setDraftSubject(existingBulkResponse.subject);
-      setDraftBody(existingBulkResponse.body_template);
-    }
-  }, [existingBulkResponse, draftSubject, draftBody]);
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -103,46 +84,24 @@ export default function PolicyEmailGroupDetailPage() {
     };
   }, [groupMessages, campaign]);
 
-  const handleInsertToken = (token: string) => {
-    setDraftBody((prev) => prev + `{{${token}}}`);
-  };
-
   const handleGenerateResearch = () => {
     console.log('Generating LLM research...');
     // Placeholder for LLM research generation
   };
 
-  const handlePreview = () => {
-    setShowPreview(true);
-  };
-
-  const handleSaveDraft = () => {
-    console.log('Saving draft...', { draftSubject, draftBody });
-    // In a real app, this would save the draft
-  };
-
-  const handleSendToAll = () => {
-    setShowSendDialog(true);
-  };
-
-  const confirmSend = () => {
-    console.log('Sending to all recipients...', {
-      subject: draftSubject,
-      body: draftBody,
-      recipients: groupMessages.length,
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
-    setShowSendDialog(false);
-    // In a real app, this would trigger the bulk send
   };
 
-  // Render preview with token replacement
-  const renderPreview = () => {
-    const sampleMessage = groupMessages[0];
-    if (!sampleMessage) return draftBody;
-
-    return draftBody
-      .replace(/\{\{constituent_name\}\}/g, sampleMessage.from_name)
-      .replace(/\{\{mp_name\}\}/g, currentUser?.name || 'MP Name');
+  const handleViewEmail = (message: any) => {
+    setSelectedMessage(message);
+    setShowEmailDialog(true);
   };
 
   if (groupMessages.length === 0) {
@@ -267,94 +226,24 @@ export default function PolicyEmailGroupDetailPage() {
       </Collapsible>
 
       {/* Drafting Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Draft Bulk Response</CardTitle>
-          <CardDescription>
-            Compose a response to send to all constituents in this group
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Subject */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Subject</label>
-            <input
-              type="text"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="Re: Your message about..."
-              value={draftSubject}
-              onChange={(e) => setDraftSubject(e.target.value)}
-            />
-          </div>
+      {existingBulkResponse?.status === 'sent' && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Response Already Sent</AlertTitle>
+          <AlertDescription>
+            A bulk response was sent to this group on{' '}
+            {new Date(existingBulkResponse.sent_at || '').toLocaleString()}.
+            Sent to {existingBulkResponse.sent_count} recipients.
+          </AlertDescription>
+        </Alert>
+      )}
 
-          {/* Body */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Message Body</label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Insert Token
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuLabel>Personalization Tokens</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => handleInsertToken('constituent_name')}
-                  >
-                    Constituent Name
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleInsertToken('mp_name')}
-                  >
-                    MP Name
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            <Textarea
-              placeholder="Dear {{constituent_name}},&#10;&#10;Thank you for contacting me about...&#10;&#10;Best regards,&#10;{{mp_name}}"
-              className="min-h-[200px]"
-              value={draftBody}
-              onChange={(e) => setDraftBody(e.target.value)}
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-between">
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handlePreview}>
-                <Eye className="mr-2 h-4 w-4" />
-                Preview
-              </Button>
-              <Button variant="outline" onClick={handleSaveDraft}>
-                <Save className="mr-2 h-4 w-4" />
-                Save Draft
-              </Button>
-            </div>
-            <Button
-              onClick={handleSendToAll}
-              disabled={!draftSubject || !draftBody}
-            >
-              <Send className="mr-2 h-4 w-4" />
-              Send to All ({stats.totalEmails})
-            </Button>
-          </div>
-
-          {existingBulkResponse?.status === 'sent' && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Response Already Sent</AlertTitle>
-              <AlertDescription>
-                A bulk response was sent to this group on{' '}
-                {new Date(existingBulkResponse.sent_at || '').toLocaleString()}.
-                Sent to {existingBulkResponse.sent_count} recipients.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
+      <ResponseComposer
+        originalMessages={groupMessages}
+        mode="campaign"
+        campaignId={campaign?.id || decodedGroupId}
+        recipientCount={stats.totalEmails}
+      />
 
       {/* Individual Emails List */}
       <Card>
@@ -372,6 +261,7 @@ export default function PolicyEmailGroupDetailPage() {
                 <TableHead>Subject</TableHead>
                 <TableHead>Received</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -398,6 +288,15 @@ export default function PolicyEmailGroupDetailPage() {
                       <Badge variant="outline">Unassigned</Badge>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleViewEmail(message)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -405,52 +304,26 @@ export default function PolicyEmailGroupDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Preview Dialog */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-2xl">
+      {/* Email View Dialog */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Preview Email</DialogTitle>
+            <DialogTitle>Email Details</DialogTitle>
             <DialogDescription>
-              Preview how the email will look for a sample constituent
+              View the full email content
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm font-medium mb-1">Subject:</p>
-              <p className="text-sm bg-muted p-2 rounded">{draftSubject}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium mb-1">Body:</p>
-              <div className="text-sm bg-muted p-4 rounded whitespace-pre-wrap">
-                {renderPreview()}
-              </div>
-            </div>
-          </div>
+          {selectedMessage && (
+            <EmailDisplay
+              html={selectedMessage.body}
+              from={`${selectedMessage.from_name} <${selectedMessage.from_email}>`}
+              date={formatDate(selectedMessage.created_at)}
+              subject={selectedMessage.subject}
+            />
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPreview(false)}>
+            <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
               Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Send Confirmation Dialog */}
-      <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Bulk Send</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to send this email to all {stats.totalEmails}{' '}
-              recipients? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSendDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={confirmSend}>
-              <Send className="mr-2 h-4 w-4" />
-              Confirm Send
             </Button>
           </DialogFooter>
         </DialogContent>

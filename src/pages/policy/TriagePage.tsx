@@ -35,7 +35,7 @@ import {
 import { MoreHorizontal, Mail, Tag, UserPlus, Flag } from 'lucide-react';
 
 export default function TriagePage() {
-  const { messages, users, campaigns, tags } = useDummyData();
+  const { messages, users, campaigns } = useDummyData();
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
 
   // Filter for policy emails that need triage

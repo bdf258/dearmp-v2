@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDummyData } from '@/lib/useDummyData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,16 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { MailThread } from '@/components/mail';
 import {
   ArrowLeft,
   User,
   Building2,
   Mail,
-  Calendar,
   AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  Reply,
 } from 'lucide-react';
 
 export default function CaseDetailPage() {
@@ -23,8 +20,6 @@ export default function CaseDetailPage() {
   const navigate = useNavigate();
   const { cases, users, constituents, organizations, messages, case_parties } =
     useDummyData();
-
-  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
 
   // Find the case
   const caseData = cases.find((c) => c.id === caseId);
@@ -36,19 +31,6 @@ export default function CaseDetailPage() {
       .filter((m) => m.case_id === caseId)
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
   }, [caseId, messages]);
-
-  // Group messages by thread
-  const messageThreads = useMemo(() => {
-    const threads: { [key: string]: typeof caseMessages } = {};
-    caseMessages.forEach((msg) => {
-      const threadId = msg.thread_id || msg.id;
-      if (!threads[threadId]) {
-        threads[threadId] = [];
-      }
-      threads[threadId].push(msg);
-    });
-    return Object.values(threads);
-  }, [caseMessages]);
 
   // Get case parties
   const caseParties = useMemo(() => {
@@ -128,18 +110,6 @@ export default function CaseDetailPage() {
   const getUserName = (userId: string) => {
     const user = users.find((u) => u.id === userId);
     return user?.name || 'Unassigned';
-  };
-
-  const toggleMessageExpanded = (messageId: string) => {
-    setExpandedMessages((prev) => {
-      const next = new Set(prev);
-      if (next.has(messageId)) {
-        next.delete(messageId);
-      } else {
-        next.add(messageId);
-      }
-      return next;
-    });
   };
 
   return (
@@ -303,99 +273,22 @@ export default function CaseDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[800px]">
-                <div className="space-y-4">
-                  {messageThreads.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                      <Mail className="h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-semibold">No messages yet</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Messages will appear here once communication begins
-                      </p>
-                    </div>
-                  ) : (
-                    messageThreads.map((thread, threadIndex) => (
-                      <div key={threadIndex} className="space-y-2">
-                        {thread.map((message, msgIndex) => {
-                          const isExpanded = expandedMessages.has(message.id);
-                          const isInbound = message.direction === 'inbound';
-
-                          return (
-                            <div
-                              key={message.id}
-                              className={`rounded-lg border ${
-                                isInbound ? 'bg-background' : 'bg-muted/50'
-                              } ${msgIndex > 0 ? 'ml-8' : ''}`}
-                            >
-                              <div
-                                className="p-4 cursor-pointer"
-                                onClick={() => toggleMessageExpanded(message.id)}
-                              >
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="flex-1 space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-medium text-sm">
-                                        {isInbound ? (
-                                          <>From: {message.from_name}</>
-                                        ) : (
-                                          <>To: {message.to_name}</>
-                                        )}
-                                      </span>
-                                      <Badge
-                                        variant={
-                                          isInbound ? 'outline' : 'secondary'
-                                        }
-                                        className="text-xs"
-                                      >
-                                        {isInbound ? 'Inbound' : 'Outbound'}
-                                      </Badge>
-                                    </div>
-                                    <div className="text-sm font-medium">
-                                      {message.subject}
-                                    </div>
-                                    {!isExpanded && (
-                                      <div className="text-sm text-muted-foreground truncate">
-                                        {message.snippet}
-                                      </div>
-                                    )}
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                      <Calendar className="h-3 w-3" />
-                                      {formatDate(message.created_at)}
-                                    </div>
-                                  </div>
-                                  <Button variant="ghost" size="sm">
-                                    {isExpanded ? (
-                                      <ChevronUp className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                </div>
-
-                                {isExpanded && (
-                                  <div className="mt-4 space-y-4">
-                                    <Separator />
-                                    <div className="text-sm whitespace-pre-wrap">
-                                      {message.body}
-                                    </div>
-                                    <Separator />
-                                    <div className="flex gap-2">
-                                      <Button size="sm" variant="outline">
-                                        <Reply className="mr-2 h-4 w-4" />
-                                        Reply
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))
-                  )}
+              {caseMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Mail className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold">No messages yet</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Messages will appear here once communication begins
+                  </p>
                 </div>
-              </ScrollArea>
+              ) : (
+                <MailThread
+                  messages={caseMessages}
+                  mode="casework"
+                  caseId={caseId}
+                  showComposer={true}
+                />
+              )}
             </CardContent>
           </Card>
 
