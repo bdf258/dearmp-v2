@@ -7,6 +7,7 @@ import SettingsPage from '@/pages/SettingsPage';
 import LettersPage from '@/pages/office/LettersPage';
 import ThirdPartiesPage from '@/pages/office/ThirdPartiesPage';
 import ConstituentsPage from '@/pages/office/ConstituentsPage';
+import MPApprovalPage from '@/pages/mp/MPApprovalPage';
 
 function RootLayout() {
   const { currentOfficeMode, setCurrentOfficeMode } = useDummyData();
@@ -33,6 +34,7 @@ function RootLayout() {
             <Route path="/office/letters" element={<LettersPage />} />
             <Route path="/office/third-parties" element={<ThirdPartiesPage />} />
             <Route path="/office/constituents" element={<ConstituentsPage />} />
+            <Route path="/mp-approval" element={<MPApprovalPage />} />
           </Routes>
         </main>
       </div>
