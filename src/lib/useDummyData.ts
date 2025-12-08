@@ -92,6 +92,8 @@ export interface CaseParty {
   party_type: 'constituent' | 'organization';
   party_id: string;
   role: 'primary' | 'third_party';
+}
+
 export interface BulkResponse {
   id: string;
   campaign_id: string;
