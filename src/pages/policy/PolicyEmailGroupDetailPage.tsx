@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmailDisplay, ResponseComposer } from '@/components/mail';
+import { NotesSection } from '@/components/notes';
 import {
   Table,
   TableBody,
@@ -44,7 +45,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function PolicyEmailGroupDetailPage() {
-  const { groupId } = useParams<{ groupId: string }>();
+  const { groupId, campaignId: campaignIdParam } = useParams<{ groupId: string; campaignId: string }>();
   const { messages, campaigns, bulkResponses } = useDummyData();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -53,20 +54,34 @@ export default function PolicyEmailGroupDetailPage() {
 
   const decodedGroupId = groupId ? decodeURIComponent(groupId) : '';
 
-  // Get all messages in this group
-  const groupMessages = useMemo(() => {
-    return messages.filter((msg) => msg.fingerprint_hash === decodedGroupId);
-  }, [messages, decodedGroupId]);
-
-  // Get campaign info
+  // Get campaign info - either by direct ID or by fingerprint hash
   const campaign = useMemo(() => {
+    if (campaignIdParam) {
+      return campaigns.find((c) => c.id === campaignIdParam);
+    }
     return campaigns.find((c) => c.fingerprint_hash === decodedGroupId);
-  }, [campaigns, decodedGroupId]);
+  }, [campaigns, campaignIdParam, decodedGroupId]);
+
+  // Get all messages in this group - by campaign ID or fingerprint hash
+  const groupMessages = useMemo(() => {
+    if (campaignIdParam) {
+      const targetCampaign = campaigns.find((c) => c.id === campaignIdParam);
+      return messages.filter(
+        (msg) =>
+          msg.campaign_id === campaignIdParam ||
+          (targetCampaign?.fingerprint_hash && msg.fingerprint_hash === targetCampaign.fingerprint_hash)
+      );
+    }
+    return messages.filter((msg) => msg.fingerprint_hash === decodedGroupId);
+  }, [messages, campaigns, campaignIdParam, decodedGroupId]);
 
   // Get existing bulk response
   const existingBulkResponse = useMemo(() => {
+    if (campaignIdParam) {
+      return bulkResponses.find((br) => br.campaign_id === campaignIdParam);
+    }
     return bulkResponses.find((br) => br.fingerprint_hash === decodedGroupId);
-  }, [bulkResponses, decodedGroupId]);
+  }, [bulkResponses, campaignIdParam, decodedGroupId]);
 
 
   // Calculate stats
@@ -244,6 +259,9 @@ export default function PolicyEmailGroupDetailPage() {
         campaignId={campaign?.id || decodedGroupId}
         recipientCount={stats.totalEmails}
       />
+
+      {/* Team Notes */}
+      <NotesSection campaignId={campaign?.id} maxHeight="300px" />
 
       {/* Individual Emails List */}
       <Card>
