@@ -9,6 +9,10 @@ import {
   Mail,
   Flag,
   Inbox,
+  FolderOpen,
+  FilePlus,
+  Filter,
+  BarChart3,
   PenTool,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
@@ -73,9 +77,33 @@ const navItems: NavItem[] = [
     section: 'office',
   },
   {
+    title: 'Triage',
+    href: '/casework/triage',
+    icon: Inbox,
+    section: 'casework',
+  },
+  {
     title: 'Cases',
-    href: '/cases',
-    icon: FileText,
+    href: '/casework/cases',
+    icon: FolderOpen,
+    section: 'casework',
+  },
+  {
+    title: 'New Case',
+    href: '/casework/new-case',
+    icon: FilePlus,
+    section: 'casework',
+  },
+  {
+    title: 'Inbound Rules',
+    href: '/casework/inbound-rules',
+    icon: Filter,
+    section: 'casework',
+  },
+  {
+    title: 'Reporting',
+    href: '/casework/reporting',
+    icon: BarChart3,
     section: 'casework',
   },
   {
