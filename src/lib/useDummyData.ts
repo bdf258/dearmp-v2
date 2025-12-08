@@ -47,7 +47,10 @@ export interface Campaign {
   name: string;
   description: string;
   status: 'active' | 'inactive';
+  subject_pattern?: string;
+  fingerprint_hash?: string;
   created_at: string;
+  email_count?: number;
 }
 
 export interface Message {
@@ -66,6 +69,7 @@ export interface Message {
   is_policy_email: boolean;
   case_id: string | null;
   campaign_id: string | null;
+  fingerprint_hash: string | null;
   assigned_to_user_id: string | null;
   created_at: string;
 }
@@ -88,6 +92,28 @@ export interface CaseParty {
   party_type: 'constituent' | 'organization';
   party_id: string;
   role: 'primary' | 'third_party';
+export interface BulkResponse {
+  id: string;
+  campaign_id: string;
+  fingerprint_hash: string;
+  subject: string;
+  body_template: string;
+  status: 'draft' | 'sent';
+  created_by_user_id: string;
+  created_at: string;
+  sent_at?: string;
+  sent_count: number;
+  total_recipients: number;
+}
+
+export interface BulkResponseLog {
+  id: string;
+  bulk_response_id: string;
+  message_id: string;
+  recipient_email: string;
+  recipient_name: string;
+  sent_at: string;
+  status: 'sent' | 'failed';
 }
 
 export interface Tag {
@@ -95,6 +121,16 @@ export interface Tag {
   office_id: string;
   name: string;
   color: string;
+}
+
+export interface ApprovalItem {
+  id: string;
+  type: 'bulk_response' | 'draft_letter' | 'policy_statement';
+  title: string;
+  content: string;
+  context: string;
+  created_by_user_id: string;
+  created_at: string;
 }
 
 export interface DummyData {
@@ -107,6 +143,9 @@ export interface DummyData {
   campaigns: Campaign[];
   messages: Message[];
   tags: Tag[];
+  bulk_responses: BulkResponse[];
+  bulk_response_log: BulkResponseLog[];
+  approvalQueue: ApprovalItem[];
   currentUser: {
     id: string;
     office_id: string;
@@ -146,6 +185,9 @@ export function useDummyData() {
     campaigns: filterByOffice(data.campaigns),
     messages: filterByOffice(data.messages),
     tags: filterByOffice(data.tags),
+    bulkResponses: data.bulk_responses,
+    bulkResponseLog: data.bulk_response_log,
+    approvalQueue: data.approvalQueue,
 
     // Current user/office info
     currentUser,

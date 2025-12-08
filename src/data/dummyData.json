@@ -276,7 +276,10 @@
       "name": "Climate Action Campaign",
       "description": "Coordinated campaign regarding environmental legislation",
       "status": "active",
-      "created_at": "2024-01-05T09:00:00Z"
+      "subject_pattern": "Climate.*Legislation|Support.*Climate Bill",
+      "fingerprint_hash": "climate-bill-2024-hash",
+      "created_at": "2024-01-05T09:00:00Z",
+      "email_count": 127
     },
     {
       "id": "campaign-2",
@@ -284,7 +287,43 @@
       "name": "NHS Funding Campaign",
       "description": "Campaign for increased NHS funding and resources",
       "status": "active",
-      "created_at": "2024-02-01T10:00:00Z"
+      "subject_pattern": "NHS.*Funding|Healthcare.*Crisis",
+      "fingerprint_hash": "nhs-funding-2024-hash",
+      "created_at": "2024-02-01T10:00:00Z",
+      "email_count": 89
+    },
+    {
+      "id": "campaign-3",
+      "office_id": "office-1",
+      "name": "Education Funding Campaign",
+      "description": "Campaign for improved school funding and teacher pay",
+      "status": "active",
+      "subject_pattern": "Education.*Funding|School.*Budget|Teacher.*Pay",
+      "fingerprint_hash": "education-funding-hash",
+      "created_at": "2024-02-15T11:00:00Z",
+      "email_count": 56
+    },
+    {
+      "id": "campaign-4",
+      "office_id": "office-1",
+      "name": "Public Transport Investment",
+      "description": "Campaign for better public transport infrastructure",
+      "status": "active",
+      "subject_pattern": "Public.*Transport|Rail.*Investment|Bus.*Service",
+      "fingerprint_hash": "transport-investment-hash",
+      "created_at": "2024-03-01T09:30:00Z",
+      "email_count": 34
+    },
+    {
+      "id": "campaign-5",
+      "office_id": "office-1",
+      "name": "Housing Crisis Response",
+      "description": "Campaign addressing affordable housing shortage",
+      "status": "active",
+      "subject_pattern": "Affordable.*Housing|Housing.*Crisis|Social.*Housing",
+      "fingerprint_hash": "housing-crisis-hash",
+      "created_at": "2024-01-20T14:00:00Z",
+      "email_count": 78
     }
   ],
   "messages": [
@@ -301,10 +340,12 @@
       "direction": "inbound",
       "thread_id": null,
       "is_triage_needed": true,
+      "body": "I urge you to support the upcoming climate legislation bill...",
       "is_policy_email": true,
       "case_id": null,
       "campaign_id": "campaign-1",
-      "assigned_to_user_id": null,
+      "fingerprint_hash": "climate-bill-2024-hash",
+      "assigned_to_user_id": "user-1",
       "created_at": "2024-03-01T14:30:00Z"
     },
     {
@@ -323,6 +364,7 @@
       "is_policy_email": false,
       "case_id": "case-1",
       "campaign_id": null,
+      "fingerprint_hash": null,
       "assigned_to_user_id": "user-4",
       "created_at": "2024-01-16T11:00:00Z"
     },
@@ -396,10 +438,12 @@
       "direction": "inbound",
       "thread_id": null,
       "is_triage_needed": true,
+      "body": "As a healthcare professional, I'm writing to emphasize the critical need for increased NHS funding...",
       "is_policy_email": true,
       "case_id": null,
       "campaign_id": "campaign-2",
-      "assigned_to_user_id": null,
+      "fingerprint_hash": "nhs-funding-2024-hash",
+      "assigned_to_user_id": "user-2",
       "created_at": "2024-02-15T16:00:00Z"
     },
     {
@@ -437,6 +481,7 @@
       "is_policy_email": false,
       "case_id": "case-2",
       "campaign_id": null,
+      "fingerprint_hash": null,
       "assigned_to_user_id": "user-3",
       "created_at": "2024-02-28T11:30:00Z"
     },
@@ -456,6 +501,7 @@
       "is_policy_email": false,
       "case_id": null,
       "campaign_id": null,
+      "fingerprint_hash": null,
       "assigned_to_user_id": null,
       "created_at": "2024-03-05T09:45:00Z"
     },
@@ -561,8 +607,124 @@
       "color": "#EC4899"
     }
   ],
+  "approvalQueue": [
+    {
+      "id": "approval-1",
+      "type": "bulk_response",
+      "title": "Climate Action Campaign - Bulk Response",
+      "content": "<p>Dear [Constituent Name],</p><p>Thank you for writing to me about the upcoming Climate Legislation Bill. I share your concerns about the urgent need for action on climate change.</p><p>I want to assure you that I am committed to supporting strong environmental legislation that will help us meet our net-zero targets. The Climate Bill represents a significant step forward in our fight against climate change, and I will be voting in favor of it when it comes before Parliament.</p><p>Your voice, along with those of many other constituents, has helped shape my understanding of how important this issue is to our community. I will continue to push for ambitious climate action in Westminster.</p><p>Thank you again for taking the time to contact me.</p><p>Best regards,<br/>Your MP</p>",
+      "context": "Response to 127 emails received as part of Climate Action Campaign. This will be sent to all constituents who wrote in about the Climate Legislation Bill.",
+      "created_by_user_id": "user-2",
+      "created_at": "2024-03-15T10:30:00Z"
+    },
+    {
+      "id": "approval-2",
+      "type": "draft_letter",
+      "title": "Letter to Secretary of State - NHS Funding",
+      "content": "<p>Dear Secretary of State for Health and Social Care,</p><p>I am writing to you on behalf of my constituents who have expressed serious concerns about the current state of NHS funding and the resulting impact on healthcare services in our area.</p><p>Over recent months, I have received numerous reports of:</p><ul><li>Extended waiting times for specialist appointments, with some constituents waiting over 12 months</li><li>Difficulty accessing GP appointments in a timely manner</li><li>Staff shortages affecting the quality and availability of care</li></ul><p>I urge you to consider additional funding allocations for our local NHS trust and to address the systemic issues that are preventing our constituents from receiving the timely care they deserve.</p><p>I would welcome the opportunity to discuss this matter further and would be grateful for your response outlining what steps the Department is taking to address these concerns.</p><p>Yours sincerely,<br/>[MP Name]</p>",
+      "context": "Letter drafted in response to NHS Funding Campaign (campaign-2). Will be sent to the Secretary of State for Health and Social Care on behalf of constituents.",
+      "created_by_user_id": "user-1",
+      "created_at": "2024-03-14T15:45:00Z"
+    },
+    {
+      "id": "approval-3",
+      "type": "policy_statement",
+      "title": "Statement on Local Housing Development",
+      "content": "<p><strong>Statement from [MP Name] on Proposed Housing Development</strong></p><p>Following extensive consultation with residents and careful consideration of the planning proposals for the Green Lane development site, I am announcing my position on this important local matter.</p><p>While I recognize the critical need for additional housing in our constituency, I have significant concerns about the current proposal:</p><ol><li><strong>Infrastructure capacity:</strong> The local schools, GP surgeries, and transport links are already operating at capacity</li><li><strong>Green space preservation:</strong> The development would result in the loss of valuable community green space</li><li><strong>Affordable housing:</strong> The proportion of affordable housing units is below what our community needs</li></ol><p>I am therefore calling on the developers to revise their plans to address these concerns. I will be making formal representations to the planning committee and will continue to fight for a development that truly serves our community's interests.</p><p>I remain committed to ensuring that any development in our area is sustainable, benefits local residents, and includes adequate infrastructure to support new families.</p>",
+      "context": "Policy statement for publication on website and distribution to local media. Related to ongoing casework about local housing development concerns.",
+      "created_by_user_id": "user-1",
+      "created_at": "2024-03-13T09:20:00Z"
+    },
+    {
+      "id": "approval-4",
+      "type": "bulk_response",
+      "title": "NHS Funding Campaign - Response to Constituents",
+      "content": "<p>Dear [Constituent Name],</p><p>Thank you for contacting me about NHS funding. I have heard from many constituents about this vital issue, and I want to update you on the actions I am taking.</p><p>I have written to the Secretary of State for Health and Social Care outlining the specific concerns raised by my constituents, including the extended waiting times and staffing shortages affecting our local services. I will be pushing for increased funding allocation for our area in upcoming parliamentary discussions.</p><p>In Parliament, I will continue to advocate for:</p><ul><li>Increased NHS funding to reduce waiting times</li><li>Better workforce planning to address staff shortages</li><li>Improved resources for primary care services</li></ul><p>I will keep you informed of any developments and responses I receive from the Government.</p><p>Thank you for making your voice heard on this crucial matter.</p><p>Warm regards,<br/>Your MP</p>",
+      "context": "Follow-up response to constituents who wrote about NHS funding (campaign-2). To be sent after the letter to Secretary of State is approved and sent.",
+      "created_by_user_id": "user-2",
+      "created_at": "2024-03-15T14:00:00Z"
+    }
+  ],
   "currentUser": {
-    "id": "user-3",
-    "office_id": "office-2"
-  }
+    "id": "user-1",
+    "office_id": "office-1"
+  },
+  "bulk_responses": [
+    {
+      "id": "bulk-resp-1",
+      "campaign_id": "campaign-1",
+      "fingerprint_hash": "climate-bill-2024-hash",
+      "subject": "Re: Climate Legislation",
+      "body_template": "Dear {{constituent_name}},\n\nThank you for contacting me about the Climate Bill. I share your concerns about the urgent need for climate action.\n\nI am carefully reviewing the legislation and will be voting in support of measures that genuinely address the climate emergency while supporting a just transition for workers and communities.\n\nBest regards,\n{{mp_name}}",
+      "status": "draft",
+      "created_by_user_id": "user-1",
+      "created_at": "2024-03-04T10:00:00Z",
+      "sent_count": 0,
+      "total_recipients": 127
+    },
+    {
+      "id": "bulk-resp-2",
+      "campaign_id": "campaign-2",
+      "fingerprint_hash": "nhs-funding-2024-hash",
+      "subject": "Re: NHS Funding",
+      "body_template": "Dear {{constituent_name}},\n\nThank you for writing to me about NHS funding. I completely agree that our NHS needs proper investment.\n\nI have been consistently campaigning for increased NHS funding and will continue to push for the resources our healthcare system desperately needs.\n\nBest regards,\n{{mp_name}}",
+      "status": "sent",
+      "created_by_user_id": "user-2",
+      "created_at": "2024-02-18T09:00:00Z",
+      "sent_at": "2024-02-18T11:30:00Z",
+      "sent_count": 89,
+      "total_recipients": 89
+    },
+    {
+      "id": "bulk-resp-3",
+      "campaign_id": "campaign-3",
+      "fingerprint_hash": "education-funding-hash",
+      "subject": "Re: Education Funding",
+      "body_template": "Dear {{constituent_name}},\n\nThank you for contacting me regarding education funding and teacher pay.\n\nI recognize the challenges facing our schools and education system. I am committed to advocating for better funding and support for our teachers and students.\n\nBest regards,\n{{mp_name}}",
+      "status": "sent",
+      "created_by_user_id": "user-2",
+      "created_at": "2024-02-22T14:00:00Z",
+      "sent_at": "2024-02-23T10:00:00Z",
+      "sent_count": 56,
+      "total_recipients": 56
+    }
+  ],
+  "bulk_response_log": [
+    {
+      "id": "log-1",
+      "bulk_response_id": "bulk-resp-2",
+      "message_id": "msg-3",
+      "recipient_email": "policy.advocate@email.com",
+      "recipient_name": "Policy Advocate",
+      "sent_at": "2024-02-18T11:30:15Z",
+      "status": "sent"
+    },
+    {
+      "id": "log-2",
+      "bulk_response_id": "bulk-resp-2",
+      "message_id": "msg-8",
+      "recipient_email": "healthcare.worker@email.com",
+      "recipient_name": "NHS Worker",
+      "sent_at": "2024-02-18T11:30:18Z",
+      "status": "sent"
+    },
+    {
+      "id": "log-3",
+      "bulk_response_id": "bulk-resp-3",
+      "message_id": "msg-9",
+      "recipient_email": "parent.concerned@email.com",
+      "recipient_name": "Concerned Parent",
+      "sent_at": "2024-02-23T10:00:12Z",
+      "status": "sent"
+    },
+    {
+      "id": "log-4",
+      "bulk_response_id": "bulk-resp-3",
+      "message_id": "msg-10",
+      "recipient_email": "teacher.advocate@email.com",
+      "recipient_name": "Teacher",
+      "sent_at": "2024-02-23T10:00:15Z",
+      "status": "sent"
+    }
+  ]
 }
