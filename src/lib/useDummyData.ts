@@ -30,7 +30,7 @@ export interface Constituent {
 export interface Case {
   id: string;
   office_id: string;
-  constituent_id: string;
+  reference_number: string;
   title: string;
   description: string;
   status: 'open' | 'in_progress' | 'closed';
@@ -38,6 +38,7 @@ export interface Case {
   assigned_to_user_id: string;
   created_at: string;
   updated_at: string;
+  closed_at: string | null;
 }
 
 export interface Campaign {
@@ -54,14 +55,39 @@ export interface Message {
   office_id: string;
   from_email: string;
   from_name: string;
+  to_email: string;
+  to_name: string;
   subject: string;
+  snippet: string;
   body: string;
+  direction: 'inbound' | 'outbound';
+  thread_id: string | null;
   is_triage_needed: boolean;
   is_policy_email: boolean;
   case_id: string | null;
   campaign_id: string | null;
   assigned_to_user_id: string | null;
   created_at: string;
+}
+
+export interface Organization {
+  id: string;
+  office_id: string;
+  name: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  address: string;
+  type: string;
+  created_at: string;
+}
+
+export interface CaseParty {
+  id: string;
+  case_id: string;
+  party_type: 'constituent' | 'organization';
+  party_id: string;
+  role: 'primary' | 'third_party';
 }
 
 export interface Tag {
@@ -75,7 +101,9 @@ export interface DummyData {
   offices: Office[];
   users: User[];
   constituents: Constituent[];
+  organizations: Organization[];
   cases: Case[];
+  case_parties: CaseParty[];
   campaigns: Campaign[];
   messages: Message[];
   tags: Tag[];
@@ -112,7 +140,9 @@ export function useDummyData() {
     offices: data.offices,
     users: filterByOffice(data.users),
     constituents: filterByOffice(data.constituents),
+    organizations: filterByOffice(data.organizations),
     cases: filterByOffice(data.cases),
+    case_parties: data.case_parties, // Not filtered by office, as they link to cases
     campaigns: filterByOffice(data.campaigns),
     messages: filterByOffice(data.messages),
     tags: filterByOffice(data.tags),

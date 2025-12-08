@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 
 export default function SettingsPage() {
-  const { currentOfficeMode, setCurrentOfficeMode, currentOffice } = useDummyData();
+  const { currentOfficeMode, setCurrentOfficeMode } = useDummyData();
 
   return (
     <div className="space-y-6">
