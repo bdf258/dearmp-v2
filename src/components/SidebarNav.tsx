@@ -8,6 +8,8 @@ import {
   Home,
   Mail,
   Flag,
+  Inbox,
+  PenTool,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
@@ -30,14 +32,26 @@ const navItems: NavItem[] = [
   },
   {
     title: 'Triage',
-    href: '/triage',
+    href: '/policy/triage',
     icon: Mail,
     section: 'policy',
   },
   {
     title: 'Campaigns',
-    href: '/campaigns',
+    href: '/policy/campaigns',
     icon: Flag,
+    section: 'policy',
+  },
+  {
+    title: 'Policy Emails',
+    href: '/policy/emails',
+    icon: Inbox,
+    section: 'policy',
+  },
+  {
+    title: 'Office Style',
+    href: '/policy/office-style',
+    icon: PenTool,
     section: 'policy',
   },
   {
