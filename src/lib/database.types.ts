@@ -619,6 +619,14 @@ export type Tag = Database['public']['Tables']['tags']['Row'];
 export type TagAssignment = Database['public']['Tables']['tag_assignments']['Row'];
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 
+// Integration types (not in RLS-protected tables)
+export interface IntegrationOutlookSession {
+  office_id: string;
+  email: string | null;
+  status: string;
+  updated_at: string;
+}
+
 // Insert types
 export type OfficeInsert = Database['public']['Tables']['offices']['Insert'];
 export type ConstituentInsert = Database['public']['Tables']['constituents']['Insert'];
