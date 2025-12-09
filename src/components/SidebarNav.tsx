@@ -14,11 +14,14 @@ import {
   Filter,
   BarChart3,
   PenTool,
+  X,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
 interface SidebarNavProps {
   currentMode: 'casework' | 'westminster';
+  isCollapsed: boolean;
+  onToggle: () => void;
 }
 
 interface NavItem {
@@ -113,7 +116,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function SidebarNav({ currentMode }: SidebarNavProps) {
+export function SidebarNav({ currentMode, isCollapsed, onToggle }: SidebarNavProps) {
   const location = useLocation();
 
   const renderNavSection = (section: string, items: NavItem[]) => (
@@ -130,6 +133,12 @@ export function SidebarNav({ currentMode }: SidebarNavProps) {
             <Link
               key={item.href}
               to={item.href}
+              onClick={() => {
+                // Close sidebar on mobile when a link is clicked
+                if (window.innerWidth < 768) {
+                  onToggle();
+                }
+              }}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
                 isActive
@@ -155,47 +164,69 @@ export function SidebarNav({ currentMode }: SidebarNavProps) {
   const caseworkItems = navItems.filter((item) => item.section === 'casework');
 
   return (
-    <aside className="w-64 border-r border-sidebar-border bg-sidebar">
-      <div className="flex h-full flex-col">
-        {/* Logo/Title */}
-        <div className="flex h-16 items-center border-b border-sidebar-border px-6">
-          <h1 className="text-xl font-bold text-sidebar-primary">DearMP</h1>
+    <>
+      {/* Overlay for mobile */}
+      {!isCollapsed && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={onToggle}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          'fixed left-0 top-0 z-50 h-full w-64 border-r border-sidebar-border bg-sidebar transition-transform duration-300 md:relative md:translate-x-0',
+          isCollapsed ? '-translate-x-full' : 'translate-x-0'
+        )}
+      >
+        <div className="flex h-full flex-col">
+          {/* Logo/Title */}
+          <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
+            <h1 className="text-xl font-bold text-sidebar-primary">DearMP</h1>
+            {/* Close button for mobile */}
+            <button
+              onClick={onToggle}
+              className="md:hidden rounded-md p-2 hover:bg-sidebar-accent"
+              aria-label="Close sidebar"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Navigation */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {/* General Navigation */}
+            {generalItems.length > 0 && (
+              <>
+                {renderNavSection('', generalItems)}
+                <Separator className="my-4" />
+              </>
+            )}
+
+            {/* Policy Section (Westminster mode) */}
+            {currentMode === 'westminster' && policyItems.length > 0 && (
+              <>
+                {renderNavSection('Policy', policyItems)}
+                <Separator className="my-4" />
+              </>
+            )}
+
+            {/* Casework Section (Casework mode) */}
+            {currentMode === 'casework' && caseworkItems.length > 0 && (
+              <>{renderNavSection('Casework', caseworkItems)}</>
+            )}
+
+            {/* Office Section (both modes) */}
+            {officeItems.length > 0 && (
+              <>
+                {renderNavSection('Office', officeItems)}
+                <Separator className="my-4" />
+              </>
+            )}
+          </div>
         </div>
-
-        {/* Navigation */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {/* General Navigation */}
-          {generalItems.length > 0 && (
-            <>
-              {renderNavSection('', generalItems)}
-              <Separator className="my-4" />
-            </>
-          )}
-
-          {/* Policy Section (Westminster mode) */}
-          {currentMode === 'westminster' && policyItems.length > 0 && (
-            <>
-              {renderNavSection('Policy', policyItems)}
-              <Separator className="my-4" />
-            </>
-          )}
-
-         {/* Casework Section (Casework mode) */}
-          {currentMode === 'casework' && caseworkItems.length > 0 && (
-            <>{renderNavSection('Casework', caseworkItems)}</>
-          )}
-
-
-          {/* Office Section (both modes) */}
-          {officeItems.length > 0 && (
-            <>
-              {renderNavSection('Office', officeItems)}
-              <Separator className="my-4" />
-            </>
-          )}
-
-        </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
