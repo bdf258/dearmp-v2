@@ -46,7 +46,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function PolicyEmailGroupDetailPage() {
   const { groupId, campaignId } = useParams<{ groupId?: string; campaignId?: string }>();
-  const { messages, campaigns, bulkResponses,  } = useSupabase();
+  const { messages, campaigns, bulkResponses, messageRecipients } = useSupabase();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<any>(null);
