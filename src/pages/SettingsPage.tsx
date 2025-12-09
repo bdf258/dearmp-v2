@@ -4,7 +4,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { LogOut, Settings, Users, Mail, Tags } from 'lucide-react';
 
 export default function SettingsPage() {
   const { currentOfficeMode, setCurrentOfficeMode, signOut, profile, currentOffice } = useSupabase();
@@ -102,59 +103,98 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* General Office Settings */}
+      {/* Office Settings Accordion */}
       <Card>
         <CardHeader>
-          <CardTitle>General Office Settings</CardTitle>
-          <CardDescription>Configure office-wide preferences</CardDescription>
+          <CardTitle>Office Configuration</CardTitle>
+          <CardDescription>Manage your office settings and integrations</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            General office settings will be available here. This includes office name,
-            working hours, and other general configurations.
-          </p>
-        </CardContent>
-      </Card>
+        <CardContent className="pt-0">
+          <Accordion type="single" collapsible className="w-full">
+            {/* General Office Settings */}
+            <AccordionItem value="general-settings">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-3">
+                  <Settings className="h-5 w-5 text-muted-foreground" />
+                  <div className="text-left">
+                    <div className="font-medium">General Office Settings</div>
+                    <div className="text-sm text-muted-foreground font-normal">Configure office-wide preferences</div>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pl-8 pt-2">
+                  <p className="text-sm text-muted-foreground">
+                    General office settings will be available here. This includes office name,
+                    working hours, and other general configurations.
+                  </p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
 
-      {/* User Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle>User Management</CardTitle>
-          <CardDescription>Manage team members and their permissions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            User management interface will be available here. Add, remove, and configure
-            team member permissions.
-          </p>
-        </CardContent>
-      </Card>
+            {/* User Management */}
+            <AccordionItem value="user-management">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <div className="text-left">
+                    <div className="font-medium">User Management</div>
+                    <div className="text-sm text-muted-foreground font-normal">Manage team members and their permissions</div>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pl-8 pt-2">
+                  <p className="text-sm text-muted-foreground">
+                    User management interface will be available here. Add, remove, and configure
+                    team member permissions.
+                  </p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
 
-      {/* Email Integration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Email Integration</CardTitle>
-          <CardDescription>Configure email inbox connections</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Email integration settings will be available here. Connect your office email
-            accounts for automatic message importing.
-          </p>
-        </CardContent>
-      </Card>
+            {/* Email Integration */}
+            <AccordionItem value="email-integration">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-3">
+                  <Mail className="h-5 w-5 text-muted-foreground" />
+                  <div className="text-left">
+                    <div className="font-medium">Email Integration</div>
+                    <div className="text-sm text-muted-foreground font-normal">Configure email inbox connections</div>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pl-8 pt-2">
+                  <p className="text-sm text-muted-foreground">
+                    Email integration settings will be available here. Connect your office email
+                    accounts for automatic message importing.
+                  </p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
 
-      {/* Tag Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tag Management</CardTitle>
-          <CardDescription>Create and manage tags for organizing cases and messages</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Tag management interface will be available here. Create custom tags with colors
-            to categorize your work.
-          </p>
+            {/* Tag Management */}
+            <AccordionItem value="tag-management" className="border-b-0">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-3">
+                  <Tags className="h-5 w-5 text-muted-foreground" />
+                  <div className="text-left">
+                    <div className="font-medium">Tag Management</div>
+                    <div className="text-sm text-muted-foreground font-normal">Create and manage tags for organizing cases and messages</div>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pl-8 pt-2">
+                  <p className="text-sm text-muted-foreground">
+                    Tag management interface will be available here. Create custom tags with colors
+                    to categorize your work.
+                  </p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </CardContent>
       </Card>
     </div>
