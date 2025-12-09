@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useDummyData } from '@/lib/useDummyData';
+import { SupabaseProvider, useSupabase } from '@/lib/SupabaseContext';
 import { Header } from '@/components/Header';
 import { SidebarNav } from '@/components/SidebarNav';
 import Dashboard from '@/pages/Dashboard';
 import SettingsPage from '@/pages/SettingsPage';
+import LoginPage from '@/pages/LoginPage';
 import LettersPage from '@/pages/office/LettersPage';
 import ThirdPartiesPage from '@/pages/office/ThirdPartiesPage';
 import ConstituentsPage from '@/pages/office/ConstituentsPage';
@@ -19,8 +20,19 @@ import PolicyEmailGroupDetailPage from '@/pages/policy/PolicyEmailGroupDetailPag
 import OfficeStylePage from '@/pages/policy/OfficeStylePage';
 import MPApprovalPage from '@/pages/mp/MPApprovalPage';
 
-function RootLayout() {
-  const { currentOfficeMode, setCurrentOfficeMode } = useDummyData();
+function LoadingScreen() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-background">
+      <div className="text-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+function AuthenticatedLayout() {
+  const { currentOfficeMode, setCurrentOfficeMode } = useSupabase();
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -68,10 +80,26 @@ function RootLayout() {
   );
 }
 
+function RootLayout() {
+  const { user, loading } = useSupabase();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return <AuthenticatedLayout />;
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <RootLayout />
+      <SupabaseProvider>
+        <RootLayout />
+      </SupabaseProvider>
     </BrowserRouter>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,8 +18,8 @@ import {
 export default function CaseDetailPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const navigate = useNavigate();
-  const { cases, users, constituents, organizations, messages, case_parties } =
-    useDummyData();
+  const { cases, profiles, constituents, constituentContacts, organizations, messages, caseParties } =
+    useSupabase();
 
   // Find the case
   const caseData = cases.find((c) => c.id === caseId);
@@ -29,31 +29,44 @@ export default function CaseDetailPage() {
     if (!caseId) return [];
     return messages
       .filter((m) => m.case_id === caseId)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      .sort((a, b) => new Date(a.received_at).getTime() - new Date(b.received_at).getTime());
   }, [caseId, messages]);
 
   // Get case parties
-  const caseParties = useMemo(() => {
+  const parties = useMemo(() => {
     if (!caseId) return { constituents: [], organizations: [] };
-    const parties = case_parties.filter((cp) => cp.case_id === caseId);
+    const partiesForCase = caseParties.filter((cp) => cp.case_id === caseId);
 
     return {
-      constituents: parties
-        .filter((p) => p.party_type === 'constituent')
-        .map((p) => ({
-          ...constituents.find((c) => c.id === p.party_id)!,
-          role: p.role,
-        }))
+      constituents: partiesForCase
+        .filter((p) => p.constituent_id)
+        .map((p) => {
+          const constituent = constituents.find((c) => c.id === p.constituent_id);
+          if (!constituent) return null;
+          const contacts = constituentContacts.filter(cc => cc.constituent_id === constituent.id);
+          const email = contacts.find(c => c.type === 'email')?.value || '';
+          const phone = contacts.find(c => c.type === 'phone')?.value || '';
+          return {
+            ...constituent,
+            email,
+            phone,
+            role: p.role,
+          };
+        })
         .filter(Boolean),
-      organizations: parties
-        .filter((p) => p.party_type === 'organization')
-        .map((p) => ({
-          ...organizations.find((o) => o.id === p.party_id)!,
-          role: p.role,
-        }))
+      organizations: partiesForCase
+        .filter((p) => p.organization_id)
+        .map((p) => {
+          const org = organizations.find((o) => o.id === p.organization_id);
+          if (!org) return null;
+          return {
+            ...org,
+            role: p.role,
+          };
+        })
         .filter(Boolean),
     };
-  }, [caseId, case_parties, constituents, organizations]);
+  }, [caseId, caseParties, constituents, constituentContacts, organizations]);
 
   if (!caseData) {
     return (
@@ -85,10 +98,12 @@ export default function CaseDetailPage() {
     switch (status) {
       case 'open':
         return <Badge variant="outline">Open</Badge>;
-      case 'in_progress':
-        return <Badge variant="secondary">In Progress</Badge>;
+      case 'pending':
+        return <Badge variant="secondary">Pending</Badge>;
       case 'closed':
         return <Badge variant="default">Closed</Badge>;
+      case 'archived':
+        return <Badge>Archived</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -96,6 +111,8 @@ export default function CaseDetailPage() {
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
+      case 'urgent':
+        return <Badge variant="destructive">Urgent</Badge>;
       case 'high':
         return <Badge variant="destructive">High</Badge>;
       case 'medium':
@@ -107,9 +124,10 @@ export default function CaseDetailPage() {
     }
   };
 
-  const getUserName = (userId: string) => {
-    const user = users.find((u) => u.id === userId);
-    return user?.name || 'Unassigned';
+  const getUserName = (userId: string | null) => {
+    if (!userId) return 'Unassigned';
+    const profile = profiles.find((p) => p.id === userId);
+    return profile?.full_name || 'Unassigned';
   };
 
   return (
@@ -126,7 +144,7 @@ export default function CaseDetailPage() {
         <div className="flex-1">
           <h1 className="text-3xl font-bold tracking-tight">{caseData.title}</h1>
           <p className="text-muted-foreground font-mono text-sm">
-            {caseData.reference_number}
+            #{caseData.reference_number}
           </p>
         </div>
       </div>
@@ -150,7 +168,7 @@ export default function CaseDetailPage() {
             <CardTitle className="text-sm font-medium">Assigned To</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-sm">{getUserName(caseData.assigned_to_user_id)}</div>
+            <div className="text-sm">{getUserName(caseData.assigned_to)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -194,25 +212,32 @@ export default function CaseDetailPage() {
                       Constituents
                     </h3>
                     <div className="space-y-3">
-                      {caseParties.constituents.map((constituent) => (
+                      {parties.constituents.map((constituent: any) => (
                         <div
                           key={constituent.id}
                           className="rounded-lg border p-3 space-y-1"
                         >
                           <div className="font-medium text-sm">
-                            {constituent.first_name} {constituent.last_name}
+                            {constituent.full_name}
                           </div>
                           <Badge variant="outline" className="text-xs">
                             {constituent.role}
                           </Badge>
-                          <div className="text-xs text-muted-foreground">
-                            {constituent.email}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {constituent.phone}
-                          </div>
+                          {constituent.email && (
+                            <div className="text-xs text-muted-foreground">
+                              {constituent.email}
+                            </div>
+                          )}
+                          {constituent.phone && (
+                            <div className="text-xs text-muted-foreground">
+                              {constituent.phone}
+                            </div>
+                          )}
                         </div>
                       ))}
+                      {parties.constituents.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No constituents linked</p>
+                      )}
                     </div>
                   </div>
 
@@ -225,20 +250,22 @@ export default function CaseDetailPage() {
                       Organizations
                     </h3>
                     <div className="space-y-3">
-                      {caseParties.organizations.map((org) => (
+                      {parties.organizations.map((org: any) => (
                         <div key={org.id} className="rounded-lg border p-3 space-y-1">
                           <div className="font-medium text-sm">{org.name}</div>
                           <Badge variant="outline" className="text-xs">
                             {org.role}
                           </Badge>
-                          <div className="text-xs text-muted-foreground">
-                            Contact: {org.contact_name}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {org.contact_email}
-                          </div>
+                          {org.type && (
+                            <div className="text-xs text-muted-foreground">
+                              Type: {org.type}
+                            </div>
+                          )}
                         </div>
                       ))}
+                      {parties.organizations.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No organizations linked</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -256,7 +283,7 @@ export default function CaseDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                {caseData.description}
+                {caseData.description || 'No description provided'}
               </p>
             </CardContent>
           </Card>

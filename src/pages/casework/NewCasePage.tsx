@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,22 +17,33 @@ import { ArrowLeft, Save } from 'lucide-react';
 
 export default function NewCasePage() {
   const navigate = useNavigate();
-  const { users, constituents } = useDummyData();
+  const { profiles, constituents, createCase } = useSupabase();
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    priority: 'medium',
-    assigned_to_user_id: '',
+    priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    assigned_to: '',
     constituent_id: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Creating new case:', formData);
-    // In a real app, this would submit to the backend
-    // For now, just navigate back to cases
-    navigate('/casework/cases');
+    setIsSubmitting(true);
+
+    const newCase = await createCase({
+      title: formData.title,
+      description: formData.description,
+      priority: formData.priority,
+      assigned_to: formData.assigned_to || null,
+    });
+
+    setIsSubmitting(false);
+
+    if (newCase) {
+      navigate(`/casework/cases/${newCase.id}`);
+    }
   };
 
   const handleChange = (
@@ -77,19 +88,18 @@ export default function NewCasePage() {
             <div className="grid gap-6 md:grid-cols-2">
               {/* Constituent Selection */}
               <div className="space-y-2">
-                <Label htmlFor="constituent">Constituent *</Label>
+                <Label htmlFor="constituent">Constituent</Label>
                 <Select
                   value={formData.constituent_id}
                   onValueChange={(value) => handleChange('constituent_id', value)}
-                  required
                 >
                   <SelectTrigger id="constituent">
-                    <SelectValue placeholder="Select constituent" />
+                    <SelectValue placeholder="Select constituent (optional)" />
                   </SelectTrigger>
                   <SelectContent>
                     {constituents.map((constituent) => (
                       <SelectItem key={constituent.id} value={constituent.id}>
-                        {constituent.first_name} {constituent.last_name}
+                        {constituent.full_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -98,19 +108,18 @@ export default function NewCasePage() {
 
               {/* Assigned To */}
               <div className="space-y-2">
-                <Label htmlFor="assigned_to">Assign To *</Label>
+                <Label htmlFor="assigned_to">Assign To</Label>
                 <Select
-                  value={formData.assigned_to_user_id}
-                  onValueChange={(value) => handleChange('assigned_to_user_id', value)}
-                  required
+                  value={formData.assigned_to}
+                  onValueChange={(value) => handleChange('assigned_to', value)}
                 >
                   <SelectTrigger id="assigned_to">
-                    <SelectValue placeholder="Select assignee" />
+                    <SelectValue placeholder="Select assignee (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name}
+                    {profiles.map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.full_name || 'Unknown'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -132,14 +141,13 @@ export default function NewCasePage() {
 
             {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="description">Description *</Label>
+              <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
                 placeholder="Detailed description of the case..."
                 value={formData.description}
                 onChange={(e) => handleChange('description', e.target.value)}
                 rows={6}
-                required
               />
             </div>
 
@@ -157,6 +165,7 @@ export default function NewCasePage() {
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="urgent">Urgent</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -170,9 +179,9 @@ export default function NewCasePage() {
               >
                 Cancel
               </Button>
-              <Button type="submit">
+              <Button type="submit" disabled={isSubmitting || !formData.title}>
                 <Save className="mr-2 h-4 w-4" />
-                Create Case
+                {isSubmitting ? 'Creating...' : 'Create Case'}
               </Button>
             </div>
           </form>

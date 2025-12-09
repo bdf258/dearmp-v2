@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import {
   Card,
   CardContent,
@@ -35,32 +35,39 @@ import {
 import { MoreHorizontal, Mail, Tag, UserPlus, Flag } from 'lucide-react';
 
 export default function TriagePage() {
-  const { messages, users, campaigns } = useDummyData();
+  const { messages, profiles, campaigns, messageRecipients } = useSupabase();
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
 
-  // Filter for policy emails that need triage
+  // Filter for messages that need triage (have campaign but not yet processed)
   const triageMessages = messages.filter(
-    (msg) => msg.is_policy_email && msg.is_triage_needed
+    (msg) => msg.campaign_id && msg.direction === 'inbound'
   );
+
+  // Get sender info helper
+  const getSenderInfo = (messageId: string) => {
+    const sender = messageRecipients.find(
+      r => r.message_id === messageId && r.recipient_type === 'from'
+    );
+    return {
+      name: sender?.name || 'Unknown',
+      email: sender?.email_address || '',
+    };
+  };
 
   const handleAssignToUser = (messageId: string, userId: string) => {
     console.log(`Assigning message ${messageId} to user ${userId}`);
-    // In a real app, this would update the message
   };
 
   const handleAssignToCampaign = (messageId: string, campaignId: string) => {
     console.log(`Assigning message ${messageId} to campaign ${campaignId}`);
-    // In a real app, this would update the message
   };
 
   const handleMarkAsCasework = (messageId: string) => {
     console.log(`Marking message ${messageId} as casework email`);
-    // In a real app, this would update is_policy_email to false
   };
 
   const handleAddTag = (messageId: string) => {
     console.log(`Adding tag to message ${messageId}`);
-    // In a real app, this would open a tag selection dialog
   };
 
   const selectedMessageData = messages.find((m) => m.id === selectedMessage);
@@ -105,16 +112,17 @@ export default function TriagePage() {
               <TableBody>
                 {triageMessages.map((message) => {
                   const matchedCampaign = campaigns.find(
-                    (c) => c.fingerprint_hash === message.fingerprint_hash
+                    (c) => c.id === message.campaign_id
                   );
+                  const sender = getSenderInfo(message.id);
 
                   return (
                     <TableRow key={message.id}>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">{message.from_name}</span>
+                          <span className="font-medium">{sender.name}</span>
                           <span className="text-xs text-muted-foreground">
-                            {message.from_email}
+                            {sender.email}
                           </span>
                         </div>
                       </TableCell>
@@ -123,11 +131,11 @@ export default function TriagePage() {
                           onClick={() => setSelectedMessage(message.id)}
                           className="text-left hover:underline"
                         >
-                          {message.subject}
+                          {message.subject || '(No subject)'}
                         </button>
                       </TableCell>
                       <TableCell>
-                        {new Date(message.created_at).toLocaleDateString()}
+                        {new Date(message.received_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
                         {matchedCampaign ? (
@@ -158,15 +166,15 @@ export default function TriagePage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuLabel>Assign To User</DropdownMenuLabel>
-                            {users.map((user) => (
+                            {profiles.map((profile) => (
                               <DropdownMenuItem
-                                key={user.id}
+                                key={profile.id}
                                 onClick={() =>
-                                  handleAssignToUser(message.id, user.id)
+                                  handleAssignToUser(message.id, profile.id)
                                 }
                               >
                                 <UserPlus className="mr-2 h-4 w-4" />
-                                {user.name}
+                                {profile.full_name || 'Unknown'}
                               </DropdownMenuItem>
                             ))}
                             <DropdownMenuSeparator />
@@ -216,16 +224,18 @@ export default function TriagePage() {
       >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{selectedMessageData?.subject}</DialogTitle>
+            <DialogTitle>{selectedMessageData?.subject || '(No subject)'}</DialogTitle>
             <DialogDescription>
-              From: {selectedMessageData?.from_name} (
-              {selectedMessageData?.from_email})
+              {selectedMessageData && (() => {
+                const sender = getSenderInfo(selectedMessageData.id);
+                return `From: ${sender.name} (${sender.email})`;
+              })()}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/50 p-4">
               <p className="whitespace-pre-wrap text-sm">
-                {selectedMessageData?.body}
+                {selectedMessageData?.snippet || selectedMessageData?.body_search_text || '(No content available)'}
               </p>
             </div>
             <div className="flex justify-end space-x-2">

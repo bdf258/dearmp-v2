@@ -7,14 +7,17 @@ import { AlertCircle } from 'lucide-react';
 
 interface Message {
   id: string;
-  from_email: string;
-  from_name: string;
-  to_email: string;
-  to_name: string;
-  subject: string;
-  body: string;
+  from_email?: string;
+  from_name?: string;
+  to_email?: string;
+  to_name?: string;
+  subject?: string | null;
+  body?: string;
+  snippet?: string | null;
+  body_search_text?: string | null;
   direction: 'inbound' | 'outbound';
-  created_at: string;
+  created_at?: string;
+  received_at?: string;
 }
 
 interface ResponseComposerProps {
@@ -22,7 +25,7 @@ interface ResponseComposerProps {
   mode: 'casework' | 'campaign';
   campaignId?: string;
   caseId?: string;
-  recipientCount?: number; // For campaign mode warning
+  recipientCount?: number;
 }
 
 // Mock service functions
@@ -33,7 +36,6 @@ const sendEmail = async (
   replyToMessageId: string
 ): Promise<void> => {
   console.log('Sending email:', { caseId, html, plainText, replyToMessageId });
-  // TODO: Implement actual email sending via API
   await new Promise((resolve) => setTimeout(resolve, 1000));
 };
 
@@ -43,8 +45,6 @@ const createBulkResponse = async (
   plainText: string
 ): Promise<void> => {
   console.log('Creating bulk response:', { campaignId, html, plainText });
-  // TODO: Implement actual bulk response creation via API
-  // This should insert into bulk_responses table
   await new Promise((resolve) => setTimeout(resolve, 1000));
 };
 
@@ -60,11 +60,8 @@ export function ResponseComposer({
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    // Only add quote block for casework mode
     if (mode === 'casework' && originalMessages.length > 0) {
       const mostRecentMessage = originalMessages[originalMessages.length - 1];
-
-      // Generate quote block
       const quoteBlock = generateQuoteBlock(mostRecentMessage);
       setInitialContent(quoteBlock);
     } else {
@@ -73,30 +70,28 @@ export function ResponseComposer({
   }, [originalMessages, mode]);
 
   const generateQuoteBlock = (message: Message): string => {
-    // Simple quote block generation
-    // Take the first 500 characters or first few lines of the message
-    let bodyText = message.body;
-
-    // Remove HTML tags if present
+    let bodyText = message.body || message.snippet || message.body_search_text || '';
     bodyText = bodyText.replace(/<[^>]*>/g, '');
-
-    // Limit to first 500 characters or 5 lines
     const lines = bodyText.split('\n').slice(0, 5);
     const truncatedText = lines.join('\n').substring(0, 500);
 
-    // Create a formatted quote block
-    const date = new Date(message.created_at).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const dateStr = message.created_at || message.received_at;
+    const date = dateStr
+      ? new Date(dateStr).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : 'Unknown date';
+
+    const fromName = message.from_name || 'Unknown';
 
     const quoteHtml = `
 <p><br></p>
 <blockquote>
-  <p><strong>On ${date}, ${message.from_name} wrote:</strong></p>
+  <p><strong>On ${date}, ${fromName} wrote:</strong></p>
   <p>${truncatedText.replace(/\n/g, '<br>')}</p>
 </blockquote>
     `.trim();

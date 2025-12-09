@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import {
   Card,
   CardContent,
@@ -21,61 +21,58 @@ import {
 import { Mail, ArrowRight, Inbox, Tag as TagIcon } from 'lucide-react';
 
 interface EmailGroup {
-  fingerprint_hash: string;
+  campaign_id: string | null;
   count: number;
   subject: string;
   theme: string;
-  campaign_id?: string;
   campaign_name?: string;
   latest_date: string;
 }
 
 export default function PolicyEmailsPage() {
-  const { messages, campaigns } = useDummyData();
+  const { messages, campaigns } = useSupabase();
   const navigate = useNavigate();
 
-  // Group policy emails by fingerprint_hash
+  // Group policy emails by campaign_id
   const emailGroups = useMemo(() => {
     const groups = new Map<string, EmailGroup>();
 
     messages
-      .filter((msg) => msg.is_policy_email && msg.fingerprint_hash)
+      .filter((msg) => msg.campaign_id)
       .forEach((msg) => {
-        const hash = msg.fingerprint_hash!;
-        const existing = groups.get(hash);
+        const campaignId = msg.campaign_id!;
+        const existing = groups.get(campaignId);
 
         if (existing) {
           existing.count += 1;
-          if (new Date(msg.created_at) > new Date(existing.latest_date)) {
-            existing.latest_date = msg.created_at;
+          if (new Date(msg.received_at) > new Date(existing.latest_date)) {
+            existing.latest_date = msg.received_at;
           }
         } else {
-          const campaign = campaigns.find(
-            (c) => c.fingerprint_hash === hash || c.id === msg.campaign_id
-          );
+          const campaign = campaigns.find((c) => c.id === campaignId);
 
           // Determine theme from subject
           let theme = 'General Policy';
-          if (msg.subject.toLowerCase().includes('climate')) {
+          const subject = msg.subject?.toLowerCase() || '';
+          if (subject.includes('climate')) {
             theme = 'Climate & Environment';
-          } else if (msg.subject.toLowerCase().includes('nhs') || msg.subject.toLowerCase().includes('healthcare')) {
+          } else if (subject.includes('nhs') || subject.includes('healthcare')) {
             theme = 'Healthcare';
-          } else if (msg.subject.toLowerCase().includes('education') || msg.subject.toLowerCase().includes('school')) {
+          } else if (subject.includes('education') || subject.includes('school')) {
             theme = 'Education';
-          } else if (msg.subject.toLowerCase().includes('transport')) {
+          } else if (subject.includes('transport')) {
             theme = 'Transport';
-          } else if (msg.subject.toLowerCase().includes('housing')) {
+          } else if (subject.includes('housing')) {
             theme = 'Housing';
           }
 
-          groups.set(hash, {
-            fingerprint_hash: hash,
+          groups.set(campaignId, {
+            campaign_id: campaignId,
             count: 1,
-            subject: msg.subject,
+            subject: msg.subject || '(No subject)',
             theme,
-            campaign_id: campaign?.id,
             campaign_name: campaign?.name,
-            latest_date: msg.created_at,
+            latest_date: msg.received_at,
           });
         }
       });
@@ -83,11 +80,11 @@ export default function PolicyEmailsPage() {
     return Array.from(groups.values()).sort((a, b) => b.count - a.count);
   }, [messages, campaigns]);
 
-  const handleViewGroup = (fingerprintHash: string) => {
-    navigate(`/policy/email-group/${encodeURIComponent(fingerprintHash)}`);
+  const handleViewGroup = (campaignId: string) => {
+    navigate(`/policy/campaign/${encodeURIComponent(campaignId)}`);
   };
 
-  const totalPolicyEmails = messages.filter((msg) => msg.is_policy_email).length;
+  const totalPolicyEmails = messages.filter((msg) => msg.campaign_id).length;
 
   return (
     <div className="space-y-6">
@@ -136,7 +133,7 @@ export default function PolicyEmailsPage() {
         <CardHeader>
           <CardTitle>Email Groups</CardTitle>
           <CardDescription>
-            Policy emails grouped by similar content and theme
+            Policy emails grouped by campaign
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -162,10 +159,10 @@ export default function PolicyEmailsPage() {
               </TableHeader>
               <TableBody>
                 {emailGroups.map((group) => (
-                  <TableRow key={group.fingerprint_hash}>
+                  <TableRow key={group.campaign_id}>
                     <TableCell className="max-w-md">
                       <button
-                        onClick={() => handleViewGroup(group.fingerprint_hash)}
+                        onClick={() => group.campaign_id && handleViewGroup(group.campaign_id)}
                         className="text-left font-medium hover:underline"
                       >
                         {group.subject}
@@ -193,7 +190,7 @@ export default function PolicyEmailsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleViewGroup(group.fingerprint_hash)}
+                        onClick={() => group.campaign_id && handleViewGroup(group.campaign_id)}
                       >
                         View Group
                         <ArrowRight className="ml-2 h-4 w-4" />

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import {
   Card,
   CardContent,
@@ -20,15 +20,12 @@ import {
 import { Flag, ArrowRight, Mail } from 'lucide-react';
 
 export default function CampaignsPage() {
-  const { campaigns, messages } = useDummyData();
+  const { campaigns, messages } = useSupabase();
   const navigate = useNavigate();
 
   // Calculate email counts per campaign
   const getCampaignEmailCount = (campaignId: string) => {
-    return messages.filter(
-      (msg) => msg.campaign_id === campaignId ||
-        campaigns.find(c => c.id === campaignId)?.fingerprint_hash === msg.fingerprint_hash
-    ).length;
+    return messages.filter((msg) => msg.campaign_id === campaignId).length;
   };
 
   const handleViewCampaign = (campaignId: string) => {
