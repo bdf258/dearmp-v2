@@ -393,25 +393,3 @@ CREATE INDEX idx_email_queue_created ON email_outbox_queue(created_at);
 2. Check Supabase dashboard → Database → Replication
 3. Ensure table is listed under published tables
 4. Restart frontend to reconnect WebSocket
-
----
-
-## Support
-
-For issues with:
-- **Frontend Integration**: Check this codebase's GitHub issues
-- **Outlook Worker**: Check worker repository's issues
-- **Selenium/VNC**: Check Selenium Grid configuration
-- **Supabase**: Check Supabase dashboard logs
-
----
-
-## Conclusion
-
-The Outlook Worker Bot is now fully integrated into the DearMP v2 frontend. Users can:
-1. ✅ Authenticate with Outlook via a VNC browser session
-2. ✅ Queue emails for sending by simply clicking "Send"
-3. ✅ Receive real-time feedback on email delivery status
-4. ✅ Handle errors gracefully with clear user messaging
-
-The integration leverages Supabase Realtime for seamless communication between the frontend and worker, providing a modern, responsive user experience for automated email sending.

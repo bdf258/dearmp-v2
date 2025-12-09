@@ -35,6 +35,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       profiles: {
         Row: {
@@ -64,6 +65,14 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "profiles_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       constituents: {
         Row: {
@@ -93,6 +102,14 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "constituents_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       constituent_contacts: {
         Row: {
@@ -122,6 +139,20 @@ export interface Database {
           is_primary?: boolean;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "constituent_contacts_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "constituent_contacts_constituent_id_fkey";
+            columns: ["constituent_id"];
+            referencedRelation: "constituents";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       constituent_relationships: {
         Row: {
@@ -148,6 +179,26 @@ export interface Database {
           relationship_type?: string;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "constituent_relationships_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "constituent_relationships_constituent_a_id_fkey";
+            columns: ["constituent_a_id"];
+            referencedRelation: "constituents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "constituent_relationships_constituent_b_id_fkey";
+            columns: ["constituent_b_id"];
+            referencedRelation: "constituents";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       organizations: {
         Row: {
@@ -174,6 +225,14 @@ export interface Database {
           website?: string | null;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "organizations_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       organization_memberships: {
         Row: {
@@ -200,12 +259,32 @@ export interface Database {
           role_title?: string | null;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "organization_memberships_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "organization_memberships_organization_id_fkey";
+            columns: ["organization_id"];
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "organization_memberships_constituent_id_fkey";
+            columns: ["constituent_id"];
+            referencedRelation: "constituents";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       cases: {
         Row: {
           id: string;
           office_id: string;
-          reference_number: number | null;
+          reference_number: number;
           title: string;
           description: string | null;
           status: CaseStatus;
@@ -221,7 +300,7 @@ export interface Database {
         Insert: {
           id?: string;
           office_id: string;
-          reference_number?: number | null;
+          reference_number?: number;
           title: string;
           description?: string | null;
           status?: CaseStatus;
@@ -237,7 +316,7 @@ export interface Database {
         Update: {
           id?: string;
           office_id?: string;
-          reference_number?: number | null;
+          reference_number?: number;
           title?: string;
           description?: string | null;
           status?: CaseStatus;
@@ -250,6 +329,26 @@ export interface Database {
           updated_at?: string;
           closed_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "cases_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "cases_assigned_to_fkey";
+            columns: ["assigned_to"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "cases_created_by_fkey";
+            columns: ["created_by"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       case_parties: {
         Row: {
@@ -279,6 +378,32 @@ export interface Database {
           role?: string;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "case_parties_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "case_parties_case_id_fkey";
+            columns: ["case_id"];
+            referencedRelation: "cases";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "case_parties_constituent_id_fkey";
+            columns: ["constituent_id"];
+            referencedRelation: "constituents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "case_parties_organization_id_fkey";
+            columns: ["organization_id"];
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       campaigns: {
         Row: {
@@ -314,6 +439,14 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       messages: {
         Row: {
@@ -370,6 +503,26 @@ export interface Database {
           received_at?: string;
           sent_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "messages_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "messages_case_id_fkey";
+            columns: ["case_id"];
+            referencedRelation: "cases";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "messages_campaign_id_fkey";
+            columns: ["campaign_id"];
+            referencedRelation: "campaigns";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       message_recipients: {
         Row: {
@@ -399,6 +552,26 @@ export interface Database {
           name?: string | null;
           constituent_id?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "message_recipients_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "message_recipients_message_id_fkey";
+            columns: ["message_id"];
+            referencedRelation: "messages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "message_recipients_constituent_id_fkey";
+            columns: ["constituent_id"];
+            referencedRelation: "constituents";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       attachments: {
         Row: {
@@ -431,6 +604,20 @@ export interface Database {
           storage_path?: string;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "attachments_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "attachments_message_id_fkey";
+            columns: ["message_id"];
+            referencedRelation: "messages";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       bulk_responses: {
         Row: {
@@ -463,6 +650,26 @@ export interface Database {
           status?: string;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "bulk_responses_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bulk_responses_campaign_id_fkey";
+            columns: ["campaign_id"];
+            referencedRelation: "campaigns";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bulk_responses_created_by_fkey";
+            columns: ["created_by"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       bulk_response_log: {
         Row: {
@@ -495,6 +702,32 @@ export interface Database {
           error_log?: string | null;
           sent_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "bulk_response_log_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bulk_response_log_bulk_response_id_fkey";
+            columns: ["bulk_response_id"];
+            referencedRelation: "bulk_responses";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bulk_response_log_constituent_id_fkey";
+            columns: ["constituent_id"];
+            referencedRelation: "constituents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "bulk_response_log_generated_message_id_fkey";
+            columns: ["generated_message_id"];
+            referencedRelation: "messages";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       tags: {
         Row: {
@@ -518,6 +751,14 @@ export interface Database {
           color?: string;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "tags_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       tag_assignments: {
         Row: {
@@ -544,6 +785,20 @@ export interface Database {
           entity_id?: string;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "tag_assignments_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "tag_assignments_tag_id_fkey";
+            columns: ["tag_id"];
+            referencedRelation: "tags";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       audit_logs: {
         Row: {
@@ -579,6 +834,20 @@ export interface Database {
           ip_address?: string | null;
           created_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       integration_outlook_sessions: {
         Row: {
@@ -608,6 +877,14 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "integration_outlook_sessions_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       email_outbox_queue: {
         Row: {
@@ -655,6 +932,26 @@ export interface Database {
           created_at?: string;
           processed_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "email_outbox_queue_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "email_outbox_queue_case_id_fkey";
+            columns: ["case_id"];
+            referencedRelation: "cases";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "email_outbox_queue_campaign_id_fkey";
+            columns: ["campaign_id"];
+            referencedRelation: "campaigns";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       browser_automation_lock: {
         Row: {
@@ -675,6 +972,14 @@ export interface Database {
           locked_by_office_id?: string | null;
           locked_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "browser_automation_lock_locked_by_office_id_fkey";
+            columns: ["locked_by_office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          }
+        ];
       };
     };
     Views: {};
