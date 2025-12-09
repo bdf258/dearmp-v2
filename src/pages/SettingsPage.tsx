@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
+import { OutlookConnect } from '@/components/settings/OutlookConnect';
 
 export default function SettingsPage() {
   const { currentOfficeMode, setCurrentOfficeMode, signOut, profile, currentOffice } = useSupabase();
@@ -130,19 +131,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Email Integration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Email Integration</CardTitle>
-          <CardDescription>Configure email inbox connections</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Email integration settings will be available here. Connect your office email
-            accounts for automatic message importing.
-          </p>
-        </CardContent>
-      </Card>
+      {/* Outlook Integration */}
+      {currentOffice?.id && <OutlookConnect officeId={currentOffice.id} />}
 
       {/* Tag Management */}
       <Card>
