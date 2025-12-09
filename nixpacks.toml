@@ -1,0 +1,17 @@
+# nixpacks.toml
+
+# Force it to use Node.js, ignoring the Supabase Deno functions
+providers = ["node"]
+
+[phases.setup]
+nixPkgs = ["nodejs", "npm"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+# Use a lightweight static server for production instead of "vite preview"
+[start]
+cmds = ["npx serve -s dist -l 3000"]
