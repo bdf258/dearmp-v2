@@ -761,41 +761,33 @@
   "bulk_responses": [
     {
       "id": "bulk-resp-1",
+      "office_id": "office-1",
       "campaign_id": "campaign-1",
-      "fingerprint_hash": "climate-bill-2024-hash",
       "subject": "Re: Climate Legislation",
-      "body_template": "Dear {{constituent_name}},\n\nThank you for contacting me about the Climate Bill. I share your concerns about the urgent need for climate action.\n\nI am carefully reviewing the legislation and will be voting in support of measures that genuinely address the climate emergency while supporting a just transition for workers and communities.\n\nBest regards,\n{{mp_name}}",
+      "body_markdown": "Dear {{constituent_name}},\n\nThank you for contacting me about the Climate Bill. I share your concerns about the urgent need for climate action.\n\nI am carefully reviewing the legislation and will be voting in support of measures that genuinely address the climate emergency while supporting a just transition for workers and communities.\n\nBest regards,\n{{mp_name}}",
       "status": "draft",
-      "created_by_user_id": "user-1",
-      "created_at": "2024-03-04T10:00:00Z",
-      "sent_count": 0,
-      "total_recipients": 127
+      "created_by": "user-1",
+      "created_at": "2024-03-04T10:00:00Z"
     },
     {
       "id": "bulk-resp-2",
+      "office_id": "office-1",
       "campaign_id": "campaign-2",
-      "fingerprint_hash": "nhs-funding-2024-hash",
       "subject": "Re: NHS Funding",
-      "body_template": "Dear {{constituent_name}},\n\nThank you for writing to me about NHS funding. I completely agree that our NHS needs proper investment.\n\nI have been consistently campaigning for increased NHS funding and will continue to push for the resources our healthcare system desperately needs.\n\nBest regards,\n{{mp_name}}",
+      "body_markdown": "Dear {{constituent_name}},\n\nThank you for writing to me about NHS funding. I completely agree that our NHS needs proper investment.\n\nI have been consistently campaigning for increased NHS funding and will continue to push for the resources our healthcare system desperately needs.\n\nBest regards,\n{{mp_name}}",
       "status": "sent",
-      "created_by_user_id": "user-2",
-      "created_at": "2024-02-18T09:00:00Z",
-      "sent_at": "2024-02-18T11:30:00Z",
-      "sent_count": 89,
-      "total_recipients": 89
+      "created_by": "user-2",
+      "created_at": "2024-02-18T09:00:00Z"
     },
     {
       "id": "bulk-resp-3",
+      "office_id": "office-1",
       "campaign_id": "campaign-3",
-      "fingerprint_hash": "education-funding-hash",
       "subject": "Re: Education Funding",
-      "body_template": "Dear {{constituent_name}},\n\nThank you for contacting me regarding education funding and teacher pay.\n\nI recognize the challenges facing our schools and education system. I am committed to advocating for better funding and support for our teachers and students.\n\nBest regards,\n{{mp_name}}",
+      "body_markdown": "Dear {{constituent_name}},\n\nThank you for contacting me regarding education funding and teacher pay.\n\nI recognize the challenges facing our schools and education system. I am committed to advocating for better funding and support for our teachers and students.\n\nBest regards,\n{{mp_name}}",
       "status": "sent",
-      "created_by_user_id": "user-2",
-      "created_at": "2024-02-22T14:00:00Z",
-      "sent_at": "2024-02-23T10:00:00Z",
-      "sent_count": 56,
-      "total_recipients": 56
+      "created_by": "user-2",
+      "created_at": "2024-02-22T14:00:00Z"
     }
   ],
   "bulk_response_log": [

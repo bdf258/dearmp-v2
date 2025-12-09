@@ -243,20 +243,21 @@ async function processEmail(
         );
 
         // Create the bulk response record
-        const { data: newBulkResponse, error: bulkError } = await supabase
+        // Note: campaign_id is required per schema - use matched campaign or skip creation
+        if (!campaignMatch.matchedCampaignId) {
+          log('warn', 'Cannot create bulk response without campaign_id', { message_id: message.id });
+        }
+        const { data: newBulkResponse, error: bulkError } = campaignMatch.matchedCampaignId ? await supabase
           .from('bulk_responses')
           .insert({
             office_id: message.office_id,
-            campaign_id: campaignMatch.matchedCampaignId || null,
-            fingerprint_hash: fingerprint,
+            campaign_id: campaignMatch.matchedCampaignId,
             subject: draftResponse.subject,
-            body_template: draftResponse.body,
-            body_template_html: draftResponse.body_html,
+            body_markdown: draftResponse.body,
             status: 'draft',
-            total_recipients: 1,
           })
           .select()
-          .single();
+          .single() : { data: null, error: null };
 
         if (!bulkError && newBulkResponse) {
           existingBulkResponseId = newBulkResponse.id;

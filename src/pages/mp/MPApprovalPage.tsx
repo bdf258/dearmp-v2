@@ -39,9 +39,9 @@ export default function MPApprovalPage() {
       id: br.id,
       type: 'bulk_response' as const,
       title: br.subject || 'Bulk Response',
-      content: br.body_template || '',
+      content: br.body_markdown || '',
       context: 'Bulk response for campaign',
-      created_by_user_id: br.created_by_user_id || '',
+      created_by_user_id: br.created_by || '',
       created_at: br.created_at,
     }));
 
