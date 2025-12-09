@@ -17,6 +17,8 @@ import type {
   ConstituentInsert,
   MessageInsert,
   CasePriority,
+  UserRole,
+  IntegrationOutlookSession,
 } from './database.types';
 import type { User } from '@supabase/supabase-js';
 
@@ -58,6 +60,16 @@ interface UseSupabaseDataReturn {
   createMessage: (data: Omit<MessageInsert, 'office_id'>) => Promise<Message | null>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+
+  // Settings actions
+  updateOffice: (updates: { name?: string }) => Promise<Office | null>;
+  updateProfileRole: (profileId: string, role: UserRole) => Promise<Profile | null>;
+  createTag: (name: string, color: string) => Promise<Tag | null>;
+  updateTag: (id: string, updates: { name?: string; color?: string }) => Promise<Tag | null>;
+  deleteTag: (id: string) => Promise<boolean>;
+  emailIntegration: IntegrationOutlookSession | null;
+  fetchEmailIntegration: () => Promise<IntegrationOutlookSession | null>;
+  deleteEmailIntegration: () => Promise<boolean>;
 }
 
 export function useSupabaseData(): UseSupabaseDataReturn {
@@ -83,6 +95,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const [messageRecipients, setMessageRecipients] = useState<MessageRecipient[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [bulkResponses, setBulkResponses] = useState<BulkResponse[]>([]);
+  const [emailIntegration, setEmailIntegration] = useState<IntegrationOutlookSession | null>(null);
 
   // Derived state
   const currentOffice = offices.find(o => o.id === profile?.office_id) || null;
@@ -221,6 +234,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setMessageRecipients([]);
       setTags([]);
       setBulkResponses([]);
+      setEmailIntegration(null);
       setLoading(false);
     }
   }, [user, fetchData]);
@@ -346,6 +360,141 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     await supabase.auth.signOut();
   };
 
+  // Settings actions
+  const updateOffice = async (updates: { name?: string }): Promise<Office | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const { data, error: updateError } = await supabase
+      .from('offices')
+      .update(updates as never)
+      .eq('id', officeId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating office:', updateError);
+      return null;
+    }
+
+    const updatedOffice = data as Office;
+    setOffices(prev => prev.map(o => o.id === officeId ? updatedOffice : o));
+    return updatedOffice;
+  };
+
+  const updateProfileRole = async (profileId: string, role: UserRole): Promise<Profile | null> => {
+    const { data, error: updateError } = await supabase
+      .from('profiles')
+      .update({ role } as never)
+      .eq('id', profileId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating profile role:', updateError);
+      return null;
+    }
+
+    const updatedProfile = data as Profile;
+    setProfiles(prev => prev.map(p => p.id === profileId ? updatedProfile : p));
+    return updatedProfile;
+  };
+
+  const createTag = async (name: string, color: string): Promise<Tag | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const { data, error: insertError } = await supabase
+      .from('tags')
+      .insert({ office_id: officeId, name, color } as never)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating tag:', insertError);
+      return null;
+    }
+
+    const newTag = data as Tag;
+    setTags(prev => [...prev, newTag].sort((a, b) => a.name.localeCompare(b.name)));
+    return newTag;
+  };
+
+  const updateTag = async (id: string, updates: { name?: string; color?: string }): Promise<Tag | null> => {
+    const { data, error: updateError } = await supabase
+      .from('tags')
+      .update(updates as never)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating tag:', updateError);
+      return null;
+    }
+
+    const updatedTag = data as Tag;
+    setTags(prev => prev.map(t => t.id === id ? updatedTag : t).sort((a, b) => a.name.localeCompare(b.name)));
+    return updatedTag;
+  };
+
+  const deleteTag = async (id: string): Promise<boolean> => {
+    const { error: deleteError } = await supabase
+      .from('tags')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Error deleting tag:', deleteError);
+      return false;
+    }
+
+    setTags(prev => prev.filter(t => t.id !== id));
+    return true;
+  };
+
+  const fetchEmailIntegration = async (): Promise<IntegrationOutlookSession | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const { data, error: fetchError } = await supabase
+      .from('integration_outlook_sessions')
+      .select('office_id, email, status, updated_at')
+      .eq('office_id', officeId)
+      .single();
+
+    if (fetchError) {
+      // No integration found is not an error
+      if (fetchError.code !== 'PGRST116') {
+        console.error('Error fetching email integration:', fetchError);
+      }
+      setEmailIntegration(null);
+      return null;
+    }
+
+    const integration = data as IntegrationOutlookSession;
+    setEmailIntegration(integration);
+    return integration;
+  };
+
+  const deleteEmailIntegration = async (): Promise<boolean> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return false;
+
+    const { error: deleteError } = await supabase
+      .from('integration_outlook_sessions')
+      .delete()
+      .eq('office_id', officeId);
+
+    if (deleteError) {
+      console.error('Error deleting email integration:', deleteError);
+      return false;
+    }
+
+    setEmailIntegration(null);
+    return true;
+  };
+
   return {
     // Auth
     user,
@@ -384,5 +533,15 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     createMessage,
     signIn,
     signOut,
+
+    // Settings actions
+    updateOffice,
+    updateProfileRole,
+    createTag,
+    updateTag,
+    deleteTag,
+    emailIntegration,
+    fetchEmailIntegration,
+    deleteEmailIntegration,
   };
 }
