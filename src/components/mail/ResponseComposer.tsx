@@ -178,13 +178,23 @@ export function ResponseComposer({
         // For campaign mode, create a bulk response template
         // This is handled differently - the bulk_responses table stores templates
         // that are then processed for each recipient
+
+        // Generate a simple fingerprint hash for the campaign response
+        const fingerprintContent = `${campaignId}-${plainText}`;
+        const encoder = new TextEncoder();
+        const data = encoder.encode(fingerprintContent);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const fingerprint = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
         const { error: bulkError } = await supabase
           .from('bulk_responses')
           .insert({
             office_id: currentOffice.id,
             campaign_id: campaignId,
+            fingerprint_hash: fingerprint,
             subject: 'Campaign Response', // This should be configurable
-            body_markdown: plainText, // Store markdown for template processing
+            body_template: plainText, // Store template for processing
             status: 'draft',
           });
 
