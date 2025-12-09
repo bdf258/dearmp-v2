@@ -1,45 +1,78 @@
 // Shared type definitions for DearMP Edge Functions
 
+// Database enums
+export type UserRole = 'admin' | 'staff' | 'mp';
+export type CaseStatus = 'open' | 'in_progress' | 'awaiting_response' | 'closed';
+export type CasePriority = 'low' | 'medium' | 'high' | 'urgent';
+export type MessageDirection = 'inbound' | 'outbound';
+export type MessageChannel = 'email' | 'letter' | 'phone' | 'in_person';
+export type ContactType = 'email' | 'phone' | 'mobile' | 'address' | 'other';
+export type AuditAction = 'created' | 'updated' | 'deleted' | 'viewed' | 'exported';
+
 export interface Office {
   id: string;
   name: string;
-  mode: 'casework' | 'westminster';
-  mp_name?: string;
-  mp_email?: string;
-  signature_template?: string;
+  domain?: string;
+  settings: Record<string, unknown>; // JSONB field for flexible settings
   created_at: string;
   updated_at: string;
 }
 
-export interface OfficeSettings {
+export interface Profile {
+  id: string; // References auth.users(id)
+  office_id?: string;
+  full_name?: string;
+  role: UserRole;
+  avatar_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Constituent {
   id: string;
   office_id: string;
-  default_casework_assignee?: string;
-  default_policy_assignee?: string;
-  auto_assign_enabled: boolean;
-  round_robin_enabled: boolean;
-  ai_classification_enabled: boolean;
-  ai_draft_response_enabled: boolean;
-  ai_tagging_enabled: boolean;
-  policy_response_style: 'formal' | 'friendly' | 'brief';
-  casework_acknowledgment_enabled: boolean;
+  full_name: string;
+  salutation?: string;
+  notes?: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface User {
+export interface ConstituentContact {
+  id: string;
+  office_id: string;
+  constituent_id: string;
+  type: ContactType;
+  value: string;
+  is_primary: boolean;
+  created_at: string;
+}
+
+export interface ConstituentRelationship {
+  id: string;
+  office_id: string;
+  constituent_a_id: string;
+  constituent_b_id: string;
+  relationship_type: string;
+  created_at: string;
+}
+
+export interface Organization {
   id: string;
   office_id: string;
   name: string;
-  email: string;
-  role: 'admin' | 'staff' | 'mp';
-  is_active: boolean;
-  can_handle_casework: boolean;
-  can_handle_policy: boolean;
-  max_active_cases: number;
-  specialties: string[];
+  type?: string;
+  website?: string;
   created_at: string;
-  updated_at: string;
+}
+
+export interface OrganizationMembership {
+  id: string;
+  office_id: string;
+  organization_id: string;
+  constituent_id: string;
+  role_title?: string;
+  created_at: string;
 }
 
 export interface Tag {
@@ -47,8 +80,15 @@ export interface Tag {
   office_id: string;
   name: string;
   color: string;
-  description?: string;
-  auto_assign_keywords: string[];
+  created_at: string;
+}
+
+export interface TagAssignment {
+  id: string;
+  office_id: string;
+  tag_id: string;
+  entity_type: string;
+  entity_id: string;
   created_at: string;
 }
 
@@ -60,147 +100,134 @@ export interface Campaign {
   status: 'active' | 'inactive' | 'archived';
   subject_pattern?: string;
   fingerprint_hash?: string;
-  email_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface Case {
+  id: string;
+  office_id: string;
+  reference_number: number;
+  title: string;
+  description?: string;
+  status: CaseStatus;
+  priority: CasePriority;
+  category?: string;
+  assigned_to?: string; // References profiles(id)
+  created_by?: string; // References profiles(id)
+  created_at: string;
+  updated_at: string;
+  closed_at?: string;
+  retention_policy_date?: string;
+}
+
+export interface CaseParty {
+  id: string;
+  office_id: string;
+  case_id: string;
+  constituent_id?: string;
+  organization_id?: string;
+  role: string;
+  created_at: string;
 }
 
 export interface Message {
   id: string;
   office_id: string;
-  from_email: string;
-  from_name?: string;
-  to_email: string;
-  to_name?: string;
-  subject: string;
-  snippet?: string;
-  body: string;
-  body_html?: string;
-  direction: 'inbound' | 'outbound';
-  thread_id?: string;
-  in_reply_to_message_id?: string;
-  is_triage_needed: boolean;
-  is_policy_email?: boolean;
-  email_type?: 'policy' | 'casework' | 'campaign' | 'spam' | 'personal';
-  classification_confidence?: number;
-  classification_reasoning?: string;
-  fingerprint_hash?: string;
-  is_campaign_email: boolean;
   case_id?: string;
   campaign_id?: string;
-  assigned_to_user_id?: string;
-  ai_processed_at?: string;
-  ai_error?: string;
+  direction: MessageDirection;
+  channel: MessageChannel;
+  subject?: string;
+  snippet?: string;
+  storage_path_html?: string;
+  storage_path_text?: string;
+  message_id_header?: string;
+  in_reply_to_header?: string;
+  thread_id?: string;
   received_at: string;
-  created_at: string;
-  updated_at: string;
+  sent_at?: string;
+  body_search_text?: string;
+  search_vector?: unknown; // tsvector type
 }
 
-export interface DraftResponse {
+export interface MessageRecipient {
   id: string;
-  message_id: string;
   office_id: string;
-  subject: string;
-  body: string;
-  body_html?: string;
-  draft_type: 'individual' | 'bulk';
-  status: 'draft' | 'edited' | 'approved' | 'sent' | 'rejected';
-  campaign_id?: string;
-  fingerprint_hash?: string;
-  generated_by: string;
-  generation_prompt?: string;
-  edited_by_user_id?: string;
-  edited_at?: string;
-  approved_by_user_id?: string;
-  approved_at?: string;
+  message_id: string;
+  recipient_type: string; // 'to', 'cc', 'bcc', 'from'
+  email_address: string;
+  name?: string;
+  constituent_id?: string;
+}
+
+export interface Attachment {
+  id: string;
+  office_id: string;
+  message_id: string;
+  filename: string;
+  file_size?: number;
+  mime_type?: string;
+  storage_path: string;
   created_at: string;
-  updated_at: string;
 }
 
 export interface BulkResponse {
   id: string;
-  campaign_id?: string;
   office_id: string;
-  fingerprint_hash: string;
-  subject: string;
-  body_template: string;
-  body_template_html?: string;
+  campaign_id: string;
+  subject?: string;
+  body_markdown?: string;
+  created_by?: string; // References profiles(id)
   status: 'draft' | 'pending_approval' | 'approved' | 'sending' | 'sent' | 'rejected';
-  created_by_user_id?: string;
-  edited_by_user_id?: string;
-  approved_by_user_id?: string;
-  approved_at?: string;
-  sent_at?: string;
-  sent_count: number;
-  total_recipients: number;
   created_at: string;
+}
+
+export interface BulkResponseLog {
+  id: string;
+  office_id: string;
+  bulk_response_id: string;
+  constituent_id: string;
+  generated_message_id?: string;
+  status: 'pending' | 'sent' | 'failed';
+  error_log?: string;
+  sent_at?: string;
+}
+
+export interface EmailOutboxQueue {
+  id: string;
+  office_id?: string;
+  to_email: string;
+  subject: string;
+  body_html: string;
+  status: 'pending' | 'sent' | 'failed';
+  created_at: string;
+  error_log?: string;
+}
+
+export interface IntegrationOutlookSession {
+  office_id: string;
+  email?: string;
+  storage_state: Record<string, unknown>; // JSONB field
+  status: 'active' | 'inactive' | 'expired';
   updated_at: string;
 }
 
-export interface AIProcessingQueueItem {
+export interface BrowserAutomationLock {
+  id: number; // Always 1
+  is_locked: boolean;
+  locked_by_office_id?: string;
+  locked_at?: string;
+}
+
+export interface AuditLog {
   id: string;
-  message_id: string;
   office_id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  priority: number;
-  attempts: number;
-  max_attempts: number;
-  last_error?: string;
+  actor_id?: string; // References profiles(id)
+  action: AuditAction;
+  entity_type: string;
+  entity_id?: string;
+  metadata: Record<string, unknown>; // JSONB field
+  ip_address?: string;
   created_at: string;
-  started_at?: string;
-  completed_at?: string;
-}
-
-// AI Classification Types
-export interface EmailClassification {
-  email_type: 'policy' | 'casework' | 'campaign' | 'spam' | 'personal';
-  is_policy_email: boolean;
-  confidence: number;
-  reasoning: string;
-  suggested_tags: string[];
-  is_campaign_email: boolean;
-  campaign_topic?: string;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  sentiment: 'positive' | 'neutral' | 'negative' | 'urgent';
-}
-
-export interface TagSuggestion {
-  tag_id: string;
-  tag_name: string;
-  confidence: number;
-  reason: string;
-}
-
-export interface AssignmentSuggestion {
-  user_id: string;
-  user_name: string;
-  confidence: number;
-  reason: string;
-}
-
-export interface DraftResponseSuggestion {
-  subject: string;
-  body: string;
-  body_html?: string;
-  tone: 'formal' | 'friendly' | 'brief';
-}
-
-export interface AIProcessingResult {
-  classification: EmailClassification;
-  tags: TagSuggestion[];
-  assignment?: AssignmentSuggestion;
-  draft_response?: DraftResponseSuggestion;
-  fingerprint_hash: string;
-  existing_bulk_response_id?: string;
-}
-
-// Context for AI processing
-export interface ProcessingContext {
-  message: Message;
-  office: Office;
-  office_settings: OfficeSettings;
-  available_tags: Tag[];
-  available_users: User[];
-  active_campaigns: Campaign[];
-  existing_bulk_responses: BulkResponse[];
 }
