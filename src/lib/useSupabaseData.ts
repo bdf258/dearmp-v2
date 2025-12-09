@@ -18,11 +18,14 @@ import type {
   MessageInsert,
   CasePriority,
   UserRole,
-  IntegrationOutlookSession,
+  OutlookSession,
 } from './database.types';
 import type { User } from '@supabase/supabase-js';
 
 interface UseSupabaseDataReturn {
+  // Supabase client (for realtime subscriptions, etc.)
+  supabase: typeof supabase;
+
   // Auth state
   user: User | null;
   profile: Profile | null;
@@ -67,8 +70,8 @@ interface UseSupabaseDataReturn {
   createTag: (name: string, color: string) => Promise<Tag | null>;
   updateTag: (id: string, updates: { name?: string; color?: string }) => Promise<Tag | null>;
   deleteTag: (id: string) => Promise<boolean>;
-  emailIntegration: IntegrationOutlookSession | null;
-  fetchEmailIntegration: () => Promise<IntegrationOutlookSession | null>;
+  emailIntegration: OutlookSession | null;
+  fetchEmailIntegration: () => Promise<OutlookSession | null>;
   deleteEmailIntegration: () => Promise<boolean>;
 }
 
@@ -95,7 +98,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const [messageRecipients, setMessageRecipients] = useState<MessageRecipient[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [bulkResponses, setBulkResponses] = useState<BulkResponse[]>([]);
-  const [emailIntegration, setEmailIntegration] = useState<IntegrationOutlookSession | null>(null);
+  const [emailIntegration, setEmailIntegration] = useState<OutlookSession | null>(null);
 
   // Derived state
   const currentOffice = offices.find(o => o.id === profile?.office_id) || null;
@@ -453,13 +456,13 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     return true;
   };
 
-  const fetchEmailIntegration = async (): Promise<IntegrationOutlookSession | null> => {
+  const fetchEmailIntegration = async (): Promise<OutlookSession | null> => {
     const officeId = getMyOfficeId();
     if (!officeId) return null;
 
     const { data, error: fetchError } = await supabase
       .from('integration_outlook_sessions')
-      .select('office_id, email, status, updated_at')
+      .select('id, office_id, is_connected, last_used_at, created_at, updated_at')
       .eq('office_id', officeId)
       .single();
 
@@ -472,7 +475,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       return null;
     }
 
-    const integration = data as IntegrationOutlookSession;
+    const integration = data as OutlookSession;
     setEmailIntegration(integration);
     return integration;
   };
@@ -496,6 +499,9 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   };
 
   return {
+    // Supabase client
+    supabase,
+
     // Auth
     user,
     profile,

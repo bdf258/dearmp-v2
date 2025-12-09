@@ -67,9 +67,9 @@ export function ResponseComposer({
           table: 'email_outbox_queue',
           filter: `id=eq.${queuedEmailId}`,
         },
-        (payload) => {
+        (payload: { new: { status: 'idle' | 'queued' | 'processing' | 'sent' | 'failed'; error_log?: string } }) => {
           const newStatus = payload.new.status;
-          setSendingStatus(newStatus);
+          setSendingStatus(newStatus as 'idle' | 'queued' | 'processing' | 'sent' | 'failed');
 
           if (newStatus === 'sent') {
             setSuccess(true);

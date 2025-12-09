@@ -5,7 +5,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
-import { LogOut } from 'lucide-react';
 import { OutlookConnect } from '@/components/settings/OutlookConnect';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -443,13 +442,17 @@ export default function SettingsPage() {
                       <Separator />
                       <div className="space-y-2">
                         <div>
-                          <Label className="text-muted-foreground">Connected Email</Label>
-                          <p className="text-sm font-medium">{emailIntegration.email || 'Unknown'}</p>
-                        </div>
-                        <div>
                           <Label className="text-muted-foreground">Status</Label>
-                          <p className="text-sm font-medium capitalize">{emailIntegration.status}</p>
+                          <p className="text-sm font-medium capitalize">{emailIntegration.is_connected ? 'Connected' : 'Disconnected'}</p>
                         </div>
+                        {emailIntegration.last_used_at && (
+                          <div>
+                            <Label className="text-muted-foreground">Last Used</Label>
+                            <p className="text-sm font-medium">
+                              {new Date(emailIntegration.last_used_at).toLocaleString()}
+                            </p>
+                          </div>
+                        )}
                         <div>
                           <Label className="text-muted-foreground">Last Updated</Label>
                           <p className="text-sm font-medium">
