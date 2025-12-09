@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ReplyEditor } from './ReplyEditor';
 import { AlertCircle } from 'lucide-react';
+import { useSupabase } from '@/lib/SupabaseContext';
 
 interface Message {
   id: string;
@@ -28,26 +29,6 @@ interface ResponseComposerProps {
   recipientCount?: number;
 }
 
-// Mock service functions
-const sendEmail = async (
-  caseId: string,
-  html: string,
-  plainText: string,
-  replyToMessageId: string
-): Promise<void> => {
-  console.log('Sending email:', { caseId, html, plainText, replyToMessageId });
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-};
-
-const createBulkResponse = async (
-  campaignId: string,
-  html: string,
-  plainText: string
-): Promise<void> => {
-  console.log('Creating bulk response:', { campaignId, html, plainText });
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-};
-
 export function ResponseComposer({
   originalMessages,
   mode,
@@ -55,9 +36,12 @@ export function ResponseComposer({
   caseId,
   recipientCount = 0,
 }: ResponseComposerProps) {
+  const { supabase, currentOffice } = useSupabase();
   const [initialContent, setInitialContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [sendingStatus, setSendingStatus] = useState<'idle' | 'queued' | 'processing' | 'sent' | 'failed'>('idle');
+  const [queuedEmailId, setQueuedEmailId] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode === 'casework' && originalMessages.length > 0) {
@@ -68,6 +52,42 @@ export function ResponseComposer({
       setInitialContent('');
     }
   }, [originalMessages, mode]);
+
+  // Subscribe to realtime updates for the queued email
+  useEffect(() => {
+    if (!queuedEmailId || !currentOffice?.id) return;
+
+    const channel = supabase
+      .channel(`email-queue-${queuedEmailId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'email_outbox_queue',
+          filter: `id=eq.${queuedEmailId}`,
+        },
+        (payload) => {
+          const newStatus = payload.new.status;
+          setSendingStatus(newStatus);
+
+          if (newStatus === 'sent') {
+            setSuccess(true);
+            setError(null);
+          } else if (newStatus === 'failed') {
+            setSuccess(false);
+            setError(payload.new.error_log || 'Email sending failed');
+          } else if (newStatus === 'processing') {
+            setSendingStatus('processing');
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queuedEmailId, currentOffice?.id, supabase]);
 
   const generateQuoteBlock = (message: Message): string => {
     let bodyText = message.body || message.snippet || message.body_search_text || '';
@@ -104,18 +124,74 @@ export function ResponseComposer({
     setSuccess(false);
 
     try {
+      if (!currentOffice?.id) {
+        throw new Error('Office ID is required');
+      }
+
       if (mode === 'casework') {
         if (!caseId) {
           throw new Error('Case ID is required for casework mode');
         }
-        const replyToMessage = originalMessages[originalMessages.length - 1];
-        await sendEmail(caseId, html, plainText, replyToMessage.id);
+
+        const lastMessage = originalMessages[originalMessages.length - 1];
+        const toEmail = lastMessage.from_email;
+
+        if (!toEmail) {
+          throw new Error('Recipient email address not found');
+        }
+
+        // Generate subject line (Re: original subject)
+        const originalSubject = lastMessage.subject || 'Your message';
+        const subject = originalSubject.startsWith('Re:')
+          ? originalSubject
+          : `Re: ${originalSubject}`;
+
+        // Insert into email queue - the Outlook Worker will pick it up automatically
+        const { data: queueData, error: insertError } = await supabase
+          .from('email_outbox_queue')
+          .insert({
+            office_id: currentOffice.id,
+            to_email: toEmail,
+            subject: subject,
+            body_html: html,
+            case_id: caseId,
+            status: 'pending',
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          throw new Error(`Failed to queue email: ${insertError.message}`);
+        }
+
+        if (queueData) {
+          setQueuedEmailId(queueData.id);
+          setSendingStatus('queued');
+        }
+
         setSuccess(true);
       } else if (mode === 'campaign') {
         if (!campaignId) {
           throw new Error('Campaign ID is required for campaign mode');
         }
-        await createBulkResponse(campaignId, html, plainText);
+
+        // For campaign mode, create a bulk response template
+        // This is handled differently - the bulk_responses table stores templates
+        // that are then processed for each recipient
+        const { error: bulkError } = await supabase
+          .from('bulk_responses')
+          .insert({
+            office_id: currentOffice.id,
+            campaign_id: campaignId,
+            subject: 'Campaign Response', // This should be configurable
+            body_markdown: plainText, // Store markdown for template processing
+            status: 'draft',
+          });
+
+        if (bulkError) {
+          throw new Error(`Failed to create bulk response: ${bulkError.message}`);
+        }
+
         setSuccess(true);
       }
     } catch (err) {
@@ -170,8 +246,30 @@ export function ResponseComposer({
           <Alert className="bg-green-50 text-green-900 border-green-200">
             <AlertDescription>
               {mode === 'casework'
-                ? 'Email sent successfully!'
+                ? sendingStatus === 'sent'
+                  ? 'Email sent successfully!'
+                  : sendingStatus === 'processing'
+                  ? 'Email is being sent...'
+                  : 'Email queued successfully!'
                 : 'Bulk response queued successfully!'}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {sendingStatus === 'queued' && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Email queued. The Outlook Worker will send it shortly...
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {sendingStatus === 'processing' && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Email is being sent through Outlook...
             </AlertDescription>
           </Alert>
         )}

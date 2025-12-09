@@ -5,6 +5,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
+import { OutlookConnect } from '@/components/settings/OutlookConnect';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
@@ -393,6 +395,8 @@ export default function SettingsPage() {
               </AccordionContent>
             </AccordionItem>
 
+      {/* Outlook Integration */}
+      {currentOffice?.id && <OutlookConnect officeId={currentOffice.id} />}
             {/* Email Integration */}
             <AccordionItem value="email-integration">
               <AccordionTrigger className="hover:no-underline">

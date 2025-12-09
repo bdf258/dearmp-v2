@@ -5,6 +5,7 @@ export type MessageDirection = 'inbound' | 'outbound';
 export type MessageChannel = 'email' | 'phone' | 'letter' | 'meeting' | 'social_media';
 export type ContactType = 'email' | 'phone' | 'address' | 'social';
 export type AuditAction = 'create' | 'update' | 'delete' | 'view' | 'login' | 'send_email';
+export type EmailQueueStatus = 'pending' | 'processing' | 'sent' | 'failed';
 
 export interface Database {
   public: {
@@ -579,6 +580,102 @@ export interface Database {
           created_at?: string;
         };
       };
+      integration_outlook_sessions: {
+        Row: {
+          id: string;
+          office_id: string;
+          cookies: Record<string, unknown>[];
+          is_connected: boolean;
+          last_used_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          office_id: string;
+          cookies: Record<string, unknown>[];
+          is_connected?: boolean;
+          last_used_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          office_id?: string;
+          cookies?: Record<string, unknown>[];
+          is_connected?: boolean;
+          last_used_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      email_outbox_queue: {
+        Row: {
+          id: string;
+          office_id: string;
+          to_email: string;
+          cc_email: string | null;
+          bcc_email: string | null;
+          subject: string;
+          body_html: string;
+          status: EmailQueueStatus;
+          error_log: string | null;
+          case_id: string | null;
+          campaign_id: string | null;
+          created_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          office_id: string;
+          to_email: string;
+          cc_email?: string | null;
+          bcc_email?: string | null;
+          subject: string;
+          body_html: string;
+          status?: EmailQueueStatus;
+          error_log?: string | null;
+          case_id?: string | null;
+          campaign_id?: string | null;
+          created_at?: string;
+          processed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          office_id?: string;
+          to_email?: string;
+          cc_email?: string | null;
+          bcc_email?: string | null;
+          subject?: string;
+          body_html?: string;
+          status?: EmailQueueStatus;
+          error_log?: string | null;
+          case_id?: string | null;
+          campaign_id?: string | null;
+          created_at?: string;
+          processed_at?: string | null;
+        };
+      };
+      browser_automation_lock: {
+        Row: {
+          id: number;
+          is_locked: boolean;
+          locked_by_office_id: string | null;
+          locked_at: string | null;
+        };
+        Insert: {
+          id?: number;
+          is_locked?: boolean;
+          locked_by_office_id?: string | null;
+          locked_at?: string | null;
+        };
+        Update: {
+          id?: number;
+          is_locked?: boolean;
+          locked_by_office_id?: string | null;
+          locked_at?: string | null;
+        };
+      };
     };
     Views: {};
     Functions: {
@@ -595,6 +692,7 @@ export interface Database {
       message_channel: MessageChannel;
       contact_type: ContactType;
       audit_action: AuditAction;
+      email_queue_status: EmailQueueStatus;
     };
   };
 }
@@ -619,13 +717,10 @@ export type Tag = Database['public']['Tables']['tags']['Row'];
 export type TagAssignment = Database['public']['Tables']['tag_assignments']['Row'];
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
 
-// Integration types (not in RLS-protected tables)
-export interface IntegrationOutlookSession {
-  office_id: string;
-  email: string | null;
-  status: string;
-  updated_at: string;
-}
+// Outlook Worker types
+export type OutlookSession = Database['public']['Tables']['integration_outlook_sessions']['Row'];
+export type EmailOutboxQueue = Database['public']['Tables']['email_outbox_queue']['Row'];
+export type BrowserAutomationLock = Database['public']['Tables']['browser_automation_lock']['Row'];
 
 // Insert types
 export type OfficeInsert = Database['public']['Tables']['offices']['Insert'];
@@ -633,3 +728,5 @@ export type ConstituentInsert = Database['public']['Tables']['constituents']['In
 export type CaseInsert = Database['public']['Tables']['cases']['Insert'];
 export type MessageInsert = Database['public']['Tables']['messages']['Insert'];
 export type CampaignInsert = Database['public']['Tables']['campaigns']['Insert'];
+export type OutlookSessionInsert = Database['public']['Tables']['integration_outlook_sessions']['Insert'];
+export type EmailOutboxQueueInsert = Database['public']['Tables']['email_outbox_queue']['Insert'];
