@@ -645,6 +645,115 @@
       "created_at": "2024-03-15T14:00:00Z"
     }
   ],
+  "notes": [
+    {
+      "id": "note-1",
+      "office_id": "office-2",
+      "case_id": "case-1",
+      "campaign_id": null,
+      "thread_id": null,
+      "body": "Spoke with the housing officer at Westminster Council. They confirmed the repairs team has a backlog of 3 weeks. Will follow up next week if no progress.",
+      "created_by_user_id": "user-4",
+      "created_at": "2024-01-20T10:30:00Z",
+      "updated_at": "2024-01-20T10:30:00Z",
+      "replies": [
+        {
+          "id": "reply-1",
+          "note_id": "note-1",
+          "body": "I've escalated this to the housing manager. They promised to prioritize given the health concerns.",
+          "created_by_user_id": "user-3",
+          "created_at": "2024-01-22T14:15:00Z",
+          "updated_at": "2024-01-22T14:15:00Z"
+        }
+      ]
+    },
+    {
+      "id": "note-2",
+      "office_id": "office-2",
+      "case_id": "case-1",
+      "campaign_id": null,
+      "thread_id": null,
+      "body": "Constituent called to say the leak has worsened. Emergency repairs may be needed. I've asked her to document everything with photos.",
+      "created_by_user_id": "user-4",
+      "created_at": "2024-02-15T09:00:00Z",
+      "updated_at": "2024-02-15T09:00:00Z",
+      "replies": []
+    },
+    {
+      "id": "note-3",
+      "office_id": "office-2",
+      "case_id": "case-2",
+      "campaign_id": null,
+      "thread_id": null,
+      "body": "Contacted Valuation Office Agency regarding the band reassessment. They acknowledged receipt of our inquiry.",
+      "created_by_user_id": "user-3",
+      "created_at": "2024-03-01T11:00:00Z",
+      "updated_at": "2024-03-01T11:00:00Z",
+      "replies": [
+        {
+          "id": "reply-2",
+          "note_id": "note-3",
+          "body": "VOA responded - they will conduct a review within 4-6 weeks.",
+          "created_by_user_id": "user-3",
+          "created_at": "2024-03-05T16:30:00Z",
+          "updated_at": "2024-03-05T16:30:00Z"
+        },
+        {
+          "id": "reply-3",
+          "note_id": "note-3",
+          "body": "Constituent is happy with this progress. Will update them monthly.",
+          "created_by_user_id": "user-4",
+          "created_at": "2024-03-06T10:00:00Z",
+          "updated_at": "2024-03-06T10:00:00Z"
+        }
+      ]
+    },
+    {
+      "id": "note-4",
+      "office_id": "office-1",
+      "case_id": null,
+      "campaign_id": "campaign-1",
+      "thread_id": null,
+      "body": "Discussed with policy team. We should emphasize the local impact in our response - specifically mention the flooding issues in the constituency last winter.",
+      "created_by_user_id": "user-1",
+      "created_at": "2024-03-02T14:00:00Z",
+      "updated_at": "2024-03-02T14:00:00Z",
+      "replies": [
+        {
+          "id": "reply-4",
+          "note_id": "note-4",
+          "body": "Good point. I've updated the draft response to include a paragraph about local flooding and how the Climate Bill addresses resilience funding.",
+          "created_by_user_id": "user-2",
+          "created_at": "2024-03-03T09:30:00Z",
+          "updated_at": "2024-03-03T09:30:00Z"
+        }
+      ]
+    },
+    {
+      "id": "note-5",
+      "office_id": "office-1",
+      "case_id": null,
+      "campaign_id": "campaign-2",
+      "thread_id": null,
+      "body": "Meeting with local NHS trust director scheduled for next Tuesday. Will gather specific data on waiting times for our response.",
+      "created_by_user_id": "user-2",
+      "created_at": "2024-02-20T11:00:00Z",
+      "updated_at": "2024-02-20T11:00:00Z",
+      "replies": []
+    },
+    {
+      "id": "note-6",
+      "office_id": "office-2",
+      "case_id": null,
+      "campaign_id": null,
+      "thread_id": "thread-1",
+      "body": "This thread is getting complex. Created a timeline document to track all interactions with the council and constituent.",
+      "created_by_user_id": "user-4",
+      "created_at": "2024-02-01T15:00:00Z",
+      "updated_at": "2024-02-01T15:00:00Z",
+      "replies": []
+    }
+  ],
   "currentUser": {
     "id": "user-1",
     "office_id": "office-1"

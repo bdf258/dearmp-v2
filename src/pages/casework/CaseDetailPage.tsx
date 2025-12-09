@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { MailThread } from '@/components/mail';
+import { NotesSection } from '@/components/notes';
 import {
   ArrowLeft,
   User,
@@ -292,18 +293,11 @@ export default function CaseDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Notes Section */}
+          <NotesSection caseId={caseId} maxHeight="400px" />
+
           {/* Placeholders for future features */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  Internal notes (coming soon)
-                </p>
-              </CardContent>
-            </Card>
+          <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Tasks</CardTitle>

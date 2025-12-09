@@ -135,6 +135,29 @@ export interface ApprovalItem {
   created_at: string;
 }
 
+export interface NoteReply {
+  id: string;
+  note_id: string;
+  body: string;
+  created_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Note {
+  id: string;
+  office_id: string;
+  // Polymorphic association - one of these will be set
+  case_id: string | null;
+  campaign_id: string | null;
+  thread_id: string | null;
+  body: string;
+  created_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+  replies: NoteReply[];
+}
+
 export interface DummyData {
   offices: Office[];
   users: User[];
@@ -148,6 +171,7 @@ export interface DummyData {
   bulk_responses: BulkResponse[];
   bulk_response_log: BulkResponseLog[];
   approvalQueue: ApprovalItem[];
+  notes: Note[];
   currentUser: {
     id: string;
     office_id: string;
@@ -190,6 +214,7 @@ export function useDummyData() {
     bulkResponses: data.bulk_responses,
     bulkResponseLog: data.bulk_response_log,
     approvalQueue: data.approvalQueue,
+    notes: filterByOffice(data.notes || []),
 
     // Current user/office info
     currentUser,
