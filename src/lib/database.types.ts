@@ -623,41 +623,32 @@ export interface Database {
         Row: {
           id: string;
           office_id: string;
-          campaign_id: string | null;
-          fingerprint_hash: string;
-          subject: string;
-          body_template: string;
-          body_template_html: string | null;
+          campaign_id: string;
+          subject: string | null;
+          body_markdown: string | null;
+          created_by: string | null;
           status: string;
-          created_by_user_id: string | null;
           created_at: string;
-          updated_at: string;
         };
         Insert: {
           id?: string;
           office_id: string;
-          campaign_id?: string | null;
-          fingerprint_hash: string;
-          subject: string;
-          body_template: string;
-          body_template_html?: string | null;
+          campaign_id: string;
+          subject?: string | null;
+          body_markdown?: string | null;
+          created_by?: string | null;
           status?: string;
-          created_by_user_id?: string | null;
           created_at?: string;
-          updated_at?: string;
         };
         Update: {
           id?: string;
           office_id?: string;
-          campaign_id?: string | null;
-          fingerprint_hash?: string;
-          subject?: string;
-          body_template?: string;
-          body_template_html?: string | null;
+          campaign_id?: string;
+          subject?: string | null;
+          body_markdown?: string | null;
+          created_by?: string | null;
           status?: string;
-          created_by_user_id?: string | null;
           created_at?: string;
-          updated_at?: string;
         };
         Relationships: [
           {
@@ -673,9 +664,9 @@ export interface Database {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "bulk_responses_created_by_user_id_fkey";
-            columns: ["created_by_user_id"];
-            referencedRelation: "users";
+            foreignKeyName: "bulk_responses_created_by_fkey";
+            columns: ["created_by"];
+            referencedRelation: "profiles";
             referencedColumns: ["id"];
           }
         ];

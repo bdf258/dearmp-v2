@@ -119,22 +119,13 @@ export interface DraftResponse {
 
 export interface BulkResponse {
   id: string;
-  campaign_id?: string;
   office_id: string;
-  fingerprint_hash: string;
-  subject: string;
-  body_template: string;
-  body_template_html?: string;
+  campaign_id: string;
+  subject: string | null;
+  body_markdown: string | null;
+  created_by: string | null;
   status: 'draft' | 'pending_approval' | 'approved' | 'sending' | 'sent' | 'rejected';
-  created_by_user_id?: string;
-  edited_by_user_id?: string;
-  approved_by_user_id?: string;
-  approved_at?: string;
-  sent_at?: string;
-  sent_count: number;
-  total_recipients: number;
   created_at: string;
-  updated_at: string;
 }
 
 export interface AIProcessingQueueItem {
