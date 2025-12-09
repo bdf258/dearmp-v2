@@ -33,7 +33,7 @@ export function OutlookConnect({ officeId }: OutlookConnectProps) {
         .select('*')
         .eq('office_id', officeId)
         .eq('is_connected', true)
-        .single();
+        .maybeSingle();
 
       if (data && !sessionError) {
         setIsConnected(true);
