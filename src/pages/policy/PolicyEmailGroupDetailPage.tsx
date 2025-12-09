@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { EmailDisplay, ResponseComposer } from '@/components/mail';
+import { NotesSection } from '@/components/notes';
 import {
   Table,
   TableBody,
@@ -45,7 +46,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function PolicyEmailGroupDetailPage() {
   const { groupId, campaignId } = useParams<{ groupId?: string; campaignId?: string }>();
-  const { messages, campaigns, bulkResponses, messageRecipients } = useSupabase();
+  const { messages, campaigns, bulkResponses,  } = useSupabase();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<any>(null);
@@ -251,6 +252,9 @@ export default function PolicyEmailGroupDetailPage() {
         campaignId={campaign?.id || targetId}
         recipientCount={stats.totalEmails}
       />
+
+      {/* Team Notes */}
+      <NotesSection campaignId={campaign?.id} maxHeight="300px" />
 
       {/* Individual Emails List */}
       <Card>
