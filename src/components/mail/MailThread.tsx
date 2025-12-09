@@ -1,21 +1,8 @@
 import { EmailDisplay } from './EmailDisplay';
 import { ResponseComposer } from './ResponseComposer';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
-interface Message {
-  id: string;
-  from_email?: string;
-  from_name?: string;
-  to_email?: string;
-  to_name?: string;
-  subject?: string | null;
-  body?: string;
-  snippet?: string | null;
-  body_search_text?: string | null;
-  direction: 'inbound' | 'outbound';
-  created_at?: string;
-  received_at?: string;
-}
+import { useSupabase } from '@/lib/SupabaseContext';
+import type { Message, MessageRecipient } from '@/lib/database.types';
 
 interface MailThreadProps {
   messages: Message[];
@@ -34,11 +21,24 @@ export function MailThread({
   recipientCount,
   showComposer = true,
 }: MailThreadProps) {
+  const { messageRecipients } = useSupabase();
+
+  // Helper to get sender info from message_recipients
+  const getSenderInfo = (messageId: string) => {
+    const sender = messageRecipients.find(
+      (r: MessageRecipient) => r.message_id === messageId && r.recipient_type === 'from'
+    );
+    return {
+      name: sender?.name || 'Unknown',
+      email: sender?.email_address || '',
+    };
+  };
+
   // Sort messages by date (oldest first)
   const sortedMessages = [...messages].sort(
     (a, b) => {
-      const dateA = new Date(a.created_at || a.received_at || 0).getTime();
-      const dateB = new Date(b.created_at || b.received_at || 0).getTime();
+      const dateA = new Date(a.received_at || 0).getTime();
+      const dateB = new Date(b.received_at || 0).getTime();
       return dateA - dateB;
     }
   );
@@ -60,18 +60,21 @@ export function MailThread({
       {/* Message Thread */}
       <ScrollArea className="h-[600px] pr-4">
         <div className="space-y-4">
-          {sortedMessages.map((message) => (
-            <EmailDisplay
-              key={message.id}
-              html={message.body || message.snippet || message.body_search_text || ''}
-              from={message.from_name && message.from_email
-                ? `${message.from_name} <${message.from_email}>`
-                : message.from_email || 'Unknown'
-              }
-              date={formatDate(message.created_at || message.received_at)}
-              subject={message.subject || '(No subject)'}
-            />
-          ))}
+          {sortedMessages.map((message) => {
+            const sender = getSenderInfo(message.id);
+            return (
+              <EmailDisplay
+                key={message.id}
+                html={message.snippet || message.body_search_text || ''}
+                from={sender.name && sender.email
+                  ? `${sender.name} <${sender.email}>`
+                  : sender.email || 'Unknown'
+                }
+                date={formatDate(message.received_at)}
+                subject={message.subject || '(No subject)'}
+              />
+            );
+          })}
         </div>
       </ScrollArea>
 

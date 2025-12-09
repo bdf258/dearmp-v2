@@ -5,21 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ReplyEditor } from './ReplyEditor';
 import { AlertCircle } from 'lucide-react';
 import { useSupabase } from '@/lib/SupabaseContext';
-
-interface Message {
-  id: string;
-  from_email?: string;
-  from_name?: string;
-  to_email?: string;
-  to_name?: string;
-  subject?: string | null;
-  body?: string;
-  snippet?: string | null;
-  body_search_text?: string | null;
-  direction: 'inbound' | 'outbound';
-  created_at?: string;
-  received_at?: string;
-}
+import type { Message, MessageRecipient } from '@/lib/database.types';
 
 interface ResponseComposerProps {
   originalMessages: Message[];
@@ -36,7 +22,22 @@ export function ResponseComposer({
   caseId,
   recipientCount = 0,
 }: ResponseComposerProps) {
-  const { supabase, currentOffice } = useSupabase();
+  const { supabase, currentOffice, messageRecipients } = useSupabase();
+
+  // Helper to get sender info from message_recipients
+  const getSenderEmail = (messageId: string): string | null => {
+    const sender = messageRecipients.find(
+      (r: MessageRecipient) => r.message_id === messageId && r.recipient_type === 'from'
+    );
+    return sender?.email_address || null;
+  };
+
+  const getSenderName = (messageId: string): string => {
+    const sender = messageRecipients.find(
+      (r: MessageRecipient) => r.message_id === messageId && r.recipient_type === 'from'
+    );
+    return sender?.name || 'Unknown';
+  };
   const [initialContent, setInitialContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -90,12 +91,12 @@ export function ResponseComposer({
   }, [queuedEmailId, currentOffice?.id, supabase]);
 
   const generateQuoteBlock = (message: Message): string => {
-    let bodyText = message.body || message.snippet || message.body_search_text || '';
+    let bodyText = message.snippet || message.body_search_text || '';
     bodyText = bodyText.replace(/<[^>]*>/g, '');
     const lines = bodyText.split('\n').slice(0, 5);
     const truncatedText = lines.join('\n').substring(0, 500);
 
-    const dateStr = message.created_at || message.received_at;
+    const dateStr = message.received_at;
     const date = dateStr
       ? new Date(dateStr).toLocaleDateString('en-US', {
           year: 'numeric',
@@ -106,7 +107,7 @@ export function ResponseComposer({
         })
       : 'Unknown date';
 
-    const fromName = message.from_name || 'Unknown';
+    const fromName = getSenderName(message.id);
 
     const quoteHtml = `
 <p><br></p>
@@ -134,10 +135,10 @@ export function ResponseComposer({
         }
 
         const lastMessage = originalMessages[originalMessages.length - 1];
-        const toEmail = lastMessage.from_email;
+        const toEmail = getSenderEmail(lastMessage.id);
 
         if (!toEmail) {
-          throw new Error('Recipient email address not found');
+          throw new Error('Recipient email address not found. Please ensure the message has a sender in message_recipients.');
         }
 
         // Generate subject line (Re: original subject)
@@ -179,22 +180,13 @@ export function ResponseComposer({
         // This is handled differently - the bulk_responses table stores templates
         // that are then processed for each recipient
 
-        // Generate a simple fingerprint hash for the campaign response
-        const fingerprintContent = `${campaignId}-${plainText}`;
-        const encoder = new TextEncoder();
-        const data = encoder.encode(fingerprintContent);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const fingerprint = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
         const { error: bulkError } = await supabase
           .from('bulk_responses')
           .insert({
             office_id: currentOffice.id,
             campaign_id: campaignId,
-            fingerprint_hash: fingerprint,
             subject: 'Campaign Response', // This should be configurable
-            body_template: plainText, // Store template for processing
+            body_markdown: plainText, // Store markdown template for processing
             status: 'draft',
           });
 

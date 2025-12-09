@@ -96,16 +96,13 @@ export interface CaseParty {
 
 export interface BulkResponse {
   id: string;
+  office_id: string;
   campaign_id: string;
-  fingerprint_hash: string;
-  subject: string;
-  body_template: string;
+  subject: string | null;
+  body_markdown: string | null;
+  created_by: string | null;
   status: 'draft' | 'sent';
-  created_by_user_id: string;
   created_at: string;
-  sent_at?: string;
-  sent_count: number;
-  total_recipients: number;
 }
 
 export interface BulkResponseLog {
