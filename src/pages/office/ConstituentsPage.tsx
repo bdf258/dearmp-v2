@@ -1,8 +1,33 @@
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function ConstituentsPage() {
-  const { constituents } = useDummyData();
+  const { constituents, constituentContacts } = useSupabase();
+
+  // Helper to get contacts for a constituent
+  const getContacts = (constituentId: string) => {
+    return constituentContacts.filter(c => c.constituent_id === constituentId);
+  };
+
+  // Helper to get primary email
+  const getPrimaryEmail = (constituentId: string) => {
+    const contacts = getContacts(constituentId);
+    const primary = contacts.find(c => c.type === 'email' && c.is_primary);
+    return primary?.value || contacts.find(c => c.type === 'email')?.value || '';
+  };
+
+  // Helper to get primary phone
+  const getPrimaryPhone = (constituentId: string) => {
+    const contacts = getContacts(constituentId);
+    const primary = contacts.find(c => c.type === 'phone' && c.is_primary);
+    return primary?.value || contacts.find(c => c.type === 'phone')?.value || '';
+  };
+
+  // Helper to get address
+  const getAddress = (constituentId: string) => {
+    const contacts = getContacts(constituentId);
+    return contacts.find(c => c.type === 'address')?.value || '';
+  };
 
   return (
     <div className="space-y-6">
@@ -29,11 +54,17 @@ export default function ConstituentsPage() {
               >
                 <div className="space-y-1">
                   <h3 className="font-semibold">
-                    {constituent.first_name} {constituent.last_name}
+                    {constituent.full_name}
                   </h3>
-                  <p className="text-sm text-muted-foreground">{constituent.email}</p>
-                  <p className="text-sm text-muted-foreground">{constituent.phone}</p>
-                  <p className="text-sm text-muted-foreground">{constituent.address}</p>
+                  {getPrimaryEmail(constituent.id) && (
+                    <p className="text-sm text-muted-foreground">{getPrimaryEmail(constituent.id)}</p>
+                  )}
+                  {getPrimaryPhone(constituent.id) && (
+                    <p className="text-sm text-muted-foreground">{getPrimaryPhone(constituent.id)}</p>
+                  )}
+                  {getAddress(constituent.id) && (
+                    <p className="text-sm text-muted-foreground">{getAddress(constituent.id)}</p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">
@@ -42,6 +73,9 @@ export default function ConstituentsPage() {
                 </div>
               </div>
             ))}
+            {constituents.length === 0 && (
+              <p className="text-sm text-muted-foreground py-8 text-center">No constituents yet</p>
+            )}
           </div>
         </CardContent>
       </Card>

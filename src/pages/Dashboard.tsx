@@ -1,14 +1,14 @@
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Users, Mail, Flag } from 'lucide-react';
 
 export default function Dashboard() {
-  const { cases, constituents, messages, campaigns, currentOfficeMode } = useDummyData();
+  const { cases, constituents, messages, campaigns, currentOfficeMode } = useSupabase();
 
   const stats = [
     {
       title: 'Active Cases',
-      value: cases.filter(c => c.status !== 'closed').length,
+      value: cases.filter(c => c.status !== 'closed' && c.status !== 'archived').length,
       icon: FileText,
       description: 'Cases in progress',
     },
@@ -19,10 +19,10 @@ export default function Dashboard() {
       description: 'Total constituents',
     },
     {
-      title: 'Unassigned Messages',
-      value: messages.filter(m => m.is_triage_needed).length,
+      title: 'Messages',
+      value: messages.filter(m => !m.case_id && !m.campaign_id).length,
       icon: Mail,
-      description: 'Requiring triage',
+      description: 'Unassigned messages',
     },
     {
       title: 'Active Campaigns',
@@ -79,6 +79,9 @@ export default function Dashboard() {
                   </div>
                 </div>
               ))}
+              {cases.length === 0 && (
+                <p className="text-sm text-muted-foreground">No cases yet</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -93,18 +96,21 @@ export default function Dashboard() {
               {messages.slice(0, 3).map((message) => (
                 <div key={message.id} className="flex items-start gap-3">
                   <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium">{message.subject}</p>
+                    <p className="text-sm font-medium">{message.subject || '(No subject)'}</p>
                     <p className="text-xs text-muted-foreground">
-                      From: {message.from_name}
+                      {message.channel} • {new Date(message.received_at).toLocaleDateString()}
                     </p>
                   </div>
-                  {message.is_triage_needed && (
+                  {!message.case_id && !message.campaign_id && (
                     <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">
                       Triage
                     </span>
                   )}
                 </div>
               ))}
+              {messages.length === 0 && (
+                <p className="text-sm text-muted-foreground">No messages yet</p>
+              )}
             </div>
           </CardContent>
         </Card>

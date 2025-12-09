@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -23,7 +23,7 @@ import { Search, FolderOpen } from 'lucide-react';
 
 export default function CasesPage() {
   const navigate = useNavigate();
-  const { cases, users } = useDummyData();
+  const { cases, profiles } = useSupabase();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assignedFilter, setAssignedFilter] = useState<string>('all');
@@ -36,8 +36,8 @@ export default function CasesPage() {
       const matchesSearch =
         searchQuery === '' ||
         caseItem.title.toLowerCase().includes(searchLower) ||
-        caseItem.description.toLowerCase().includes(searchLower) ||
-        caseItem.reference_number.toLowerCase().includes(searchLower);
+        (caseItem.description?.toLowerCase().includes(searchLower) ?? false) ||
+        String(caseItem.reference_number).includes(searchLower);
 
       // Status filter
       const matchesStatus =
@@ -46,7 +46,7 @@ export default function CasesPage() {
       // Assigned filter
       const matchesAssigned =
         assignedFilter === 'all' ||
-        caseItem.assigned_to_user_id === assignedFilter;
+        caseItem.assigned_to === assignedFilter;
 
       return matchesSearch && matchesStatus && matchesAssigned;
     });
@@ -64,10 +64,12 @@ export default function CasesPage() {
     switch (status) {
       case 'open':
         return <Badge variant="outline">Open</Badge>;
-      case 'in_progress':
-        return <Badge variant="secondary">In Progress</Badge>;
+      case 'pending':
+        return <Badge variant="secondary">Pending</Badge>;
       case 'closed':
         return <Badge variant="default">Closed</Badge>;
+      case 'archived':
+        return <Badge>Archived</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -75,6 +77,8 @@ export default function CasesPage() {
 
   const getPriorityBadge = (priority: string) => {
     switch (priority) {
+      case 'urgent':
+        return <Badge variant="destructive">Urgent</Badge>;
       case 'high':
         return <Badge variant="destructive">High</Badge>;
       case 'medium':
@@ -86,9 +90,10 @@ export default function CasesPage() {
     }
   };
 
-  const getUserName = (userId: string) => {
-    const user = users.find((u) => u.id === userId);
-    return user?.name || 'Unassigned';
+  const getUserName = (userId: string | null) => {
+    if (!userId) return 'Unassigned';
+    const profile = profiles.find((p) => p.id === userId);
+    return profile?.full_name || 'Unassigned';
   };
 
   const handleCaseClick = (caseId: string) => {
@@ -130,8 +135,9 @@ export default function CasesPage() {
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="closed">Closed</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
               </SelectContent>
             </Select>
             <Select value={assignedFilter} onValueChange={setAssignedFilter}>
@@ -140,9 +146,9 @@ export default function CasesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Assignees</SelectItem>
-                {users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.name}
+                {profiles.map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.full_name || 'Unknown'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -181,7 +187,7 @@ export default function CasesPage() {
                   >
                     <TableCell>
                       <div className="font-mono text-sm">
-                        {caseItem.reference_number}
+                        #{caseItem.reference_number}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -194,7 +200,7 @@ export default function CasesPage() {
                     <TableCell>{getPriorityBadge(caseItem.priority)}</TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        {getUserName(caseItem.assigned_to_user_id)}
+                        {getUserName(caseItem.assigned_to)}
                       </div>
                     </TableCell>
                     <TableCell>
