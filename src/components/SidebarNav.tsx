@@ -180,6 +180,12 @@ export function SidebarNav({ currentMode }: SidebarNavProps) {
             </>
           )}
 
+         {/* Casework Section (Casework mode) */}
+          {currentMode === 'casework' && caseworkItems.length > 0 && (
+            <>{renderNavSection('Casework', caseworkItems)}</>
+          )}
+
+
           {/* Office Section (both modes) */}
           {officeItems.length > 0 && (
             <>
@@ -188,10 +194,6 @@ export function SidebarNav({ currentMode }: SidebarNavProps) {
             </>
           )}
 
-          {/* Casework Section (Casework mode) */}
-          {currentMode === 'casework' && caseworkItems.length > 0 && (
-            <>{renderNavSection('Casework', caseworkItems)}</>
-          )}
         </div>
       </div>
     </aside>
