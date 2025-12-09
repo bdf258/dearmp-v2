@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
@@ -22,11 +22,11 @@ import { Badge } from '@/components/ui/badge';
 import { MoreHorizontal, Mail, Tag, FileText, Eye } from 'lucide-react';
 
 export default function TriagePage() {
-  const { messages, users } = useDummyData();
+  const { messages, messageRecipients, profiles } = useSupabase();
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
 
-  // Filter messages that need triage
-  const triageMessages = messages.filter((msg) => msg.is_triage_needed);
+  // Filter messages that need triage (no case or campaign assigned)
+  const triageMessages = messages.filter((msg) => !msg.case_id && !msg.campaign_id);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
@@ -38,30 +38,32 @@ export default function TriagePage() {
     });
   };
 
+  // Get sender info from message recipients
+  const getSenderInfo = (messageId: string) => {
+    const sender = messageRecipients.find(
+      r => r.message_id === messageId && r.recipient_type === 'from'
+    );
+    return {
+      name: sender?.name || 'Unknown',
+      email: sender?.email_address || '',
+    };
+  };
+
   const handleAssignToUser = (messageId: string, userId: string) => {
     console.log(`Assigning message ${messageId} to user ${userId}`);
-    // In a real app, this would update the backend
   };
 
   const handleAddTag = (messageId: string) => {
     console.log(`Adding tag to message ${messageId}`);
-    // In a real app, this would open a tag selection dialog
-  };
-
-  const handleTogglePolicyEmail = (messageId: string, currentValue: boolean) => {
-    console.log(`Toggling policy email for message ${messageId} to ${!currentValue}`);
-    // In a real app, this would update the backend
   };
 
   const handleCreateCase = (messageId: string) => {
     console.log(`Creating case from message ${messageId}`);
-    // In a real app, this would navigate to new case page with pre-filled data
   };
 
   const handleViewMessage = (messageId: string) => {
     setSelectedMessage(messageId);
     console.log(`Viewing message ${messageId}`);
-    // In a real app, this would open a modal or navigate to message detail
   };
 
   return (
@@ -97,96 +99,82 @@ export default function TriagePage() {
                   <TableHead>Subject</TableHead>
                   <TableHead>Preview</TableHead>
                   <TableHead>Received</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead>Channel</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {triageMessages.map((message) => (
-                  <TableRow key={message.id}>
-                    <TableCell>
-                      <div className="font-medium">{message.from_name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {message.from_email}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-xs truncate font-medium">
-                        {message.subject}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-md truncate text-sm text-muted-foreground">
-                        {message.snippet}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{formatDate(message.created_at)}</div>
-                    </TableCell>
-                    <TableCell>
-                      {message.is_policy_email ? (
-                        <Badge variant="secondary">Policy</Badge>
-                      ) : (
-                        <Badge variant="outline">Casework</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem
-                            onClick={() => handleViewMessage(message.id)}
-                          >
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Message
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleAddTag(message.id)}
-                          >
-                            <Tag className="mr-2 h-4 w-4" />
-                            Add Tag
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() =>
-                              handleTogglePolicyEmail(
-                                message.id,
-                                message.is_policy_email
-                              )
-                            }
-                          >
-                            <Mail className="mr-2 h-4 w-4" />
-                            {message.is_policy_email
-                              ? 'Mark as Casework'
-                              : 'Mark as Policy'}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleCreateCase(message.id)}
-                          >
-                            <FileText className="mr-2 h-4 w-4" />
-                            Create Case
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel>Assign to</DropdownMenuLabel>
-                          {users.map((user) => (
+                {triageMessages.map((message) => {
+                  const sender = getSenderInfo(message.id);
+                  return (
+                    <TableRow key={message.id}>
+                      <TableCell>
+                        <div className="font-medium">{sender.name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {sender.email}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-xs truncate font-medium">
+                          {message.subject || '(No subject)'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-md truncate text-sm text-muted-foreground">
+                          {message.snippet}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">{formatDate(message.received_at)}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{message.channel}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuItem
-                              key={user.id}
-                              onClick={() => handleAssignToUser(message.id, user.id)}
+                              onClick={() => handleViewMessage(message.id)}
                             >
-                              {user.name}
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Message
                             </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleAddTag(message.id)}
+                            >
+                              <Tag className="mr-2 h-4 w-4" />
+                              Add Tag
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleCreateCase(message.id)}
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              Create Case
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Assign to</DropdownMenuLabel>
+                            {profiles.map((profile) => (
+                              <DropdownMenuItem
+                                key={profile.id}
+                                onClick={() => handleAssignToUser(message.id, profile.id)}
+                              >
+                                {profile.full_name || 'Unknown'}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -202,24 +190,30 @@ export default function TriagePage() {
             {(() => {
               const msg = messages.find((m) => m.id === selectedMessage);
               if (!msg) return null;
+              const sender = getSenderInfo(msg.id);
+              const recipients = messageRecipients.filter(
+                r => r.message_id === msg.id && r.recipient_type === 'to'
+              );
               return (
                 <div className="space-y-4">
                   <div>
                     <div className="text-sm font-medium text-muted-foreground">From</div>
-                    <div>{msg.from_name} ({msg.from_email})</div>
+                    <div>{sender.name} ({sender.email})</div>
                   </div>
                   <div>
                     <div className="text-sm font-medium text-muted-foreground">To</div>
-                    <div>{msg.to_name} ({msg.to_email})</div>
+                    <div>
+                      {recipients.map(r => `${r.name || r.email_address}`).join(', ') || 'Unknown'}
+                    </div>
                   </div>
                   <div>
                     <div className="text-sm font-medium text-muted-foreground">Subject</div>
-                    <div>{msg.subject}</div>
+                    <div>{msg.subject || '(No subject)'}</div>
                   </div>
                   <div>
                     <div className="text-sm font-medium text-muted-foreground">Message</div>
                     <div className="whitespace-pre-wrap mt-2 p-4 bg-muted rounded-md">
-                      {msg.body}
+                      {msg.snippet || msg.body_search_text || '(No content available)'}
                     </div>
                   </div>
                 </div>

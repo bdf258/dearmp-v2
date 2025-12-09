@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import {
   Card,
   CardContent,
@@ -45,44 +45,40 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function PolicyEmailGroupDetailPage() {
-  const { groupId, campaignId: campaignIdParam } = useParams<{ groupId: string; campaignId: string }>();
-  const { messages, campaigns, bulkResponses } = useDummyData();
+  const { groupId, campaignId } = useParams<{ groupId?: string; campaignId?: string }>();
+  const { messages, campaigns, bulkResponses, messageRecipients } = useSupabase();
 
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<any>(null);
   const [researchExpanded, setResearchExpanded] = useState(true);
 
-  const decodedGroupId = groupId ? decodeURIComponent(groupId) : '';
+  const targetId = campaignId || (groupId ? decodeURIComponent(groupId) : '');
 
-  // Get campaign info - either by direct ID or by fingerprint hash
+  // Get campaign info
   const campaign = useMemo(() => {
-    if (campaignIdParam) {
-      return campaigns.find((c) => c.id === campaignIdParam);
-    }
-    return campaigns.find((c) => c.fingerprint_hash === decodedGroupId);
-  }, [campaigns, campaignIdParam, decodedGroupId]);
+    return campaigns.find((c) => c.id === targetId);
+  }, [campaigns, targetId]);
 
-  // Get all messages in this group - by campaign ID or fingerprint hash
+  // Get all messages in this campaign
   const groupMessages = useMemo(() => {
-    if (campaignIdParam) {
-      const targetCampaign = campaigns.find((c) => c.id === campaignIdParam);
-      return messages.filter(
-        (msg) =>
-          msg.campaign_id === campaignIdParam ||
-          (targetCampaign?.fingerprint_hash && msg.fingerprint_hash === targetCampaign.fingerprint_hash)
-      );
-    }
-    return messages.filter((msg) => msg.fingerprint_hash === decodedGroupId);
-  }, [messages, campaigns, campaignIdParam, decodedGroupId]);
+    return messages.filter((msg) => msg.campaign_id === targetId);
+  }, [messages, targetId]);
 
   // Get existing bulk response
   const existingBulkResponse = useMemo(() => {
-    if (campaignIdParam) {
-      return bulkResponses.find((br) => br.campaign_id === campaignIdParam);
-    }
-    return bulkResponses.find((br) => br.fingerprint_hash === decodedGroupId);
-  }, [bulkResponses, campaignIdParam, decodedGroupId]);
+    return bulkResponses.find((br) => br.campaign_id === targetId);
+  }, [bulkResponses, targetId]);
 
+  // Get sender info helper
+  const getSenderInfo = (messageId: string) => {
+    const sender = messageRecipients.find(
+      r => r.message_id === messageId && r.recipient_type === 'from'
+    );
+    return {
+      name: sender?.name || 'Unknown',
+      email: sender?.email_address || '',
+    };
+  };
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -101,7 +97,6 @@ export default function PolicyEmailGroupDetailPage() {
 
   const handleGenerateResearch = () => {
     console.log('Generating LLM research...');
-    // Placeholder for LLM research generation
   };
 
   const formatDate = (dateString: string) => {
@@ -123,26 +118,26 @@ export default function PolicyEmailGroupDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Mail className="h-12 w-12 text-muted-foreground" />
-        <p className="mt-4 text-lg font-medium">Group not found</p>
+        <p className="mt-4 text-lg font-medium">No messages found</p>
         <p className="text-sm text-muted-foreground">
-          This email group does not exist or has no messages.
+          {campaign ? `Campaign "${campaign.name}" has no messages.` : 'This email group does not exist or has no messages.'}
         </p>
       </div>
     );
   }
 
-  const representativeSubject = groupMessages[0].subject;
+  const representativeSubject = groupMessages[0].subject || '(No subject)';
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
-          {representativeSubject}
+          {campaign?.name || representativeSubject}
         </h1>
         {campaign && (
           <Badge variant="secondary" className="mt-2">
-            {campaign.name}
+            {campaign.status}
           </Badge>
         )}
       </div>
@@ -213,7 +208,7 @@ export default function PolicyEmailGroupDetailPage() {
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Simulated Research Results</AlertTitle>
                 <AlertDescription>
-                  This is dummy text simulating LLM research results.
+                  This is placeholder text simulating LLM research results.
                 </AlertDescription>
               </Alert>
               <div className="rounded-lg border bg-muted/50 p-4">
@@ -246,9 +241,7 @@ export default function PolicyEmailGroupDetailPage() {
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Response Already Sent</AlertTitle>
           <AlertDescription>
-            A bulk response was sent to this group on{' '}
-            {new Date(existingBulkResponse.sent_at || '').toLocaleString()}.
-            Sent to {existingBulkResponse.sent_count} recipients.
+            A bulk response was sent to this group.
           </AlertDescription>
         </Alert>
       )}
@@ -256,7 +249,7 @@ export default function PolicyEmailGroupDetailPage() {
       <ResponseComposer
         originalMessages={groupMessages}
         mode="campaign"
-        campaignId={campaign?.id || decodedGroupId}
+        campaignId={campaign?.id || targetId}
         recipientCount={stats.totalEmails}
       />
 
@@ -278,45 +271,44 @@ export default function PolicyEmailGroupDetailPage() {
                 <TableHead>From</TableHead>
                 <TableHead>Subject</TableHead>
                 <TableHead>Received</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Channel</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {groupMessages.map((message) => (
-                <TableRow key={message.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{message.from_name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {message.from_email}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="max-w-md truncate">
-                    {message.subject}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(message.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    {message.assigned_to_user_id ? (
-                      <Badge variant="secondary">Assigned</Badge>
-                    ) : (
-                      <Badge variant="outline">Unassigned</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleViewEmail(message)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {groupMessages.map((message) => {
+                const sender = getSenderInfo(message.id);
+                return (
+                  <TableRow key={message.id}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{sender.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {sender.email}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="max-w-md truncate">
+                      {message.subject || '(No subject)'}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(message.received_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{message.channel}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleViewEmail(message)}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -333,10 +325,10 @@ export default function PolicyEmailGroupDetailPage() {
           </DialogHeader>
           {selectedMessage && (
             <EmailDisplay
-              html={selectedMessage.body}
-              from={`${selectedMessage.from_name} <${selectedMessage.from_email}>`}
-              date={formatDate(selectedMessage.created_at)}
-              subject={selectedMessage.subject}
+              html={selectedMessage.snippet || selectedMessage.body_search_text || ''}
+              from={`${getSenderInfo(selectedMessage.id).name} <${getSenderInfo(selectedMessage.id).email}>`}
+              date={formatDate(selectedMessage.received_at)}
+              subject={selectedMessage.subject || '(No subject)'}
             />
           )}
           <DialogFooter>

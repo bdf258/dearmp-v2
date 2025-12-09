@@ -1,4 +1,4 @@
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
@@ -9,7 +9,7 @@ interface HeaderProps {
 }
 
 export function Header({ currentMode, onModeChange }: HeaderProps) {
-  const { currentUser, currentOffice } = useDummyData();
+  const { profile, currentOffice } = useSupabase();
 
   const handleModeToggle = (checked: boolean) => {
     onModeChange(checked ? 'westminster' : 'casework');
@@ -43,15 +43,15 @@ export function Header({ currentMode, onModeChange }: HeaderProps) {
         <div className="flex items-center gap-2">
           <div className="text-right">
             <p className="text-sm font-medium text-card-foreground">
-              {currentUser?.name || 'User'}
+              {profile?.full_name || 'User'}
             </p>
             <p className="text-xs text-muted-foreground">
-              {currentUser?.role || 'staff'}
+              {profile?.role || 'staff'}
             </p>
           </div>
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <span className="text-sm font-medium">
-              {currentUser?.name?.charAt(0) || 'U'}
+              {profile?.full_name?.charAt(0) || 'U'}
             </span>
           </div>
         </div>

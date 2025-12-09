@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useDummyData, ApprovalItem } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,11 +19,35 @@ import {
 } from '@/components/ui/alert-dialog';
 import { CheckCircle2, XCircle, FileText, Mail, FileCheck } from 'lucide-react';
 
+interface ApprovalItem {
+  id: string;
+  type: 'bulk_response' | 'draft_letter' | 'policy_statement';
+  title: string;
+  content: string;
+  context: string;
+  created_by_user_id: string;
+  created_at: string;
+}
+
 export default function MPApprovalPage() {
-  const { approvalQueue: initialQueue, users } = useDummyData();
-  const [approvalQueue, setApprovalQueue] = useState<ApprovalItem[]>(initialQueue);
+  const { bulkResponses, profiles } = useSupabase();
+
+  // Convert bulk responses to approval items (draft status ones need approval)
+  const approvalItems: ApprovalItem[] = bulkResponses
+    .filter(br => br.status === 'draft')
+    .map(br => ({
+      id: br.id,
+      type: 'bulk_response' as const,
+      title: br.subject || 'Bulk Response',
+      content: br.body_markdown || '',
+      context: 'Bulk response for campaign',
+      created_by_user_id: br.created_by || '',
+      created_at: br.created_at,
+    }));
+
+  const [approvalQueue, setApprovalQueue] = useState<ApprovalItem[]>(approvalItems);
   const [selectedItem, setSelectedItem] = useState<ApprovalItem | null>(
-    initialQueue.length > 0 ? initialQueue[0] : null
+    approvalQueue.length > 0 ? approvalQueue[0] : null
   );
   const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -101,8 +125,8 @@ export default function MPApprovalPage() {
   };
 
   const getCreatorName = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    return user ? user.name : 'Unknown';
+    const profile = profiles.find(p => p.id === userId);
+    return profile ? profile.full_name : 'Unknown';
   };
 
   if (approvalQueue.length === 0) {
@@ -154,7 +178,7 @@ export default function MPApprovalPage() {
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
                   <div className="flex items-center gap-2">
-                    <Badge variant={getTypeBadgeVariant(item.type)} className="text-xs">
+                    <Badge variant={getTypeBadgeVariant(item.type) as any} className="text-xs">
                       {getTypeLabel(item.type)}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
@@ -195,7 +219,7 @@ export default function MPApprovalPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         {getTypeIcon(selectedItem.type)}
-                        <Badge variant={getTypeBadgeVariant(selectedItem.type)}>
+                        <Badge variant={getTypeBadgeVariant(selectedItem.type) as any}>
                           {getTypeLabel(selectedItem.type)}
                         </Badge>
                       </div>
@@ -222,10 +246,9 @@ export default function MPApprovalPage() {
                     <h3 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wide">
                       Content for Review
                     </h3>
-                    <div
-                      className="prose prose-sm max-w-none bg-muted/50 p-6 rounded-lg"
-                      dangerouslySetInnerHTML={{ __html: selectedItem.content }}
-                    />
+                    <div className="prose prose-sm max-w-none bg-muted/50 p-6 rounded-lg whitespace-pre-wrap">
+                      {selectedItem.content}
+                    </div>
                   </div>
                 </CardContent>
 

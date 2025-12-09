@@ -1,11 +1,13 @@
-import { useDummyData } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { currentOfficeMode, setCurrentOfficeMode } = useDummyData();
+  const { currentOfficeMode, setCurrentOfficeMode, signOut, profile, currentOffice } = useSupabase();
 
   return (
     <div className="space-y-6">
@@ -15,6 +17,35 @@ export default function SettingsPage() {
           Manage your office settings and preferences
         </p>
       </div>
+
+      {/* Account Info */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Account</CardTitle>
+          <CardDescription>Your account information</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-muted-foreground">Name</Label>
+              <p className="font-medium">{profile?.full_name || 'Not set'}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Role</Label>
+              <p className="font-medium capitalize">{profile?.role || 'Staff'}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Office</Label>
+              <p className="font-medium">{currentOffice?.name || 'Not assigned'}</p>
+            </div>
+          </div>
+          <Separator />
+          <Button variant="outline" onClick={signOut}>
+            <LogOut className="mr-2 h-4 w-4" />
+            Sign Out
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Office Mode Settings */}
       <Card>
@@ -123,50 +154,6 @@ export default function SettingsPage() {
           <p className="text-sm text-muted-foreground">
             Tag management interface will be available here. Create custom tags with colors
             to categorize your work.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Inbound Rule Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Inbound Rule Management</CardTitle>
-          <CardDescription>
-            Configure automatic routing and tagging rules for incoming messages
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Inbound rule configuration will be available here. Set up rules to
-            automatically route, tag, and assign incoming messages.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Retention Policies */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Retention Policies</CardTitle>
-          <CardDescription>Manage data retention and archival policies</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Retention policy settings will be available here. Configure how long different
-            types of data are retained in the system.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Notifications */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Notifications</CardTitle>
-          <CardDescription>Configure notification preferences</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Notification settings will be available here. Choose which events trigger
-            notifications and how you receive them.
           </p>
         </CardContent>
       </Card>
