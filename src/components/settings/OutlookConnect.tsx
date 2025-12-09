@@ -33,7 +33,7 @@ export function OutlookConnect({ officeId }: OutlookConnectProps) {
         .select('*')
         .eq('office_id', officeId)
         .eq('is_connected', true)
-        .single();
+        .maybeSingle();
 
       if (data && !sessionError) {
         setIsConnected(true);
@@ -150,12 +150,11 @@ export function OutlookConnect({ officeId }: OutlookConnectProps) {
         return (
           <>
             <CardDescription>
-              Connect your Outlook account to enable automated email sending through the Outlook Worker Bot.
+              Connect your Outlook account to enable automated email sending through Outlook.
             </CardDescription>
             <CardContent className="pt-6">
               <p className="text-sm text-muted-foreground mb-4">
-                This will open a remote browser session where you can securely log in to your Outlook account.
-                The session data will be stored securely for automated email sending.
+                This will open an Outlook login screen.
               </p>
             </CardContent>
             <CardFooter>
@@ -172,7 +171,7 @@ export function OutlookConnect({ officeId }: OutlookConnectProps) {
             <CardContent className="pt-6">
               <div className="flex items-center justify-center space-x-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Starting remote browser session...</span>
+                <span>Starting Outlook login...</span>
               </div>
             </CardContent>
           </>
@@ -182,7 +181,7 @@ export function OutlookConnect({ officeId }: OutlookConnectProps) {
         return (
           <>
             <CardDescription>
-              Log in to your Outlook account in the browser window below.
+              Log in to your Outlook account in the window below.
             </CardDescription>
             <CardContent className="pt-6 space-y-4">
               <Alert>
@@ -192,22 +191,24 @@ export function OutlookConnect({ officeId }: OutlookConnectProps) {
                   Once you see your Outlook inbox, click "I have finished logging in" below.
                 </AlertDescription>
               </Alert>
+                <div className="mx-auto w-full max-w-[400px] aspect-[1/2] border-8 border-gray-800 rounded-[3rem] overflow-hidden bg-gray-100 shadow-xl relative">
 
-              {vncUrl && (
-                <div className="border rounded-lg overflow-hidden bg-gray-100" style={{ height: '600px' }}>
+                {vncUrl && (
+                  <div className="border rounded-lg overflow-hidden bg-gray-100" style={{ height: '600px' }}>
                   <iframe
                     src={vncUrl}
                     className="w-full h-full"
-                    title="Outlook Login Browser"
+                    title="Outlook Login"
                     sandbox="allow-same-origin allow-scripts allow-forms"
                   />
-                </div>
+                  </div>
               )}
+              </div>
             </CardContent>
             <CardFooter className="flex gap-2">
               <Button onClick={captureSession} className="flex-1">
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                I have finished logging in
+                I have logged in
               </Button>
               <Button onClick={cancelSession} variant="outline" className="flex-1">
                 Cancel

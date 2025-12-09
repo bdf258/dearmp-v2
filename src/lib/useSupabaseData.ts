@@ -16,6 +16,7 @@ import type {
   CaseInsert,
   ConstituentInsert,
   MessageInsert,
+  CasePartyInsert,
   CasePriority,
   UserRole,
   OutlookSession,
@@ -61,6 +62,8 @@ interface UseSupabaseDataReturn {
   updateCase: (id: string, updates: Partial<Case>) => Promise<Case | null>;
   createConstituent: (data: Omit<ConstituentInsert, 'office_id'>) => Promise<Constituent | null>;
   createMessage: (data: Omit<MessageInsert, 'office_id'>) => Promise<Message | null>;
+  createCaseParty: (data: Omit<CasePartyInsert, 'office_id'>) => Promise<CaseParty | null>;
+  removeCaseParty: (casePartyId: string) => Promise<boolean>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 
@@ -349,6 +352,49 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     return newMessage;
   };
 
+  const createCaseParty = async (partyData: Omit<CasePartyInsert, 'office_id'>): Promise<CaseParty | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const insertData = {
+      office_id: officeId,
+      case_id: partyData.case_id,
+      constituent_id: partyData.constituent_id,
+      organization_id: partyData.organization_id,
+      role: partyData.role,
+    };
+
+    const { data, error: insertError } = await supabase
+      .from('case_parties')
+      .insert(insertData as never)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating case party:', insertError);
+      return null;
+    }
+
+    const newCaseParty = data as CaseParty;
+    setCaseParties(prev => [...prev, newCaseParty]);
+    return newCaseParty;
+  };
+
+  const removeCaseParty = async (casePartyId: string): Promise<boolean> => {
+    const { error: deleteError } = await supabase
+      .from('case_parties')
+      .delete()
+      .eq('id', casePartyId);
+
+    if (deleteError) {
+      console.error('Error removing case party:', deleteError);
+      return false;
+    }
+
+    setCaseParties(prev => prev.filter(cp => cp.id !== casePartyId));
+    return true;
+  };
+
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
@@ -537,6 +583,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     updateCase,
     createConstituent,
     createMessage,
+    createCaseParty,
+    removeCaseParty,
     signIn,
     signOut,
 

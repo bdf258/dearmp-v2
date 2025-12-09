@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,19 +8,48 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { MailThread } from '@/components/mail';
 import { NotesSection } from '@/components/notes';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import {
   ArrowLeft,
   User,
   Building2,
   Mail,
   AlertCircle,
+  Pencil,
+  Plus,
+  X,
+  MapPin,
+  Check,
 } from 'lucide-react';
 
 export default function CaseDetailPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const navigate = useNavigate();
-  const { cases, profiles, constituents, constituentContacts, organizations, messages, caseParties } =
-    useSupabase();
+  const {
+    cases,
+    profiles,
+    constituents,
+    constituentContacts,
+    organizations,
+    messages,
+    caseParties,
+    createCaseParty,
+    removeCaseParty,
+    updateCase,
+  } = useSupabase();
+
+  // State for popovers
+  const [constituentPopoverOpen, setConstituentPopoverOpen] = useState(false);
+  const [organizationPopoverOpen, setOrganizationPopoverOpen] = useState(false);
+  const [assigneePopoverOpen, setAssigneePopoverOpen] = useState(false);
 
   // Find the case
   const caseData = cases.find((c) => c.id === caseId);
@@ -33,7 +62,7 @@ export default function CaseDetailPage() {
       .sort((a, b) => new Date(a.received_at).getTime() - new Date(b.received_at).getTime());
   }, [caseId, messages]);
 
-  // Get case parties
+  // Get case parties with full data
   const parties = useMemo(() => {
     if (!caseId) return { constituents: [], organizations: [] };
     const partiesForCase = caseParties.filter((cp) => cp.case_id === caseId);
@@ -47,11 +76,17 @@ export default function CaseDetailPage() {
           const contacts = constituentContacts.filter(cc => cc.constituent_id === constituent.id);
           const email = contacts.find(c => c.type === 'email')?.value || '';
           const phone = contacts.find(c => c.type === 'phone')?.value || '';
+          const address = contacts.find(c => c.type === 'address')?.value || '';
+          // Consider a constituent "confirmed" if they have both email and address
+          const isConfirmed = !!(email && address);
           return {
             ...constituent,
             email,
             phone,
+            address,
             role: p.role,
+            partyId: p.id,
+            isConfirmed,
           };
         })
         .filter(Boolean),
@@ -63,11 +98,58 @@ export default function CaseDetailPage() {
           return {
             ...org,
             role: p.role,
+            partyId: p.id,
           };
         })
         .filter(Boolean),
     };
   }, [caseId, caseParties, constituents, constituentContacts, organizations]);
+
+  // Get constituents not already linked to this case
+  const availableConstituents = useMemo(() => {
+    const linkedIds = new Set(parties.constituents.map((c: any) => c.id));
+    return constituents.filter(c => !linkedIds.has(c.id));
+  }, [constituents, parties.constituents]);
+
+  // Get organizations not already linked to this case
+  const availableOrganizations = useMemo(() => {
+    const linkedIds = new Set(parties.organizations.map((o: any) => o.id));
+    return organizations.filter(o => !linkedIds.has(o.id));
+  }, [organizations, parties.organizations]);
+
+  // Handle adding a constituent to the case
+  const handleAddConstituent = async (constituentId: string) => {
+    if (!caseId) return;
+    await createCaseParty({
+      case_id: caseId,
+      constituent_id: constituentId,
+      role: 'constituent',
+    });
+    setConstituentPopoverOpen(false);
+  };
+
+  // Handle adding an organization to the case
+  const handleAddOrganization = async (organizationId: string) => {
+    if (!caseId) return;
+    await createCaseParty({
+      case_id: caseId,
+      organization_id: organizationId,
+      role: 'organization',
+    });
+    setOrganizationPopoverOpen(false);
+  };
+
+  // Handle removing a party from the case
+  const handleRemoveParty = async (partyId: string) => {
+    await removeCaseParty(partyId);
+  };
+
+  // Handle changing the assignee
+  const handleChangeAssignee = async (profileId: string | null) => {
+    if (!caseId) return;
+    await updateCase(caseId, { assigned_to: profileId });
+    setAssigneePopoverOpen(false);
+  };
 
   if (!caseData) {
     return (
@@ -166,7 +248,47 @@ export default function CaseDetailPage() {
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Assigned To</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center justify-between">
+              <span>Assigned To</span>
+              <Popover open={assigneePopoverOpen} onOpenChange={setAssigneePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[250px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search staff..." />
+                    <CommandList>
+                      <CommandEmpty>No staff found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          onSelect={() => handleChangeAssignee(null)}
+                          className="flex items-center gap-2"
+                        >
+                          <X className="h-4 w-4 text-muted-foreground" />
+                          <span>Unassigned</span>
+                          {!caseData.assigned_to && <Check className="ml-auto h-4 w-4" />}
+                        </CommandItem>
+                        {profiles.map((profile) => (
+                          <CommandItem
+                            key={profile.id}
+                            onSelect={() => handleChangeAssignee(profile.id)}
+                            className="flex items-center gap-2"
+                          >
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span>{profile.full_name || 'Unknown'}</span>
+                            {caseData.assigned_to === profile.id && (
+                              <Check className="ml-auto h-4 w-4" />
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-sm">{getUserName(caseData.assigned_to)}</div>
@@ -208,32 +330,91 @@ export default function CaseDetailPage() {
                 <div className="space-y-6">
                   {/* Constituents */}
                   <div>
-                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Constituents
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        Constituents
+                      </h3>
+                      <Popover open={constituentPopoverOpen} onOpenChange={setConstituentPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search constituents..." />
+                            <CommandList>
+                              <CommandEmpty>No constituents found.</CommandEmpty>
+                              <CommandGroup>
+                                {availableConstituents.map((constituent) => {
+                                  const contacts = constituentContacts.filter(
+                                    cc => cc.constituent_id === constituent.id
+                                  );
+                                  const email = contacts.find(c => c.type === 'email')?.value;
+                                  return (
+                                    <CommandItem
+                                      key={constituent.id}
+                                      onSelect={() => handleAddConstituent(constituent.id)}
+                                      className="flex flex-col items-start gap-1"
+                                    >
+                                      <span className="font-medium">{constituent.full_name}</span>
+                                      {email && (
+                                        <span className="text-xs text-muted-foreground">
+                                          {email}
+                                        </span>
+                                      )}
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     <div className="space-y-3">
                       {parties.constituents.map((constituent: any) => (
                         <div
                           key={constituent.id}
-                          className="rounded-lg border p-3 space-y-1"
+                          className="rounded-lg border p-3 space-y-2"
                         >
-                          <div className="font-medium text-sm">
-                            {constituent.full_name}
+                          <div className="flex items-start justify-between">
+                            <div className="font-medium text-sm">
+                              {constituent.full_name}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleRemoveParty(constituent.partyId)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
                           </div>
-                          <Badge variant="outline" className="text-xs">
-                            {constituent.role}
-                          </Badge>
                           {constituent.email && (
-                            <div className="text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Mail className="h-3 w-3" />
                               {constituent.email}
                             </div>
                           )}
-                          {constituent.phone && (
-                            <div className="text-xs text-muted-foreground">
-                              {constituent.phone}
+                          {constituent.address && (
+                            <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                              <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                              <span>{constituent.address}</span>
                             </div>
                           )}
+                          <div className="pt-1">
+                            {constituent.isConfirmed ? (
+                              <Badge className="text-[10px] px-1.5 py-0.5 bg-green-400 hover:bg-green-400 text-white">
+                                Confirmed constituent
+                              </Badge>
+                            ) : (
+                              <Badge className="text-[10px] px-1.5 py-0.5 bg-red-400 hover:bg-red-400 text-white">
+                                Unconfirmed constituent
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       ))}
                       {parties.constituents.length === 0 && (
@@ -246,20 +427,65 @@ export default function CaseDetailPage() {
 
                   {/* Organizations */}
                   <div>
-                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                      <Building2 className="h-4 w-4" />
-                      Organizations
-                    </h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        Organizations
+                      </h3>
+                      <Popover open={organizationPopoverOpen} onOpenChange={setOrganizationPopoverOpen}>
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search organizations..." />
+                            <CommandList>
+                              <CommandEmpty>No organizations found.</CommandEmpty>
+                              <CommandGroup>
+                                {availableOrganizations.map((org) => (
+                                  <CommandItem
+                                    key={org.id}
+                                    onSelect={() => handleAddOrganization(org.id)}
+                                    className="flex flex-col items-start gap-1"
+                                  >
+                                    <span className="font-medium">{org.name}</span>
+                                    {org.type && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {org.type}
+                                      </span>
+                                    )}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                     <div className="space-y-3">
                       {parties.organizations.map((org: any) => (
                         <div key={org.id} className="rounded-lg border p-3 space-y-1">
-                          <div className="font-medium text-sm">{org.name}</div>
-                          <Badge variant="outline" className="text-xs">
-                            {org.role}
-                          </Badge>
+                          <div className="flex items-start justify-between">
+                            <div className="font-medium text-sm">{org.name}</div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleRemoveParty(org.partyId)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
                           {org.type && (
                             <div className="text-xs text-muted-foreground">
                               Type: {org.type}
+                            </div>
+                          )}
+                          {org.website && (
+                            <div className="text-xs text-muted-foreground">
+                              {org.website}
                             </div>
                           )}
                         </div>

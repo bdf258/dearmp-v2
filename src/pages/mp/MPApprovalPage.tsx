@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { CheckCircle2, XCircle, FileText, Mail, FileCheck } from 'lucide-react';
+import { CheckCircle2, XCircle, FileText, Mail, FileCheck, Loader2 } from 'lucide-react';
 
 interface ApprovalItem {
   id: string;
@@ -30,7 +30,7 @@ interface ApprovalItem {
 }
 
 export default function MPApprovalPage() {
-  const { bulkResponses, profiles } = useSupabase();
+  const { bulkResponses, profiles, supabase, getCurrentUserId, refreshData } = useSupabase();
 
   // Convert bulk responses to approval items (draft status ones need approval)
   const approvalItems: ApprovalItem[] = bulkResponses
@@ -39,9 +39,9 @@ export default function MPApprovalPage() {
       id: br.id,
       type: 'bulk_response' as const,
       title: br.subject || 'Bulk Response',
-      content: br.body_markdown || '',
+      content: br.body_template || '',
       context: 'Bulk response for campaign',
-      created_by_user_id: br.created_by || '',
+      created_by_user_id: br.created_by_user_id || '',
       created_at: br.created_at,
     }));
 
@@ -53,6 +53,7 @@ export default function MPApprovalPage() {
   const [feedback, setFeedback] = useState('');
   const [showApprovalSuccess, setShowApprovalSuccess] = useState(false);
   const [showReturnSuccess, setShowReturnSuccess] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   const getTypeIcon = (type: ApprovalItem['type']) => {
     switch (type) {
@@ -87,16 +88,42 @@ export default function MPApprovalPage() {
     }
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!selectedItem) return;
 
-    setShowApprovalSuccess(true);
-    setTimeout(() => {
-      const newQueue = approvalQueue.filter(item => item.id !== selectedItem.id);
-      setApprovalQueue(newQueue);
-      setSelectedItem(newQueue.length > 0 ? newQueue[0] : null);
-      setShowApprovalSuccess(false);
-    }, 1500);
+    setIsApproving(true);
+    try {
+      // Call the RPC function to process the bulk response approval
+      // Note: Type assertion used because this RPC function is created via SQL migration
+      const { error } = await (supabase.rpc as (fn: string, params: Record<string, unknown>) => ReturnType<typeof supabase.rpc>)(
+        'process_bulk_response_approval',
+        {
+          p_bulk_response_id: selectedItem.id,
+          p_approver_user_id: getCurrentUserId()
+        }
+      );
+
+      if (error) throw error;
+
+      // Success - show feedback and update UI
+      setShowApprovalSuccess(true);
+
+      // Refresh data to get updated bulk responses
+      await refreshData();
+
+      setTimeout(() => {
+        const newQueue = approvalQueue.filter(item => item.id !== selectedItem.id);
+        setApprovalQueue(newQueue);
+        setSelectedItem(newQueue.length > 0 ? newQueue[0] : null);
+        setShowApprovalSuccess(false);
+      }, 1500);
+
+    } catch (err) {
+      console.error('Failed to approve:', err);
+      alert('Failed to process approval. Check console for details.');
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   const handleReturnForEdits = () => {
@@ -257,13 +284,18 @@ export default function MPApprovalPage() {
                     variant="outline"
                     onClick={() => setIsReturnDialogOpen(true)}
                     className="gap-2"
+                    disabled={isApproving}
                   >
                     <XCircle className="h-4 w-4" />
                     Return for Edits
                   </Button>
-                  <Button onClick={handleApprove} className="gap-2">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Approve
+                  <Button onClick={handleApprove} className="gap-2" disabled={isApproving}>
+                    {isApproving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    {isApproving ? 'Processing...' : 'Approve'}
                   </Button>
                 </CardFooter>
               </Card>
