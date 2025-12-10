@@ -1052,3 +1052,4 @@ export type CampaignInsert = Database['public']['Tables']['campaigns']['Insert']
 export type OutlookSessionInsert = Database['public']['Tables']['integration_outlook_sessions']['Insert'];
 export type EmailOutboxQueueInsert = Database['public']['Tables']['email_outbox_queue']['Insert'];
 export type CasePartyInsert = Database['public']['Tables']['case_parties']['Insert'];
+export type MessageUpdate = Database['public']['Tables']['messages']['Update'];

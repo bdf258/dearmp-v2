@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -19,11 +20,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MoreHorizontal, Mail, Tag, FileText, Eye } from 'lucide-react';
+import { MoreHorizontal, Mail, Tag, FileText, Eye, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function TriagePage() {
-  const { messages, messageRecipients, profiles } = useSupabase();
+  const navigate = useNavigate();
+  const { messages, messageRecipients, profiles, createCase, updateMessage, getCurrentUserId } = useSupabase();
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
+  const [processingMessageId, setProcessingMessageId] = useState<string | null>(null);
 
   // Filter messages that need triage (no case or campaign assigned)
   const triageMessages = messages.filter((msg) => !msg.case_id && !msg.campaign_id);
@@ -49,21 +53,97 @@ export default function TriagePage() {
     };
   };
 
-  const handleAssignToUser = (messageId: string, userId: string) => {
-    console.log(`Assigning message ${messageId} to user ${userId}`);
+  const handleAssignToUser = async (messageId: string, userId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (!message) return;
+
+    setProcessingMessageId(messageId);
+    try {
+      const sender = getSenderInfo(messageId);
+
+      // Create a case from the message and assign to the user
+      const newCase = await createCase({
+        title: message.subject || `Message from ${sender.name}`,
+        description: message.snippet || message.body_search_text || undefined,
+        status: 'open',
+        priority: 'medium',
+        assigned_to: userId,
+        created_by: getCurrentUserId() || undefined,
+      });
+
+      if (!newCase) {
+        toast.error('Failed to create case');
+        return;
+      }
+
+      // Link the message to the new case
+      const updatedMessage = await updateMessage(messageId, { case_id: newCase.id });
+      if (!updatedMessage) {
+        toast.error('Case created but failed to link message');
+        return;
+      }
+
+      const assignedUser = profiles.find(p => p.id === userId);
+      toast.success(`Case created and assigned to ${assignedUser?.full_name || 'user'}`);
+
+      // Navigate to the new case
+      navigate(`/casework/cases/${newCase.id}`);
+    } catch (error) {
+      console.error('Error assigning message:', error);
+      toast.error('Failed to process message');
+    } finally {
+      setProcessingMessageId(null);
+    }
   };
 
   const handleAddTag = (messageId: string) => {
-    console.log(`Adding tag to message ${messageId}`);
+    // TODO: Implement tag selector dialog (Priority 2)
+    toast.info('Tag management coming soon');
   };
 
-  const handleCreateCase = (messageId: string) => {
-    console.log(`Creating case from message ${messageId}`);
+  const handleCreateCase = async (messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (!message) return;
+
+    setProcessingMessageId(messageId);
+    try {
+      const sender = getSenderInfo(messageId);
+
+      // Create a case from the message
+      const newCase = await createCase({
+        title: message.subject || `Message from ${sender.name}`,
+        description: message.snippet || message.body_search_text || undefined,
+        status: 'open',
+        priority: 'medium',
+        created_by: getCurrentUserId() || undefined,
+      });
+
+      if (!newCase) {
+        toast.error('Failed to create case');
+        return;
+      }
+
+      // Link the message to the new case
+      const updatedMessage = await updateMessage(messageId, { case_id: newCase.id });
+      if (!updatedMessage) {
+        toast.error('Case created but failed to link message');
+        return;
+      }
+
+      toast.success(`Case #${newCase.reference_number} created`);
+
+      // Navigate to the new case
+      navigate(`/casework/cases/${newCase.id}`);
+    } catch (error) {
+      console.error('Error creating case:', error);
+      toast.error('Failed to create case');
+    } finally {
+      setProcessingMessageId(null);
+    }
   };
 
   const handleViewMessage = (messageId: string) => {
     setSelectedMessage(messageId);
-    console.log(`Viewing message ${messageId}`);
   };
 
   return (
@@ -133,9 +213,17 @@ export default function TriagePage() {
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
+                            <Button
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              disabled={processingMessageId === message.id}
+                            >
                               <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
+                              {processingMessageId === message.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MoreHorizontal className="h-4 w-4" />
+                              )}
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
