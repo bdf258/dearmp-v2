@@ -96,7 +96,7 @@ export default function TriagePage() {
     }
   };
 
-  const handleAddTag = (messageId: string) => {
+  const handleAddTag = (_messageId: string) => {
     // TODO: Implement tag selector dialog (Priority 2)
     toast.info('Tag management coming soon');
   };

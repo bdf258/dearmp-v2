@@ -60,7 +60,7 @@ export default function TriagePage() {
     };
   };
 
-  const handleAssignToUser = (messageId: string, userId: string) => {
+  const handleAssignToUser = (_messageId: string, userId: string) => {
     // In policy context, assigning to a user is informational only
     // Messages stay in their campaign but can be noted as assigned
     const assignedUser = profiles.find(p => p.id === userId);
@@ -105,7 +105,7 @@ export default function TriagePage() {
     }
   };
 
-  const handleAddTag = (messageId: string) => {
+  const handleAddTag = (_messageId: string) => {
     // TODO: Implement tag selector dialog (Priority 2)
     toast.info('Tag management coming soon');
   };
