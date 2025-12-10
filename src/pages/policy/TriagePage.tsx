@@ -24,6 +24,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
 } from '@/components/ui/dropdown-menu';
 import {
   Dialog,
@@ -32,11 +36,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { MoreHorizontal, Mail, Tag, UserPlus, Flag } from 'lucide-react';
+import { MoreHorizontal, Mail, Tag, UserPlus, Flag, FolderInput, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function TriagePage() {
-  const { messages, profiles, campaigns, messageRecipients } = useSupabase();
+  const { messages, profiles, campaigns, messageRecipients, updateMessage } = useSupabase();
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
+  const [processingMessageId, setProcessingMessageId] = useState<string | null>(null);
 
   // Filter for messages that need triage (have campaign but not yet processed)
   const triageMessages = messages.filter(
@@ -54,20 +60,54 @@ export default function TriagePage() {
     };
   };
 
-  const handleAssignToUser = (messageId: string, userId: string) => {
-    console.log(`Assigning message ${messageId} to user ${userId}`);
+  const handleAssignToUser = (_messageId: string, userId: string) => {
+    // In policy context, assigning to a user is informational only
+    // Messages stay in their campaign but can be noted as assigned
+    const assignedUser = profiles.find(p => p.id === userId);
+    toast.info(`Note: ${assignedUser?.full_name || 'User'} will handle this message`);
   };
 
-  const handleAssignToCampaign = (messageId: string, campaignId: string) => {
-    console.log(`Assigning message ${messageId} to campaign ${campaignId}`);
+  const handleAssignToCampaign = async (messageId: string, campaignId: string) => {
+    setProcessingMessageId(messageId);
+    try {
+      const updatedMessage = await updateMessage(messageId, { campaign_id: campaignId });
+      if (!updatedMessage) {
+        toast.error('Failed to assign message to campaign');
+        return;
+      }
+
+      const campaign = campaigns.find(c => c.id === campaignId);
+      toast.success(`Message assigned to "${campaign?.name || 'campaign'}"`);
+    } catch (error) {
+      console.error('Error assigning to campaign:', error);
+      toast.error('Failed to assign message to campaign');
+    } finally {
+      setProcessingMessageId(null);
+    }
   };
 
-  const handleMarkAsCasework = (messageId: string) => {
-    console.log(`Marking message ${messageId} as casework email`);
+  const handleMarkAsCasework = async (messageId: string) => {
+    setProcessingMessageId(messageId);
+    try {
+      // Remove campaign_id so it appears in casework triage
+      const updatedMessage = await updateMessage(messageId, { campaign_id: null });
+      if (!updatedMessage) {
+        toast.error('Failed to reclassify message');
+        return;
+      }
+
+      toast.success('Message moved to casework triage');
+    } catch (error) {
+      console.error('Error marking as casework:', error);
+      toast.error('Failed to reclassify message');
+    } finally {
+      setProcessingMessageId(null);
+    }
   };
 
-  const handleAddTag = (messageId: string) => {
-    console.log(`Adding tag to message ${messageId}`);
+  const handleAddTag = (_messageId: string) => {
+    // TODO: Implement tag selector dialog (Priority 2)
+    toast.info('Tag management coming soon');
   };
 
   const selectedMessageData = messages.find((m) => m.id === selectedMessage);
@@ -151,8 +191,16 @@ export default function TriagePage() {
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreHorizontal className="h-4 w-4" />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={processingMessageId === message.id}
+                            >
+                              {processingMessageId === message.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MoreHorizontal className="h-4 w-4" />
+                              )}
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -178,31 +226,45 @@ export default function TriagePage() {
                               </DropdownMenuItem>
                             ))}
                             <DropdownMenuSeparator />
-                            {matchedCampaign && (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    handleAssignToCampaign(
-                                      message.id,
-                                      matchedCampaign.id
-                                    )
-                                  }
-                                >
-                                  <Flag className="mr-2 h-4 w-4" />
-                                  Assign to Campaign
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                <Flag className="mr-2 h-4 w-4" />
+                                Assign to Campaign
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuPortal>
+                                <DropdownMenuSubContent>
+                                  {campaigns
+                                    .filter(c => c.status === 'active')
+                                    .map((campaign) => (
+                                      <DropdownMenuItem
+                                        key={campaign.id}
+                                        onClick={() =>
+                                          handleAssignToCampaign(message.id, campaign.id)
+                                        }
+                                      >
+                                        {campaign.id === message.campaign_id && '✓ '}
+                                        {campaign.name}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  {campaigns.filter(c => c.status === 'active').length === 0 && (
+                                    <DropdownMenuItem disabled>
+                                      No active campaigns
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuPortal>
+                            </DropdownMenuSub>
                             <DropdownMenuItem
                               onClick={() => handleAddTag(message.id)}
                             >
                               <Tag className="mr-2 h-4 w-4" />
                               Add Tag
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem
                               onClick={() => handleMarkAsCasework(message.id)}
                             >
+                              <FolderInput className="mr-2 h-4 w-4" />
                               Mark as Casework Email
                             </DropdownMenuItem>
                           </DropdownMenuContent>
