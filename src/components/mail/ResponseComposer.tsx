@@ -284,7 +284,7 @@ export function ResponseComposer({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Email queued. The Outlook Worker will send it shortly...
+              Email queued.
             </AlertDescription>
           </Alert>
         )}
