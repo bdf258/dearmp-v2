@@ -2,13 +2,16 @@ import { useSupabase } from '@/lib/SupabaseContext';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+import { Menu } from 'lucide-react';
 
 interface HeaderProps {
   currentMode: 'casework' | 'westminster';
   onModeChange: (mode: 'casework' | 'westminster') => void;
+  onToggleSidebar: () => void;
+  isSidebarCollapsed?: boolean;
 }
 
-export function Header({ currentMode, onModeChange }: HeaderProps) {
+export function Header({ currentMode, onModeChange, onToggleSidebar }: HeaderProps) {
   const { profile, currentOffice } = useSupabase();
 
   const handleModeToggle = (checked: boolean) => {
@@ -18,6 +21,15 @@ export function Header({ currentMode, onModeChange }: HeaderProps) {
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
       <div className="flex items-center gap-4">
+        {/* Hamburger menu button for mobile */}
+        <button
+          onClick={onToggleSidebar}
+          className="rounded-md p-2 hover:bg-accent md:hidden"
+          aria-label="Toggle sidebar"
+        >
+          <Menu className="h-6 w-6" />
+        </button>
+
         <h2 className="text-lg font-semibold text-card-foreground">
           {currentOffice?.name || 'Office'}
         </h2>
