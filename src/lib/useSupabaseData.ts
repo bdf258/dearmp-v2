@@ -16,6 +16,7 @@ import type {
   CaseInsert,
   ConstituentInsert,
   MessageInsert,
+  MessageUpdate,
   CasePartyInsert,
   CasePriority,
   UserRole,
@@ -62,6 +63,7 @@ interface UseSupabaseDataReturn {
   updateCase: (id: string, updates: Partial<Case>) => Promise<Case | null>;
   createConstituent: (data: Omit<ConstituentInsert, 'office_id'>) => Promise<Constituent | null>;
   createMessage: (data: Omit<MessageInsert, 'office_id'>) => Promise<Message | null>;
+  updateMessage: (id: string, updates: MessageUpdate) => Promise<Message | null>;
   createCaseParty: (data: Omit<CasePartyInsert, 'office_id'>) => Promise<CaseParty | null>;
   removeCaseParty: (casePartyId: string) => Promise<boolean>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -76,6 +78,9 @@ interface UseSupabaseDataReturn {
   emailIntegration: OutlookSession | null;
   fetchEmailIntegration: () => Promise<OutlookSession | null>;
   deleteEmailIntegration: () => Promise<boolean>;
+
+  // Bulk response processing
+  processBulkResponse: (bulkResponseId: string) => Promise<{ queued_count: number } | null>;
 }
 
 export function useSupabaseData(): UseSupabaseDataReturn {
@@ -352,6 +357,24 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     return newMessage;
   };
 
+  const updateMessage = async (id: string, updates: MessageUpdate): Promise<Message | null> => {
+    const { data, error: updateError } = await supabase
+      .from('messages')
+      .update(updates as never)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating message:', updateError);
+      return null;
+    }
+
+    const updatedMessage = data as Message;
+    setMessages(prev => prev.map(m => m.id === id ? updatedMessage : m));
+    return updatedMessage;
+  };
+
   const createCaseParty = async (partyData: Omit<CasePartyInsert, 'office_id'>): Promise<CaseParty | null> => {
     const officeId = getMyOfficeId();
     if (!officeId) return null;
@@ -544,6 +567,26 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     return true;
   };
 
+  // Process a bulk response by calling the RPC function that uses constituent_contacts as source of truth
+  const processBulkResponse = async (bulkResponseId: string): Promise<{ queued_count: number } | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const { data, error } = await supabase.rpc('generate_campaign_outbox_messages', {
+      p_bulk_response_id: bulkResponseId,
+      p_office_id: officeId,
+    });
+
+    if (error) {
+      console.error('Error processing bulk response:', error);
+      throw error;
+    }
+
+    // Refresh data to show status changes
+    await fetchData();
+    return data as { queued_count: number };
+  };
+
   return {
     // Supabase client
     supabase,
@@ -583,6 +626,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     updateCase,
     createConstituent,
     createMessage,
+    updateMessage,
     createCaseParty,
     removeCaseParty,
     signIn,
@@ -597,5 +641,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     emailIntegration,
     fetchEmailIntegration,
     deleteEmailIntegration,
+
+    // Bulk response processing
+    processBulkResponse,
   };
 }

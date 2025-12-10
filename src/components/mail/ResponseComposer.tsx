@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ReplyEditor } from './ReplyEditor';
 import { AlertCircle } from 'lucide-react';
 import { useSupabase } from '@/lib/SupabaseContext';
-import type { Message, MessageRecipient } from '@/lib/database.types';
+import type { Message, MessageRecipient, ConstituentContact } from '@/lib/database.types';
 
 interface ResponseComposerProps {
   originalMessages: Message[];
@@ -22,16 +22,9 @@ export function ResponseComposer({
   caseId,
   recipientCount = 0,
 }: ResponseComposerProps) {
-  const { supabase, currentOffice, messageRecipients } = useSupabase();
+  const { supabase, currentOffice, messageRecipients, constituentContacts } = useSupabase();
 
-  // Helper to get sender info from message_recipients
-  const getSenderEmail = (messageId: string): string | null => {
-    const sender = messageRecipients.find(
-      (r: MessageRecipient) => r.message_id === messageId && r.recipient_type === 'from'
-    );
-    return sender?.email_address || null;
-  };
-
+  // Helper to get sender name from message_recipients
   const getSenderName = (messageId: string): string => {
     const sender = messageRecipients.find(
       (r: MessageRecipient) => r.message_id === messageId && r.recipient_type === 'from'
@@ -135,10 +128,39 @@ export function ResponseComposer({
         }
 
         const lastMessage = originalMessages[originalMessages.length - 1];
-        const toEmail = getSenderEmail(lastMessage.id);
+
+        // Find the sender from message_recipients
+        const senderRecipient = messageRecipients.find(
+          (r: MessageRecipient) => r.message_id === lastMessage.id && r.recipient_type === 'from'
+        );
+
+        let toEmail: string | null = senderRecipient?.email_address || null;
+
+        // If we have a constituent_id, look up their current primary email from constituent_contacts
+        // This is the "source of truth" for email addresses
+        if (senderRecipient?.constituent_id) {
+          // First try to find primary email
+          const primaryContact = constituentContacts.find(
+            (cc: ConstituentContact) => cc.constituent_id === senderRecipient.constituent_id &&
+                    cc.type === 'email' &&
+                    cc.is_primary
+          );
+
+          if (primaryContact) {
+            toEmail = primaryContact.value;
+          } else {
+            // Fallback: Check for ANY email if primary not set
+            const anyEmailContact = constituentContacts.find(
+              (cc: ConstituentContact) => cc.constituent_id === senderRecipient.constituent_id && cc.type === 'email'
+            );
+            if (anyEmailContact) {
+              toEmail = anyEmailContact.value;
+            }
+          }
+        }
 
         if (!toEmail) {
-          throw new Error('Recipient email address not found. Please ensure the message has a sender in message_recipients.');
+          throw new Error('Recipient email address not found. Please ensure the constituent has an email in their contacts.');
         }
 
         // Generate subject line (Re: original subject)
