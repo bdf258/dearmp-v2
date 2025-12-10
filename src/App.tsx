@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { SupabaseProvider, useSupabase } from '@/lib/SupabaseContext';
 import { Header } from '@/components/Header';
 import { SidebarNav } from '@/components/SidebarNav';
@@ -33,11 +34,32 @@ function LoadingScreen() {
 
 function AuthenticatedLayout() {
   const { currentOfficeMode, setCurrentOfficeMode } = useSupabase();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Check if mobile on initial load and collapse sidebar
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsSidebarCollapsed(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(!isSidebarCollapsed);
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar Navigation */}
-      <SidebarNav currentMode={currentOfficeMode} />
+      <SidebarNav
+        currentMode={currentOfficeMode}
+        isCollapsed={isSidebarCollapsed}
+        onToggle={toggleSidebar}
+      />
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -45,6 +67,8 @@ function AuthenticatedLayout() {
         <Header
           currentMode={currentOfficeMode}
           onModeChange={setCurrentOfficeMode}
+          onToggleSidebar={toggleSidebar}
+          isSidebarCollapsed={isSidebarCollapsed}
         />
 
         {/* Page Content */}
