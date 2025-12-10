@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
-import { useDummyData, Note, NoteReply } from '@/lib/useDummyData';
+import { useSupabase } from '@/lib/SupabaseContext';
+import type { Note, NoteReply, Profile } from '@/lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -28,7 +29,9 @@ import {
   ChevronDown,
   ChevronRight,
   StickyNote,
+  Loader2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface NotesSectionProps {
   caseId?: string;
@@ -43,6 +46,7 @@ interface NoteEditorProps {
   onCancel?: () => void;
   showCancel?: boolean;
   submitLabel?: string;
+  isSubmitting?: boolean;
 }
 
 function NoteEditor({
@@ -51,6 +55,7 @@ function NoteEditor({
   onCancel,
   showCancel = false,
   submitLabel = 'Add Note',
+  isSubmitting = false,
 }: NoteEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -70,7 +75,7 @@ function NoteEditor({
   });
 
   const handleSubmit = () => {
-    if (!editor) return;
+    if (!editor || isSubmitting) return;
 
     const html = editor.getHTML();
     const plainText = editor.getText();
@@ -94,6 +99,7 @@ function NoteEditor({
                 size="sm"
                 onClick={() => editor.chain().focus().toggleBold().run()}
                 className={editor.isActive('bold') ? 'bg-accent' : ''}
+                disabled={isSubmitting}
               >
                 <Bold className="h-4 w-4" />
               </Button>
@@ -108,6 +114,7 @@ function NoteEditor({
                 size="sm"
                 onClick={() => editor.chain().focus().toggleItalic().run()}
                 className={editor.isActive('italic') ? 'bg-accent' : ''}
+                disabled={isSubmitting}
               >
                 <Italic className="h-4 w-4" />
               </Button>
@@ -122,6 +129,7 @@ function NoteEditor({
                 size="sm"
                 onClick={() => editor.chain().focus().toggleBulletList().run()}
                 className={editor.isActive('bulletList') ? 'bg-accent' : ''}
+                disabled={isSubmitting}
               >
                 <List className="h-4 w-4" />
               </Button>
@@ -135,11 +143,12 @@ function NoteEditor({
 
       <div className="border-t p-2 flex justify-end gap-2">
         {showCancel && onCancel && (
-          <Button variant="ghost" size="sm" onClick={onCancel}>
+          <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
         )}
-        <Button size="sm" onClick={handleSubmit}>
+        <Button size="sm" onClick={handleSubmit} disabled={isSubmitting}>
+          {isSubmitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
           {submitLabel}
         </Button>
       </div>
@@ -167,15 +176,21 @@ function NoteEditor({
   );
 }
 
-interface NoteItemProps {
-  note: Note;
-  users: { id: string; name: string }[];
-  onAddReply: (noteId: string, html: string, plainText: string) => void;
+// Extended Note type with replies for display
+interface NoteWithReplies extends Note {
+  replies: NoteReply[];
 }
 
-function NoteItem({ note, users, onAddReply }: NoteItemProps) {
+interface NoteItemProps {
+  note: NoteWithReplies;
+  profiles: Profile[];
+  onAddReply: (noteId: string, html: string, plainText: string) => Promise<void>;
+}
+
+function NoteItem({ note, profiles, onAddReply }: NoteItemProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showReplyEditor, setShowReplyEditor] = useState(false);
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
@@ -188,13 +203,18 @@ function NoteItem({ note, users, onAddReply }: NoteItemProps) {
   };
 
   const getUserName = (userId: string) => {
-    const user = users.find((u) => u.id === userId);
-    return user?.name || 'Unknown User';
+    const profile = profiles.find((p) => p.id === userId);
+    return profile?.full_name || 'Unknown User';
   };
 
-  const handleReplySubmit = (html: string, plainText: string) => {
-    onAddReply(note.id, html, plainText);
-    setShowReplyEditor(false);
+  const handleReplySubmit = async (html: string, plainText: string) => {
+    setIsSubmittingReply(true);
+    try {
+      await onAddReply(note.id, html, plainText);
+      setShowReplyEditor(false);
+    } finally {
+      setIsSubmittingReply(false);
+    }
   };
 
   return (
@@ -203,7 +223,7 @@ function NoteItem({ note, users, onAddReply }: NoteItemProps) {
         <div className="flex-1">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-medium">
-              {getUserName(note.created_by_user_id)}
+              {getUserName(note.created_by)}
             </span>
             <span className="text-muted-foreground">
               {formatDate(note.created_at)}
@@ -233,7 +253,7 @@ function NoteItem({ note, users, onAddReply }: NoteItemProps) {
           <CollapsibleContent>
             <div className="mt-3 ml-4 pl-4 border-l-2 border-muted space-y-3">
               {note.replies.map((reply) => (
-                <ReplyItem key={reply.id} reply={reply} users={users} />
+                <ReplyItem key={reply.id} reply={reply} profiles={profiles} />
               ))}
             </div>
           </CollapsibleContent>
@@ -249,6 +269,7 @@ function NoteItem({ note, users, onAddReply }: NoteItemProps) {
             onCancel={() => setShowReplyEditor(false)}
             showCancel
             submitLabel="Reply"
+            isSubmitting={isSubmittingReply}
           />
         ) : (
           <Button
@@ -268,10 +289,10 @@ function NoteItem({ note, users, onAddReply }: NoteItemProps) {
 
 interface ReplyItemProps {
   reply: NoteReply;
-  users: { id: string; name: string }[];
+  profiles: Profile[];
 }
 
-function ReplyItem({ reply, users }: ReplyItemProps) {
+function ReplyItem({ reply, profiles }: ReplyItemProps) {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -283,14 +304,14 @@ function ReplyItem({ reply, users }: ReplyItemProps) {
   };
 
   const getUserName = (userId: string) => {
-    const user = users.find((u) => u.id === userId);
-    return user?.name || 'Unknown User';
+    const profile = profiles.find((p) => p.id === userId);
+    return profile?.full_name || 'Unknown User';
   };
 
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2 text-sm">
-        <span className="font-medium">{getUserName(reply.created_by_user_id)}</span>
+        <span className="font-medium">{getUserName(reply.created_by)}</span>
         <span className="text-muted-foreground">{formatDate(reply.created_at)}</span>
       </div>
       <div
@@ -307,66 +328,59 @@ export function NotesSection({
   threadId,
   maxHeight = '500px',
 }: NotesSectionProps) {
-  const { notes, users, getCurrentUserId, getMyOfficeId } = useDummyData();
+  const { notes, noteReplies, profiles, createNote, createNoteReply } = useSupabase();
   const [showNewNoteEditor, setShowNewNoteEditor] = useState(false);
-  const [localNotes, setLocalNotes] = useState<Note[]>([]);
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
 
-  // Filter notes based on the context
-  const filteredNotes = useMemo(() => {
-    const allNotes = [...notes, ...localNotes];
+  // Filter notes based on the context and combine with replies
+  const notesWithReplies = useMemo(() => {
+    const filtered = notes.filter((note) => {
+      if (caseId) return note.case_id === caseId;
+      if (campaignId) return note.campaign_id === campaignId;
+      if (threadId) return note.thread_id === threadId;
+      return false;
+    });
 
-    return allNotes
-      .filter((note) => {
-        if (caseId) return note.case_id === caseId;
-        if (campaignId) return note.campaign_id === campaignId;
-        if (threadId) return note.thread_id === threadId;
-        return false;
-      })
-      .sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-  }, [notes, localNotes, caseId, campaignId, threadId]);
+    // Add replies to each note
+    return filtered.map((note) => ({
+      ...note,
+      replies: noteReplies
+        .filter((reply) => reply.note_id === note.id)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+    }));
+  }, [notes, noteReplies, caseId, campaignId, threadId]);
 
-  const handleAddNote = (html: string, _plainText: string) => {
-    const newNote: Note = {
-      id: `note-local-${Date.now()}`,
-      office_id: getMyOfficeId(),
-      case_id: caseId || null,
-      campaign_id: campaignId || null,
-      thread_id: threadId || null,
-      body: html,
-      created_by_user_id: getCurrentUserId(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      replies: [],
-    };
+  const handleAddNote = async (html: string, _plainText: string) => {
+    setIsSubmittingNote(true);
+    try {
+      const newNote = await createNote({
+        body: html,
+        caseId,
+        campaignId,
+        threadId,
+      });
 
-    setLocalNotes((prev) => [newNote, ...prev]);
-    setShowNewNoteEditor(false);
+      if (newNote) {
+        setShowNewNoteEditor(false);
+        toast.success('Note added');
+      } else {
+        toast.error('Failed to add note');
+      }
+    } catch (error) {
+      console.error('Error adding note:', error);
+      toast.error('Failed to add note');
+    } finally {
+      setIsSubmittingNote(false);
+    }
   };
 
-  const handleAddReply = (noteId: string, html: string, _plainText: string) => {
-    const newReply: NoteReply = {
-      id: `reply-local-${Date.now()}`,
-      note_id: noteId,
-      body: html,
-      created_by_user_id: getCurrentUserId(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    // Update local notes if the note is local
-    setLocalNotes((prev) =>
-      prev.map((note) =>
-        note.id === noteId
-          ? { ...note, replies: [...note.replies, newReply] }
-          : note
-      )
-    );
-
-    // For demo purposes, we also need to handle replies to non-local notes
-    // In a real app, this would be handled by the backend
+  const handleAddReply = async (noteId: string, html: string, _plainText: string) => {
+    const newReply = await createNoteReply(noteId, html);
+    if (newReply) {
+      toast.success('Reply added');
+    } else {
+      toast.error('Failed to add reply');
+    }
   };
 
   return (
@@ -375,7 +389,7 @@ export function NotesSection({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <StickyNote className="h-5 w-5" />
-            Notes ({filteredNotes.length})
+            Notes ({notesWithReplies.length})
           </CardTitle>
           {!showNewNoteEditor && (
             <Button
@@ -399,12 +413,13 @@ export function NotesSection({
                 onCancel={() => setShowNewNoteEditor(false)}
                 showCancel
                 submitLabel="Add Note"
+                isSubmitting={isSubmittingNote}
               />
               <Separator />
             </>
           )}
 
-          {filteredNotes.length === 0 ? (
+          {notesWithReplies.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <MessageSquare className="h-10 w-10 text-muted-foreground mb-3" />
               <h3 className="text-sm font-medium">No notes yet</h3>
@@ -415,11 +430,11 @@ export function NotesSection({
           ) : (
             <ScrollArea style={{ maxHeight }}>
               <div className="space-y-4 pr-4">
-                {filteredNotes.map((note) => (
+                {notesWithReplies.map((note) => (
                   <NoteItem
                     key={note.id}
                     note={note}
-                    users={users}
+                    profiles={profiles}
                     onAddReply={handleAddReply}
                   />
                 ))}
