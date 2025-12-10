@@ -988,6 +988,22 @@ export interface Database {
         Args: Record<string, never>;
         Returns: string;
       };
+      generate_campaign_outbox_messages: {
+        Args: {
+          p_bulk_response_id: string;
+          p_office_id: string;
+        };
+        Returns: {
+          queued_count: number;
+          error?: string;
+        };
+      };
+      get_constituent_primary_email: {
+        Args: {
+          p_constituent_id: string;
+        };
+        Returns: string | null;
+      };
     };
     Enums: {
       user_role: UserRole;
