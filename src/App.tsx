@@ -33,7 +33,6 @@ function LoadingScreen() {
 }
 
 function AuthenticatedLayout() {
-  const { currentOfficeMode, setCurrentOfficeMode } = useSupabase();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Check if mobile on initial load and collapse sidebar
@@ -56,7 +55,6 @@ function AuthenticatedLayout() {
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar Navigation */}
       <SidebarNav
-        currentMode={currentOfficeMode}
         isCollapsed={isSidebarCollapsed}
         onToggle={toggleSidebar}
       />
@@ -65,8 +63,6 @@ function AuthenticatedLayout() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
         <Header
-          currentMode={currentOfficeMode}
-          onModeChange={setCurrentOfficeMode}
           onToggleSidebar={toggleSidebar}
           isSidebarCollapsed={isSidebarCollapsed}
         />
