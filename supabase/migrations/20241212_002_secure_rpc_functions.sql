@@ -28,7 +28,7 @@ BEGIN
   -- SECURITY: Verify user belongs to the same office (unless service role)
   -- Service role queries bypass RLS, so we check if this is a user request
   IF current_setting('request.jwt.claims', true)::json->>'role' != 'service_role' THEN
-    IF campaign_office_id != auth.get_user_office_id() THEN
+    IF campaign_office_id != public.get_user_office_id() THEN
       RAISE EXCEPTION 'Access denied: Campaign belongs to a different office';
     END IF;
   END IF;
@@ -64,7 +64,7 @@ BEGIN
 
   -- SECURITY: Verify user belongs to the same office (unless service role)
   IF current_setting('request.jwt.claims', true)::json->>'role' != 'service_role' THEN
-    IF br_office_id != auth.get_user_office_id() THEN
+    IF br_office_id != public.get_user_office_id() THEN
       RAISE EXCEPTION 'Access denied: Bulk response belongs to a different office';
     END IF;
   END IF;
@@ -171,7 +171,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   -- SECURITY: Verify user has access to this office
-  IF auth.get_user_office_id() != p_office_id THEN
+  IF public.get_user_office_id() != p_office_id THEN
     RAISE EXCEPTION 'Access denied: You can only view stats for your office';
   END IF;
 
@@ -205,7 +205,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   -- SECURITY: Verify user has access to this office
-  IF auth.get_user_office_id() != p_office_id THEN
+  IF public.get_user_office_id() != p_office_id THEN
     RAISE EXCEPTION 'Access denied: You can only view stats for your office';
   END IF;
 
