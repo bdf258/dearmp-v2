@@ -455,10 +455,39 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   };
 
   const updateProfileRole = async (profileId: string, role: UserRole): Promise<Profile | null> => {
+    // SECURITY: Authorization checks for privilege escalation prevention
+
+    // 1. User must be authenticated
+    if (!user || !profile) {
+      console.error('Error updating profile role: Not authenticated');
+      return null;
+    }
+
+    // 2. Current user must be an admin
+    if (profile.role !== 'admin') {
+      console.error('Error updating profile role: Only admins can change roles');
+      return null;
+    }
+
+    // 3. Cannot modify own role (prevents admin lockout)
+    if (profileId === profile.id) {
+      console.error('Error updating profile role: Cannot modify your own role');
+      return null;
+    }
+
+    // 4. Target profile must be in the same office
+    const targetProfile = profiles.find(p => p.id === profileId);
+    if (!targetProfile || targetProfile.office_id !== profile.office_id) {
+      console.error('Error updating profile role: Target profile not in your office');
+      return null;
+    }
+
+    // Proceed with the update (RLS will also enforce this on the backend)
     const { data, error: updateError } = await supabase
       .from('profiles')
       .update({ role } as never)
       .eq('id', profileId)
+      .eq('office_id', profile.office_id) // Additional safety: ensure same office
       .select()
       .single();
 

@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { useDummyData, Note, NoteReply } from '@/lib/useDummyData';
+import { sanitizeHtml } from '@/lib/security';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -209,9 +210,10 @@ function NoteItem({ note, users, onAddReply }: NoteItemProps) {
               {formatDate(note.created_at)}
             </span>
           </div>
+          {/* SECURITY: Sanitize HTML to prevent XSS attacks */}
           <div
             className="mt-2 text-sm prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: note.body }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(note.body) }}
           />
         </div>
       </div>
@@ -293,9 +295,10 @@ function ReplyItem({ reply, users }: ReplyItemProps) {
         <span className="font-medium">{getUserName(reply.created_by_user_id)}</span>
         <span className="text-muted-foreground">{formatDate(reply.created_at)}</span>
       </div>
+      {/* SECURITY: Sanitize HTML to prevent XSS attacks */}
       <div
         className="text-sm prose prose-sm max-w-none"
-        dangerouslySetInnerHTML={{ __html: reply.body }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(reply.body) }}
       />
     </div>
   );

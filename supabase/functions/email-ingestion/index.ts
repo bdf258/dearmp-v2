@@ -19,6 +19,8 @@ import {
   log,
   validateEnv,
   createSnippet,
+  validateUuid,
+  verifyServiceRoleAuth,
 } from '../_shared/utils.ts';
 import type {
   Message,
@@ -44,14 +46,27 @@ serve(async (req: Request) => {
     // Validate environment
     validateEnv(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GEMINI_API_KEY']);
 
+    // SECURITY: Verify the request is from an authorized source (service role or internal trigger)
+    const authError = verifyServiceRoleAuth(req);
+    if (authError) {
+      log('warn', 'Unauthorized request to email-ingestion', { error: authError });
+      return errorResponse('Unauthorized', 401);
+    }
+
     const supabase = getSupabaseClient();
 
     // Parse request body
     const body = await req.json();
     const { message_id, office_id } = body;
 
+    // SECURITY: Validate message_id is a valid UUID to prevent injection
     if (!message_id) {
       return errorResponse('message_id is required', 400);
+    }
+
+    if (!validateUuid(message_id)) {
+      log('warn', 'Invalid message_id format', { message_id });
+      return errorResponse('message_id must be a valid UUID', 400);
     }
 
     log('info', 'Processing email ingestion', { message_id, office_id });
