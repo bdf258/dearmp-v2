@@ -362,7 +362,7 @@ export default function SettingsPage() {
                           <div className="flex items-center gap-2">
                             {isAdmin && p.id !== profile?.id ? (
                               <Select
-                                value={p.role}
+                                value={p.role ?? undefined}
                                 onValueChange={(value) => handleUpdateRole(p.id, value as UserRole)}
                                 disabled={updatingRole === p.id}
                               >
