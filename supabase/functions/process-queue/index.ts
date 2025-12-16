@@ -14,6 +14,8 @@ serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
+  const origin = req.headers.get('Origin');
+
   try {
     validateEnv(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']);
 
@@ -27,12 +29,12 @@ serve(async (req: Request) => {
 
     if (fetchError) {
       log('error', 'Failed to fetch pending messages', { error: fetchError });
-      return errorResponse(`Failed to fetch queue: ${fetchError.message}`, 500);
+      return errorResponse(`Failed to fetch queue: ${fetchError.message}`, 500, origin);
     }
 
     if (!pendingItems || pendingItems.length === 0) {
       log('info', 'No pending messages to process');
-      return jsonResponse({ success: true, processed: 0, message: 'No pending items' });
+      return jsonResponse({ success: true, processed: 0, message: 'No pending items' }, 200, origin);
     }
 
     log('info', `Processing ${pendingItems.length} messages`, {
@@ -108,9 +110,9 @@ serve(async (req: Request) => {
       successful,
       failed,
       results,
-    });
+    }, 200, origin);
   } catch (error) {
     log('error', 'Queue processing failed', { error: (error as Error).message });
-    return errorResponse(`Processing failed: ${(error as Error).message}`, 500);
+    return errorResponse(`Processing failed: ${(error as Error).message}`, 500, origin);
   }
 });
