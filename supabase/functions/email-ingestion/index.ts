@@ -40,6 +40,8 @@ serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
+  const origin = req.headers.get('Origin');
+
   try {
     // Validate environment
     validateEnv(['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GEMINI_API_KEY']);
@@ -51,7 +53,7 @@ serve(async (req: Request) => {
     const { message_id, office_id } = body;
 
     if (!message_id) {
-      return errorResponse('message_id is required', 400);
+      return errorResponse('message_id is required', 400, origin);
     }
 
     log('info', 'Processing email ingestion', { message_id, office_id });
@@ -65,19 +67,19 @@ serve(async (req: Request) => {
 
     if (messageError || !message) {
       log('error', 'Failed to fetch message', { message_id, error: messageError });
-      return errorResponse(`Message not found: ${message_id}`, 404);
+      return errorResponse(`Message not found: ${message_id}`, 404, origin);
     }
 
     // Skip if already processed
     if (message.ai_processed_at) {
       log('info', 'Message already processed', { message_id });
-      return jsonResponse({ success: true, skipped: true, reason: 'Already processed' });
+      return jsonResponse({ success: true, skipped: true, reason: 'Already processed' }, 200, origin);
     }
 
     // Skip outbound messages
     if (message.direction !== 'inbound') {
       log('info', 'Skipping outbound message', { message_id });
-      return jsonResponse({ success: true, skipped: true, reason: 'Outbound message' });
+      return jsonResponse({ success: true, skipped: true, reason: 'Outbound message' }, 200, origin);
     }
 
     // Fetch context data in parallel
@@ -94,7 +96,7 @@ serve(async (req: Request) => {
 
     if (officeResult.error || !officeResult.data) {
       log('error', 'Failed to fetch office', { office_id: message.office_id, error: officeResult.error });
-      return errorResponse('Office not found', 404);
+      return errorResponse('Office not found', 404, origin);
     }
 
     const context: ProcessingContext = {
@@ -136,10 +138,10 @@ serve(async (req: Request) => {
         draft_response_created: !!result.draft_response,
         existing_bulk_response: !!result.existing_bulk_response_id,
       },
-    });
+    }, 200, origin);
   } catch (error) {
     log('error', 'Email ingestion failed', { error: (error as Error).message });
-    return errorResponse(`Processing failed: ${(error as Error).message}`, 500);
+    return errorResponse(`Processing failed: ${(error as Error).message}`, 500, origin);
   }
 });
 

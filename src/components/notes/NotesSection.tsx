@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import DOMPurify from 'dompurify';
 import { useSupabase } from '@/lib/SupabaseContext';
 import type { Note, NoteReply, Profile } from '@/lib/database.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -231,7 +232,7 @@ function NoteItem({ note, profiles, onAddReply }: NoteItemProps) {
           </div>
           <div
             className="mt-2 text-sm prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: note.body }}
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(note.body) }}
           />
         </div>
       </div>
@@ -316,7 +317,7 @@ function ReplyItem({ reply, profiles }: ReplyItemProps) {
       </div>
       <div
         className="text-sm prose prose-sm max-w-none"
-        dangerouslySetInnerHTML={{ __html: reply.body }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(reply.body) }}
       />
     </div>
   );
