@@ -466,6 +466,7 @@ export interface Database {
           thread_id: string | null;
           received_at: string;
           sent_at: string | null;
+          search_vector: unknown;
         };
         Insert: {
           id?: string;
@@ -484,6 +485,7 @@ export interface Database {
           thread_id?: string | null;
           received_at?: string;
           sent_at?: string | null;
+          search_vector?: unknown;
         };
         Update: {
           id?: string;
@@ -502,6 +504,7 @@ export interface Database {
           thread_id?: string | null;
           received_at?: string;
           sent_at?: string | null;
+          search_vector?: unknown;
         };
         Relationships: [
           {
@@ -1090,6 +1093,35 @@ export interface Database {
             referencedColumns: ["id"];
           }
         ];
+      rejected_emails: {
+        Row: {
+          id: string;
+          sender_email: string;
+          sender_name: string | null;
+          target_email: string;
+          subject: string | null;
+          rejection_reason: string | null;
+          received_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          sender_email: string;
+          sender_name?: string | null;
+          target_email: string;
+          subject?: string | null;
+          rejection_reason?: string | null;
+          received_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          sender_email?: string;
+          sender_name?: string | null;
+          target_email?: string;
+          subject?: string | null;
+          rejection_reason?: string | null;
+          received_at?: string | null;
+        };
+        Relationships: [];
       };
     };
     Views: {};
@@ -1103,16 +1135,43 @@ export interface Database {
           p_bulk_response_id: string;
           p_office_id: string;
         };
-        Returns: {
-          queued_count: number;
-          error?: string;
-        };
+        Returns: Record<string, unknown>;
       };
       get_constituent_primary_email: {
         Args: {
           p_constituent_id: string;
         };
         Returns: string | null;
+      };
+      ingest_inbound_email: {
+        Args: {
+          p_attachments: Record<string, unknown>;
+          p_body_html: string;
+          p_body_text: string;
+          p_message_id_header: string;
+          p_sender_email: string;
+          p_sender_name: string;
+          p_subject: string;
+          p_target_email: string;
+        };
+        Returns: string;
+      };
+      process_bulk_response_approval: {
+        Args: {
+          p_approver_user_id: string;
+          p_bulk_response_id: string;
+        };
+        Returns: void;
+      };
+      show_limit: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
+      show_trgm: {
+        Args: {
+          '': string;
+        };
+        Returns: string[];
       };
     };
     Enums: {
@@ -1147,6 +1206,7 @@ export type BulkResponseLog = Database['public']['Tables']['bulk_response_log'][
 export type Tag = Database['public']['Tables']['tags']['Row'];
 export type TagAssignment = Database['public']['Tables']['tag_assignments']['Row'];
 export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
+export type RejectedEmail = Database['public']['Tables']['rejected_emails']['Row'];
 
 // Outlook Worker types
 export type OutlookSession = Database['public']['Tables']['integration_outlook_sessions']['Row'];
