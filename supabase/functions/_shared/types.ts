@@ -176,6 +176,7 @@ export interface BulkResponse {
   id: string;
   office_id: string;
   campaign_id: string;
+<<<<<<< HEAD
   subject?: string;
   body_markdown?: string;
   created_by?: string; // References profiles(id)
@@ -211,6 +212,13 @@ export interface IntegrationOutlookSession {
   storage_state: Record<string, unknown>; // JSONB field
   status: 'active' | 'inactive' | 'expired';
   updated_at: string;
+=======
+  subject: string | null;
+  body_markdown: string | null;
+  created_by: string | null;
+  status: 'draft' | 'pending_approval' | 'approved' | 'sending' | 'sent' | 'rejected';
+  created_at: string;
+>>>>>>> 665f276275b345be8b35b2d82529e3bc4564a2c7
 }
 
 export interface BrowserAutomationLock {

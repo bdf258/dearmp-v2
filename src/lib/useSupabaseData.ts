@@ -12,15 +12,25 @@ import type {
   Message,
   MessageRecipient,
   Tag,
+  TagAssignment,
   BulkResponse,
   CaseInsert,
   ConstituentInsert,
   MessageInsert,
+  MessageUpdate,
+  CasePartyInsert,
   CasePriority,
+  UserRole,
+  OutlookSession,
+  Note,
+  NoteReply,
 } from './database.types';
 import type { User } from '@supabase/supabase-js';
 
 interface UseSupabaseDataReturn {
+  // Supabase client (for realtime subscriptions, etc.)
+  supabase: typeof supabase;
+
   // Auth state
   user: User | null;
   profile: Profile | null;
@@ -44,7 +54,10 @@ interface UseSupabaseDataReturn {
   messages: Message[];
   messageRecipients: MessageRecipient[];
   tags: Tag[];
+  tagAssignments: TagAssignment[];
   bulkResponses: BulkResponse[];
+  notes: Note[];
+  noteReplies: NoteReply[];
 
   // Helpers
   getMyOfficeId: () => string | null;
@@ -56,8 +69,34 @@ interface UseSupabaseDataReturn {
   updateCase: (id: string, updates: Partial<Case>) => Promise<Case | null>;
   createConstituent: (data: Omit<ConstituentInsert, 'office_id'>) => Promise<Constituent | null>;
   createMessage: (data: Omit<MessageInsert, 'office_id'>) => Promise<Message | null>;
+  updateMessage: (id: string, updates: MessageUpdate) => Promise<Message | null>;
+  createCaseParty: (data: Omit<CasePartyInsert, 'office_id'>) => Promise<CaseParty | null>;
+  removeCaseParty: (casePartyId: string) => Promise<boolean>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+
+  // Settings actions
+  updateOffice: (updates: { name?: string }) => Promise<Office | null>;
+  updateProfileRole: (profileId: string, role: UserRole) => Promise<Profile | null>;
+  createTag: (name: string, color: string) => Promise<Tag | null>;
+  updateTag: (id: string, updates: { name?: string; color?: string }) => Promise<Tag | null>;
+  deleteTag: (id: string) => Promise<boolean>;
+  emailIntegration: OutlookSession | null;
+  fetchEmailIntegration: () => Promise<OutlookSession | null>;
+  deleteEmailIntegration: () => Promise<boolean>;
+
+  // Bulk response processing
+  processBulkResponse: (bulkResponseId: string) => Promise<{ queued_count: number } | null>;
+
+  // Notes actions
+  fetchNotes: (context: { caseId?: string; campaignId?: string; threadId?: string }) => Promise<Note[]>;
+  createNote: (noteData: { body: string; caseId?: string; campaignId?: string; threadId?: string }) => Promise<Note | null>;
+  createNoteReply: (noteId: string, body: string) => Promise<NoteReply | null>;
+
+  // Tag assignment actions
+  getTagsForEntity: (entityType: string, entityId: string) => TagAssignment[];
+  addTagToEntity: (tagId: string, entityType: string, entityId: string) => Promise<TagAssignment | null>;
+  removeTagFromEntity: (tagId: string, entityType: string, entityId: string) => Promise<boolean>;
 }
 
 export function useSupabaseData(): UseSupabaseDataReturn {
@@ -82,7 +121,11 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageRecipients, setMessageRecipients] = useState<MessageRecipient[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [tagAssignments, setTagAssignments] = useState<TagAssignment[]>([]);
   const [bulkResponses, setBulkResponses] = useState<BulkResponse[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [noteReplies, setNoteReplies] = useState<NoteReply[]>([]);
+  const [emailIntegration, setEmailIntegration] = useState<OutlookSession | null>(null);
 
   // Derived state
   const currentOffice = offices.find(o => o.id === profile?.office_id) || null;
@@ -129,7 +172,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         messagesRes,
         recipientsRes,
         tagsRes,
+        tagAssignmentsRes,
         bulkRes,
+        notesRes,
+        noteRepliesRes,
       ] = await Promise.all([
         supabase.from('offices').select('*'),
         supabase.from('profiles').select('*'),
@@ -142,7 +188,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         supabase.from('messages').select('*').order('received_at', { ascending: false }),
         supabase.from('message_recipients').select('*'),
         supabase.from('tags').select('*').order('name'),
+        supabase.from('tag_assignments').select('*'),
         supabase.from('bulk_responses').select('*').order('created_at', { ascending: false }),
+        supabase.from('notes').select('*').order('created_at', { ascending: false }),
+        supabase.from('note_replies').select('*').order('created_at', { ascending: true }),
       ]);
 
       // Check for errors
@@ -158,7 +207,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         messagesRes.error,
         recipientsRes.error,
         tagsRes.error,
+        tagAssignmentsRes.error,
         bulkRes.error,
+        notesRes.error,
+        noteRepliesRes.error,
       ].filter(Boolean);
 
       if (errors.length > 0) {
@@ -177,7 +229,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setMessages((messagesRes.data || []) as Message[]);
       setMessageRecipients((recipientsRes.data || []) as MessageRecipient[]);
       setTags((tagsRes.data || []) as Tag[]);
+      setTagAssignments((tagAssignmentsRes.data || []) as TagAssignment[]);
       setBulkResponses((bulkRes.data || []) as BulkResponse[]);
+      setNotes((notesRes.data || []) as Note[]);
+      setNoteReplies((noteRepliesRes.data || []) as NoteReply[]);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -220,7 +275,11 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setMessages([]);
       setMessageRecipients([]);
       setTags([]);
+      setTagAssignments([]);
       setBulkResponses([]);
+      setNotes([]);
+      setNoteReplies([]);
+      setEmailIntegration(null);
       setLoading(false);
     }
   }, [user, fetchData]);
@@ -332,6 +391,67 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     return newMessage;
   };
 
+  const updateMessage = async (id: string, updates: MessageUpdate): Promise<Message | null> => {
+    const { data, error: updateError } = await supabase
+      .from('messages')
+      .update(updates as never)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating message:', updateError);
+      return null;
+    }
+
+    const updatedMessage = data as Message;
+    setMessages(prev => prev.map(m => m.id === id ? updatedMessage : m));
+    return updatedMessage;
+  };
+
+  const createCaseParty = async (partyData: Omit<CasePartyInsert, 'office_id'>): Promise<CaseParty | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const insertData = {
+      office_id: officeId,
+      case_id: partyData.case_id,
+      constituent_id: partyData.constituent_id,
+      organization_id: partyData.organization_id,
+      role: partyData.role,
+    };
+
+    const { data, error: insertError } = await supabase
+      .from('case_parties')
+      .insert(insertData as never)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating case party:', insertError);
+      return null;
+    }
+
+    const newCaseParty = data as CaseParty;
+    setCaseParties(prev => [...prev, newCaseParty]);
+    return newCaseParty;
+  };
+
+  const removeCaseParty = async (casePartyId: string): Promise<boolean> => {
+    const { error: deleteError } = await supabase
+      .from('case_parties')
+      .delete()
+      .eq('id', casePartyId);
+
+    if (deleteError) {
+      console.error('Error removing case party:', deleteError);
+      return false;
+    }
+
+    setCaseParties(prev => prev.filter(cp => cp.id !== casePartyId));
+    return true;
+  };
+
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
@@ -346,7 +466,302 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     await supabase.auth.signOut();
   };
 
+  // Settings actions
+  const updateOffice = async (updates: { name?: string }): Promise<Office | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const { data, error: updateError } = await supabase
+      .from('offices')
+      .update(updates as never)
+      .eq('id', officeId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating office:', updateError);
+      return null;
+    }
+
+    const updatedOffice = data as Office;
+    setOffices(prev => prev.map(o => o.id === officeId ? updatedOffice : o));
+    return updatedOffice;
+  };
+
+  const updateProfileRole = async (profileId: string, role: UserRole): Promise<Profile | null> => {
+    const { data, error: updateError } = await supabase
+      .from('profiles')
+      .update({ role } as never)
+      .eq('id', profileId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating profile role:', updateError);
+      return null;
+    }
+
+    const updatedProfile = data as Profile;
+    setProfiles(prev => prev.map(p => p.id === profileId ? updatedProfile : p));
+    return updatedProfile;
+  };
+
+  const createTag = async (name: string, color: string): Promise<Tag | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const { data, error: insertError } = await supabase
+      .from('tags')
+      .insert({ office_id: officeId, name, color } as never)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating tag:', insertError);
+      return null;
+    }
+
+    const newTag = data as Tag;
+    setTags(prev => [...prev, newTag].sort((a, b) => a.name.localeCompare(b.name)));
+    return newTag;
+  };
+
+  const updateTag = async (id: string, updates: { name?: string; color?: string }): Promise<Tag | null> => {
+    const { data, error: updateError } = await supabase
+      .from('tags')
+      .update(updates as never)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating tag:', updateError);
+      return null;
+    }
+
+    const updatedTag = data as Tag;
+    setTags(prev => prev.map(t => t.id === id ? updatedTag : t).sort((a, b) => a.name.localeCompare(b.name)));
+    return updatedTag;
+  };
+
+  const deleteTag = async (id: string): Promise<boolean> => {
+    const { error: deleteError } = await supabase
+      .from('tags')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Error deleting tag:', deleteError);
+      return false;
+    }
+
+    setTags(prev => prev.filter(t => t.id !== id));
+    return true;
+  };
+
+  const fetchEmailIntegration = async (): Promise<OutlookSession | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const { data, error: fetchError } = await supabase
+      .from('integration_outlook_sessions')
+      .select('id, office_id, is_connected, last_used_at, created_at, updated_at')
+      .eq('office_id', officeId)
+      .single();
+
+    if (fetchError) {
+      // No integration found is not an error
+      if (fetchError.code !== 'PGRST116') {
+        console.error('Error fetching email integration:', fetchError);
+      }
+      setEmailIntegration(null);
+      return null;
+    }
+
+    const integration = data as OutlookSession;
+    setEmailIntegration(integration);
+    return integration;
+  };
+
+  const deleteEmailIntegration = async (): Promise<boolean> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return false;
+
+    const { error: deleteError } = await supabase
+      .from('integration_outlook_sessions')
+      .delete()
+      .eq('office_id', officeId);
+
+    if (deleteError) {
+      console.error('Error deleting email integration:', deleteError);
+      return false;
+    }
+
+    setEmailIntegration(null);
+    return true;
+  };
+
+  // Process a bulk response by calling the RPC function that uses constituent_contacts as source of truth
+  const processBulkResponse = async (bulkResponseId: string): Promise<{ queued_count: number } | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const { data, error } = await supabase.rpc('generate_campaign_outbox_messages', {
+      p_bulk_response_id: bulkResponseId,
+      p_office_id: officeId,
+    });
+
+    if (error) {
+      console.error('Error processing bulk response:', error);
+      throw error;
+    }
+
+    // Refresh data to show status changes
+    await fetchData();
+    return data as { queued_count: number };
+  };
+
+  // Notes functions
+  const fetchNotes = async (context: { caseId?: string; campaignId?: string; threadId?: string }): Promise<Note[]> => {
+    let query = supabase.from('notes').select('*').order('created_at', { ascending: false });
+
+    if (context.caseId) {
+      query = query.eq('case_id', context.caseId);
+    } else if (context.campaignId) {
+      query = query.eq('campaign_id', context.campaignId);
+    } else if (context.threadId) {
+      query = query.eq('thread_id', context.threadId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching notes:', error);
+      return [];
+    }
+
+    return (data || []) as Note[];
+  };
+
+  const createNote = async (noteData: { body: string; caseId?: string; campaignId?: string; threadId?: string }): Promise<Note | null> => {
+    const officeId = getMyOfficeId();
+    const userId = getCurrentUserId();
+    if (!officeId || !userId) return null;
+
+    const insertData = {
+      office_id: officeId,
+      case_id: noteData.caseId || null,
+      campaign_id: noteData.campaignId || null,
+      thread_id: noteData.threadId || null,
+      body: noteData.body,
+      created_by: userId,
+    };
+
+    const { data, error: insertError } = await supabase
+      .from('notes')
+      .insert(insertData as never)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating note:', insertError);
+      return null;
+    }
+
+    const newNote = data as Note;
+    setNotes(prev => [newNote, ...prev]);
+    return newNote;
+  };
+
+  const createNoteReply = async (noteId: string, body: string): Promise<NoteReply | null> => {
+    const officeId = getMyOfficeId();
+    const userId = getCurrentUserId();
+    if (!officeId || !userId) return null;
+
+    const insertData = {
+      office_id: officeId,
+      note_id: noteId,
+      body,
+      created_by: userId,
+    };
+
+    const { data, error: insertError } = await supabase
+      .from('note_replies')
+      .insert(insertData as never)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating note reply:', insertError);
+      return null;
+    }
+
+    const newReply = data as NoteReply;
+    setNoteReplies(prev => [...prev, newReply]);
+    return newReply;
+  };
+
+  // Tag assignment functions
+  const getTagsForEntity = (entityType: string, entityId: string): TagAssignment[] => {
+    return tagAssignments.filter(ta => ta.entity_type === entityType && ta.entity_id === entityId);
+  };
+
+  const addTagToEntity = async (tagId: string, entityType: string, entityId: string): Promise<TagAssignment | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    // Check if already assigned
+    const existing = tagAssignments.find(
+      ta => ta.tag_id === tagId && ta.entity_type === entityType && ta.entity_id === entityId
+    );
+    if (existing) return existing;
+
+    const insertData = {
+      office_id: officeId,
+      tag_id: tagId,
+      entity_type: entityType,
+      entity_id: entityId,
+    };
+
+    const { data, error: insertError } = await supabase
+      .from('tag_assignments')
+      .insert(insertData as never)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error adding tag to entity:', insertError);
+      return null;
+    }
+
+    const newAssignment = data as TagAssignment;
+    setTagAssignments(prev => [...prev, newAssignment]);
+    return newAssignment;
+  };
+
+  const removeTagFromEntity = async (tagId: string, entityType: string, entityId: string): Promise<boolean> => {
+    const { error: deleteError } = await supabase
+      .from('tag_assignments')
+      .delete()
+      .eq('tag_id', tagId)
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId);
+
+    if (deleteError) {
+      console.error('Error removing tag from entity:', deleteError);
+      return false;
+    }
+
+    setTagAssignments(prev => prev.filter(
+      ta => !(ta.tag_id === tagId && ta.entity_type === entityType && ta.entity_id === entityId)
+    ));
+    return true;
+  };
+
   return {
+    // Supabase client
+    supabase,
+
     // Auth
     user,
     profile,
@@ -370,7 +785,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     messages,
     messageRecipients,
     tags,
+    tagAssignments,
     bulkResponses,
+    notes,
+    noteReplies,
 
     // Helpers
     getMyOfficeId,
@@ -382,7 +800,33 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     updateCase,
     createConstituent,
     createMessage,
+    updateMessage,
+    createCaseParty,
+    removeCaseParty,
     signIn,
     signOut,
+
+    // Settings actions
+    updateOffice,
+    updateProfileRole,
+    createTag,
+    updateTag,
+    deleteTag,
+    emailIntegration,
+    fetchEmailIntegration,
+    deleteEmailIntegration,
+
+    // Bulk response processing
+    processBulkResponse,
+
+    // Notes actions
+    fetchNotes,
+    createNote,
+    createNoteReply,
+
+    // Tag assignment actions
+    getTagsForEntity,
+    addTagToEntity,
+    removeTagFromEntity,
   };
 }
