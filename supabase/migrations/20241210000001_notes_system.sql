@@ -5,7 +5,7 @@
 -- NOTES TABLE
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS notes (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   office_id UUID NOT NULL REFERENCES offices(id) ON DELETE CASCADE,
 
   -- Polymorphic association - one of these should be set
@@ -40,7 +40,7 @@ CREATE INDEX idx_notes_created_at ON notes(created_at DESC);
 -- NOTE REPLIES TABLE
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS note_replies (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
   office_id UUID NOT NULL REFERENCES offices(id) ON DELETE CASCADE,
   note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
 

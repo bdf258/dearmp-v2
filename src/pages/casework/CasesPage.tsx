@@ -60,7 +60,8 @@ export default function CasesPage() {
     });
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string | null) => {
+    if (!status) return <Badge variant="outline">Unknown</Badge>;
     switch (status) {
       case 'open':
         return <Badge variant="outline">Open</Badge>;
@@ -75,7 +76,8 @@ export default function CasesPage() {
     }
   };
 
-  const getPriorityBadge = (priority: string) => {
+  const getPriorityBadge = (priority: string | null) => {
+    if (!priority) return <Badge variant="outline">Unknown</Badge>;
     switch (priority) {
       case 'urgent':
         return <Badge variant="destructive">Urgent</Badge>;

@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       attachments: {
@@ -645,6 +670,7 @@ export type Database = {
           is_connected: boolean | null
           last_used_at: string | null
           office_id: string
+          origins: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -654,6 +680,7 @@ export type Database = {
           is_connected?: boolean | null
           last_used_at?: string | null
           office_id: string
+          origins?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -663,6 +690,7 @@ export type Database = {
           is_connected?: boolean | null
           last_used_at?: string | null
           office_id?: string
+          origins?: Json | null
           updated_at?: string | null
         }
         Relationships: [
@@ -802,6 +830,123 @@ export type Database = {
           },
           {
             foreignKeyName: "messages_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      note_replies: {
+        Row: {
+          body: string
+          created_at: string | null
+          created_by: string
+          id: string
+          note_id: string
+          office_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          created_by: string
+          id?: string
+          note_id: string
+          office_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          note_id?: string
+          office_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "note_replies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_replies_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "note_replies_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notes: {
+        Row: {
+          body: string
+          campaign_id: string | null
+          case_id: string | null
+          created_at: string | null
+          created_by: string
+          id: string
+          office_id: string
+          thread_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          body: string
+          campaign_id?: string | null
+          case_id?: string | null
+          created_at?: string | null
+          created_by: string
+          id?: string
+          office_id: string
+          thread_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          body?: string
+          campaign_id?: string | null
+          case_id?: string | null
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          office_id?: string
+          thread_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
             referencedRelation: "offices"
@@ -1235,6 +1380,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       audit_action: [
