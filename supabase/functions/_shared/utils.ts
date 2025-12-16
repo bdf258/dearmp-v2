@@ -1,10 +1,45 @@
 // Shared utility functions for Edge Functions
 
 /**
- * Standard CORS headers for Edge Functions
+ * Allowed origins for CORS
+ */
+const ALLOWED_ORIGINS = [
+  // Production domains
+  /^https:\/\/([a-z0-9-]+\.)?dearmp\.uk$/,
+  /^https:\/\/([a-z0-9-]+\.)?kep\.la$/,
+  /^https:\/\/([a-z0-9-]+\.)?farier\.com$/,
+  // Development
+  /^http:\/\/localhost(:\d+)?$/,
+  /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+];
+
+/**
+ * Check if an origin is allowed
+ */
+export function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some(pattern => pattern.test(origin));
+}
+
+/**
+ * Get CORS headers for a specific origin
+ */
+export function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = origin && isAllowedOrigin(origin) ? origin : 'https://dearmp.uk';
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Credentials': 'true',
+    'Vary': 'Origin',
+  };
+}
+
+/**
+ * Standard CORS headers for Edge Functions (legacy - use getCorsHeaders for dynamic origin)
  */
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': 'https://dearmp.uk',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
@@ -12,11 +47,11 @@ export const corsHeaders = {
 /**
  * Create a JSON response with CORS headers
  */
-export function jsonResponse(data: unknown, status = 200): Response {
+export function jsonResponse(data: unknown, status = 200, origin?: string | null): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      ...corsHeaders,
+      ...getCorsHeaders(origin ?? null),
       'Content-Type': 'application/json',
     },
   });
@@ -25,8 +60,8 @@ export function jsonResponse(data: unknown, status = 200): Response {
 /**
  * Create an error response
  */
-export function errorResponse(message: string, status = 400): Response {
-  return jsonResponse({ error: message, success: false }, status);
+export function errorResponse(message: string, status = 400, origin?: string | null): Response {
+  return jsonResponse({ error: message, success: false }, status, origin);
 }
 
 /**
@@ -34,7 +69,8 @@ export function errorResponse(message: string, status = 400): Response {
  */
 export function handleCors(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    const origin = req.headers.get('Origin');
+    return new Response('ok', { headers: getCorsHeaders(origin) });
   }
   return null;
 }
@@ -109,14 +145,57 @@ export function parseEmailAddress(input: string): { name: string | null; email: 
 }
 
 /**
- * Sanitize HTML content (basic)
+ * Sanitize HTML content
+ * Removes dangerous elements and attributes that could enable XSS attacks
  */
 export function sanitizeHtml(html: string): string {
-  // Remove script tags and event handlers
-  return html
+  // Remove script tags (including variations)
+  let sanitized = html
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/on\w+="[^"]*"/gi, '')
-    .replace(/on\w+='[^']*'/gi, '');
+    .replace(/<script[^>]*>/gi, '')
+    .replace(/<\/script>/gi, '');
+
+  // Remove all event handlers (on* attributes)
+  sanitized = sanitized.replace(/\s*on\w+\s*=\s*["'][^"']*["']/gi, '');
+  sanitized = sanitized.replace(/\s*on\w+\s*=\s*[^\s>]+/gi, '');
+
+  // Remove javascript: and data: URLs in href/src attributes
+  sanitized = sanitized.replace(/href\s*=\s*["']?\s*javascript:[^"'>]*/gi, 'href="#"');
+  sanitized = sanitized.replace(/src\s*=\s*["']?\s*javascript:[^"'>]*/gi, 'src=""');
+  sanitized = sanitized.replace(/href\s*=\s*["']?\s*data:[^"'>]*/gi, 'href="#"');
+  sanitized = sanitized.replace(/src\s*=\s*["']?\s*data:[^"'>]*/gi, 'src=""');
+  sanitized = sanitized.replace(/href\s*=\s*["']?\s*vbscript:[^"'>]*/gi, 'href="#"');
+
+  // Remove dangerous elements entirely
+  sanitized = sanitized.replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '');
+  sanitized = sanitized.replace(/<iframe[^>]*\/?>/gi, '');
+  sanitized = sanitized.replace(/<object[^>]*>[\s\S]*?<\/object>/gi, '');
+  sanitized = sanitized.replace(/<object[^>]*\/?>/gi, '');
+  sanitized = sanitized.replace(/<embed[^>]*\/?>/gi, '');
+  sanitized = sanitized.replace(/<form[^>]*>[\s\S]*?<\/form>/gi, '');
+  sanitized = sanitized.replace(/<form[^>]*>/gi, '');
+  sanitized = sanitized.replace(/<\/form>/gi, '');
+  sanitized = sanitized.replace(/<input[^>]*\/?>/gi, '');
+  sanitized = sanitized.replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '');
+  sanitized = sanitized.replace(/<button[^>]*\/?>/gi, '');
+  sanitized = sanitized.replace(/<textarea[^>]*>[\s\S]*?<\/textarea>/gi, '');
+  sanitized = sanitized.replace(/<select[^>]*>[\s\S]*?<\/select>/gi, '');
+  sanitized = sanitized.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  sanitized = sanitized.replace(/<link[^>]*\/?>/gi, '');
+  sanitized = sanitized.replace(/<meta[^>]*\/?>/gi, '');
+  sanitized = sanitized.replace(/<base[^>]*\/?>/gi, '');
+
+  // Remove SVG (can contain scripts)
+  sanitized = sanitized.replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '');
+
+  // Remove math elements (can be abused)
+  sanitized = sanitized.replace(/<math[^>]*>[\s\S]*?<\/math>/gi, '');
+
+  // Remove expression() in style attributes (IE-specific XSS)
+  sanitized = sanitized.replace(/expression\s*\([^)]*\)/gi, '');
+  sanitized = sanitized.replace(/url\s*\(\s*["']?\s*javascript:[^)]*\)/gi, 'url()');
+
+  return sanitized;
 }
 
 /**

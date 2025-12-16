@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -6,6 +7,13 @@ import { ReplyEditor } from './ReplyEditor';
 import { AlertCircle } from 'lucide-react';
 import { useSupabase } from '@/lib/SupabaseContext';
 import type { Message, MessageRecipient, ConstituentContact } from '@/lib/database.types';
+
+// HTML escape function for safe string interpolation
+function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 
 interface ResponseComposerProps {
   originalMessages: Message[];
@@ -85,6 +93,7 @@ export function ResponseComposer({
 
   const generateQuoteBlock = (message: Message): string => {
     let bodyText = message.snippet || message.body_search_text || '';
+    // Strip HTML tags to get plain text
     bodyText = bodyText.replace(/<[^>]*>/g, '');
     const lines = bodyText.split('\n').slice(0, 5);
     const truncatedText = lines.join('\n').substring(0, 500);
@@ -102,15 +111,21 @@ export function ResponseComposer({
 
     const fromName = getSenderName(message.id);
 
+    // Escape all user-provided content to prevent XSS
+    const safeFromName = escapeHtml(fromName);
+    const safeDate = escapeHtml(date);
+    const safeText = escapeHtml(truncatedText).replace(/\n/g, '<br>');
+
     const quoteHtml = `
 <p><br></p>
 <blockquote>
-  <p><strong>On ${date}, ${fromName} wrote:</strong></p>
-  <p>${truncatedText.replace(/\n/g, '<br>')}</p>
+  <p><strong>On ${safeDate}, ${safeFromName} wrote:</strong></p>
+  <p>${safeText}</p>
 </blockquote>
     `.trim();
 
-    return quoteHtml;
+    // Final sanitization pass with DOMPurify
+    return DOMPurify.sanitize(quoteHtml);
   };
 
   const handleSend = async (html: string, plainText: string) => {
