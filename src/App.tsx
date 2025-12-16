@@ -9,7 +9,7 @@ import LoginPage from '@/pages/LoginPage';
 import LettersPage from '@/pages/office/LettersPage';
 import ThirdPartiesPage from '@/pages/office/ThirdPartiesPage';
 import ConstituentsPage from '@/pages/office/ConstituentsPage';
-import TriagePage from '@/pages/casework/TriagePage';
+import BatchTriagePage from '@/pages/BatchTriagePage';
 import CasesPage from '@/pages/casework/CasesPage';
 import CaseDetailPage from '@/pages/casework/CaseDetailPage';
 import NewCasePage from '@/pages/casework/NewCasePage';
@@ -79,7 +79,7 @@ function AuthenticatedLayout() {
             <Route path="/settings" element={<SettingsPage />} />
 
             {/* Policy Routes */}
-            <Route path="/policy/triage" element={<TriagePage />} />
+            <Route path="/policy/triage" element={<BatchTriagePage />} />
             <Route path="/policy/campaigns" element={<CampaignsPage />} />
             <Route path="/policy/emails" element={<PolicyEmailsPage />} />
             <Route path="/policy/email-group/:groupId" element={<PolicyEmailGroupDetailPage />} />
@@ -90,7 +90,7 @@ function AuthenticatedLayout() {
             <Route path="/office/letters" element={<LettersPage />} />
             <Route path="/office/third-parties" element={<ThirdPartiesPage />} />
             <Route path="/office/constituents" element={<ConstituentsPage />} />
-            <Route path="/casework/triage" element={<TriagePage />} />
+            <Route path="/casework/triage" element={<BatchTriagePage />} />
             <Route path="/casework/cases" element={<CasesPage />} />
             <Route path="/casework/cases/:caseId" element={<CaseDetailPage />} />
             <Route path="/casework/new-case" element={<NewCasePage />} />
