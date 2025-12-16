@@ -984,6 +984,115 @@ export interface Database {
           }
         ];
       };
+      notes: {
+        Row: {
+          id: string;
+          office_id: string;
+          case_id: string | null;
+          campaign_id: string | null;
+          thread_id: string | null;
+          body: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          office_id: string;
+          case_id?: string | null;
+          campaign_id?: string | null;
+          thread_id?: string | null;
+          body: string;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          office_id?: string;
+          case_id?: string | null;
+          campaign_id?: string | null;
+          thread_id?: string | null;
+          body?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notes_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notes_case_id_fkey";
+            columns: ["case_id"];
+            referencedRelation: "cases";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notes_campaign_id_fkey";
+            columns: ["campaign_id"];
+            referencedRelation: "campaigns";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notes_created_by_fkey";
+            columns: ["created_by"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      note_replies: {
+        Row: {
+          id: string;
+          office_id: string;
+          note_id: string;
+          body: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          office_id: string;
+          note_id: string;
+          body: string;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          office_id?: string;
+          note_id?: string;
+          body?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "note_replies_office_id_fkey";
+            columns: ["office_id"];
+            referencedRelation: "offices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "note_replies_note_id_fkey";
+            columns: ["note_id"];
+            referencedRelation: "notes";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "note_replies_created_by_fkey";
+            columns: ["created_by"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
       rejected_emails: {
         Row: {
           id: string;
@@ -1114,3 +1223,10 @@ export type OutlookSessionInsert = Database['public']['Tables']['integration_out
 export type EmailOutboxQueueInsert = Database['public']['Tables']['email_outbox_queue']['Insert'];
 export type CasePartyInsert = Database['public']['Tables']['case_parties']['Insert'];
 export type MessageUpdate = Database['public']['Tables']['messages']['Update'];
+
+// Notes types
+export type Note = Database['public']['Tables']['notes']['Row'];
+export type NoteReply = Database['public']['Tables']['note_replies']['Row'];
+export type NoteInsert = Database['public']['Tables']['notes']['Insert'];
+export type NoteReplyInsert = Database['public']['Tables']['note_replies']['Insert'];
+export type TagAssignmentInsert = Database['public']['Tables']['tag_assignments']['Insert'];

@@ -3,6 +3,14 @@ import { useSupabase } from '@/lib/SupabaseContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 
 type SessionState = 'idle' | 'starting' | 'interactive' | 'capturing' | 'connected' | 'error';
@@ -181,37 +189,17 @@ export function OutlookConnect({ officeId }: OutlookConnectProps) {
         return (
           <>
             <CardDescription>
-              Log in to your Outlook account in the window below.
+              Complete the Outlook login in the popup window.
             </CardDescription>
-            <CardContent className="pt-6 space-y-4">
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Important:</strong> Complete the full login process including any 2FA verification.
-                  Once you see your Outlook inbox, click "I have finished logging in" below.
-                </AlertDescription>
-              </Alert>
-                <div className="mx-auto w-full max-w-[400px] aspect-[1/2] border-8 border-gray-800 rounded-[3rem] overflow-hidden bg-gray-100 shadow-xl relative">
-
-                {vncUrl && (
-                  <div className="border rounded-lg overflow-hidden bg-gray-100" style={{ height: '600px' }}>
-                  <iframe
-                    src={vncUrl}
-                    className="w-full h-full"
-                    title="Outlook Login"
-                    sandbox="allow-same-origin allow-scripts allow-forms"
-                  />
-                  </div>
-              )}
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center space-x-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Outlook login in progress...</span>
               </div>
             </CardContent>
-            <CardFooter className="flex gap-2">
-              <Button onClick={captureSession} className="flex-1">
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                I have logged in
-              </Button>
-              <Button onClick={cancelSession} variant="outline" className="flex-1">
-                Cancel
+            <CardFooter>
+              <Button onClick={cancelSession} variant="outline" className="w-full">
+                Cancel Login
               </Button>
             </CardFooter>
           </>
@@ -291,14 +279,62 @@ export function OutlookConnect({ officeId }: OutlookConnectProps) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          Outlook Integration
-          {isConnected && <CheckCircle2 className="h-5 w-5 text-green-600" />}
-        </CardTitle>
-      </CardHeader>
-      {renderContent()}
-    </Card>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Outlook Integration
+            {isConnected && <CheckCircle2 className="h-5 w-5 text-green-600" />}
+          </CardTitle>
+        </CardHeader>
+        {renderContent()}
+      </Card>
+
+      {/* Fullscreen modal for Outlook login */}
+      <Dialog open={sessionState === 'interactive'} onOpenChange={(open) => !open && cancelSession()}>
+        <DialogContent className="w-screen h-screen max-w-none m-0 p-0 rounded-none flex flex-col">
+          <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Connect Outlook Account</DialogTitle>
+                <DialogDescription>
+                  Log in to your Outlook account. Complete any 2FA verification if prompted.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <Alert className="mx-6 mt-4 flex-shrink-0">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Important:</strong> Complete the full login process including any 2FA verification.
+              Once you see your Outlook inbox, click "I have logged in" below.
+            </AlertDescription>
+          </Alert>
+
+          {/* VNC iframe container */}
+          <div className="flex-1 p-6 min-h-0">
+            {vncUrl && (
+              <iframe
+                src={vncUrl}
+                className="w-full h-full border rounded-lg bg-gray-100"
+                title="Outlook Login"
+                sandbox="allow-same-origin allow-scripts allow-forms"
+              />
+            )}
+          </div>
+
+          <DialogFooter className="px-6 py-4 border-t flex-shrink-0 sm:justify-between">
+            <Button onClick={cancelSession} variant="outline">
+              Cancel
+            </Button>
+            <Button onClick={captureSession}>
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              I have logged in
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

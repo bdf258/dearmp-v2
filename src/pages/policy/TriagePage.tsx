@@ -38,11 +38,20 @@ import {
 } from '@/components/ui/dialog';
 import { MoreHorizontal, Mail, Tag, UserPlus, Flag, FolderInput, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { TagSelectorDialog } from '@/components/tags/TagSelectorDialog';
 
 export default function TriagePage() {
-  const { messages, profiles, campaigns, messageRecipients, updateMessage } = useSupabase();
+  const { messages, profiles, campaigns, tags, messageRecipients, updateMessage, getTagsForEntity } = useSupabase();
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
   const [processingMessageId, setProcessingMessageId] = useState<string | null>(null);
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
+  const [tagDialogMessageId, setTagDialogMessageId] = useState<string | null>(null);
+
+  // Get tags for a message
+  const getMessageTags = (messageId: string) => {
+    const assignments = getTagsForEntity('message', messageId);
+    return assignments.map(a => tags.find(t => t.id === a.tag_id)).filter(Boolean);
+  };
 
   // Filter for messages that need triage (have campaign but not yet processed)
   const triageMessages = messages.filter(
@@ -105,9 +114,9 @@ export default function TriagePage() {
     }
   };
 
-  const handleAddTag = (_messageId: string) => {
-    // TODO: Implement tag selector dialog (Priority 2)
-    toast.info('Tag management coming soon');
+  const handleAddTag = (messageId: string) => {
+    setTagDialogMessageId(messageId);
+    setTagDialogOpen(true);
   };
 
   const selectedMessageData = messages.find((m) => m.id === selectedMessage);
@@ -144,6 +153,7 @@ export default function TriagePage() {
                 <TableRow>
                   <TableHead>From</TableHead>
                   <TableHead>Subject</TableHead>
+                  <TableHead>Tags</TableHead>
                   <TableHead>Received</TableHead>
                   <TableHead>Campaign Match</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -155,6 +165,7 @@ export default function TriagePage() {
                     (c) => c.id === message.campaign_id
                   );
                   const sender = getSenderInfo(message.id);
+                  const messageTags = getMessageTags(message.id);
 
                   return (
                     <TableRow key={message.id}>
@@ -173,6 +184,28 @@ export default function TriagePage() {
                         >
                           {message.subject || '(No subject)'}
                         </button>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1 max-w-[150px]">
+                          {messageTags.length > 0 ? (
+                            messageTags.map((tag) => tag && (
+                              <Badge
+                                key={tag.id}
+                                variant="outline"
+                                className="text-xs"
+                                style={{
+                                  borderColor: tag.color,
+                                  backgroundColor: `${tag.color}20`,
+                                  color: tag.color,
+                                }}
+                              >
+                                {tag.name}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         {new Date(message.received_at).toLocaleDateString()}
@@ -309,6 +342,21 @@ export default function TriagePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Tag Selector Dialog */}
+      {tagDialogMessageId && (
+        <TagSelectorDialog
+          open={tagDialogOpen}
+          onOpenChange={(open) => {
+            setTagDialogOpen(open);
+            if (!open) setTagDialogMessageId(null);
+          }}
+          entityType="message"
+          entityId={tagDialogMessageId}
+          title="Manage Message Tags"
+          description="Select tags to categorize this message"
+        />
+      )}
     </div>
   );
 }
