@@ -44,8 +44,6 @@ export const mockAuth = {
 
 // Create a mock Supabase client
 export function createMockSupabaseClient() {
-  const mockQueryBuilder = createMockQueryBuilder()
-
   return {
     auth: mockAuth,
     from: vi.fn(() => ({

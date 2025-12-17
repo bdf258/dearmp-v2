@@ -21,6 +21,12 @@ import PolicyEmailsPage from '@/pages/policy/PolicyEmailsPage';
 import PolicyEmailGroupDetailPage from '@/pages/policy/PolicyEmailGroupDetailPage';
 import OfficeStylePage from '@/pages/policy/OfficeStylePage';
 import MPApprovalPage from '@/pages/mp/MPApprovalPage';
+import TriagePrototype1 from '@/pages/prototypes/TriagePrototype1';
+import TriagePrototype2 from '@/pages/prototypes/TriagePrototype2';
+import TriagePrototype3 from '@/pages/prototypes/TriagePrototype3';
+import CasePrototypeTabs from '@/pages/prototypes/case/CasePrototypeTabs';
+import CasePrototypeColumns from '@/pages/prototypes/case/CasePrototypeColumns';
+import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
 
 function LoadingScreen() {
   return (
@@ -94,6 +100,15 @@ function AuthenticatedLayout() {
             <Route path="/casework/inbound-rules" element={<InboundRulesPage />} />
             <Route path="/casework/reporting" element={<ReportingPage />} />
             <Route path="/mp-approval" element={<MPApprovalPage />} />
+
+            {/* Triage Prototypes (not linked in navigation) */}
+            <Route path="/triage-prototype-1" element={<TriagePrototype1 />} />
+            <Route path="/triage-prototype-2" element={<TriagePrototype2 />} />
+            <Route path="/triage-prototype-3" element={<TriagePrototype3 />} />
+            {/* Prototype Routes - Not linked in navigation */}
+            <Route path="/prototypes/case/tabs" element={<CasePrototypeTabs />} />
+            <Route path="/prototypes/case/columns" element={<CasePrototypeColumns />} />
+            <Route path="/prototypes/case/cards" element={<CasePrototypeCards />} />
           </Routes>
         </main>
       </div>
