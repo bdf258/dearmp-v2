@@ -1,0 +1,38 @@
+Merge branch 'main' of https://github.com/bdf258/dearmp-v2
+okay i hate vim
+
+#
+# It looks like you may be committing a merge.
+# If this is not correct, please run
+#	git update-ref -d MERGE_HEAD
+# and try again.
+
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+#
+# On branch main
+# Your branch and 'origin/main' have diverged,
+# and have 1 and 7 different commits each, respectively.
+#   (use "git pull" to merge the remote branch into yours)
+#
+# All conflicts fixed but you are still merging.
+#
+# Changes to be committed:
+#	new file:   .env.example
+#	new file:   docs/case-page-design-considerations.md
+#	new file:   docs/triage_design.md
+#	modified:   package-lock.json
+#	modified:   package.json
+#	modified:   src/App.tsx
+#	new file:   src/components/ui/progress.tsx
+#	modified:   src/pages/LoginPage.test.tsx
+#	new file:   src/pages/prototypes/TriagePrototype1.tsx
+#	new file:   src/pages/prototypes/TriagePrototype2.tsx
+#	new file:   src/pages/prototypes/TriagePrototype3.tsx
+#	new file:   src/pages/prototypes/case/CasePrototypeCards.tsx
+#	new file:   src/pages/prototypes/case/CasePrototypeColumns.tsx
+#	new file:   src/pages/prototypes/case/CasePrototypeTabs.tsx
+#	modified:   src/test/mocks/supabase.ts
+#	modified:   vite.config.ts
+#

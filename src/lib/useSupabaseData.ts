@@ -247,7 +247,9 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         supabase.from('bulk_responses').select('*').order('created_at', { ascending: false }),
         supabase.from('notes').select('*').order('created_at', { ascending: false }),
         supabase.from('note_replies').select('*').order('created_at', { ascending: true }),
-        supabase.from('office_settings').select('*').eq('office_id', (profileData as Profile).office_id).maybeSingle(),
+        (profileData as Profile).office_id
+          ? supabase.from('office_settings').select('*').eq('office_id', (profileData as Profile).office_id!).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
       ]);
 
       // Check for errors (excluding officeSettingsRes which may not exist yet)
