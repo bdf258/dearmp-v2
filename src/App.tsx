@@ -6,6 +6,7 @@ import { SidebarNav } from '@/components/SidebarNav';
 import Dashboard from '@/pages/Dashboard';
 import SettingsPage from '@/pages/SettingsPage';
 import LoginPage from '@/pages/LoginPage';
+import TwoFAVerificationPage from '@/pages/TwoFAVerificationPage';
 import LettersPage from '@/pages/office/LettersPage';
 import ThirdPartiesPage from '@/pages/office/ThirdPartiesPage';
 import ConstituentsPage from '@/pages/office/ConstituentsPage';
@@ -101,7 +102,7 @@ function AuthenticatedLayout() {
 }
 
 function RootLayout() {
-  const { user, loading } = useSupabase();
+  const { user, loading, requiresMfa, checkMfaStatus, signOut } = useSupabase();
 
   if (loading) {
     return <LoadingScreen />;
@@ -109,6 +110,21 @@ function RootLayout() {
 
   if (!user) {
     return <LoginPage />;
+  }
+
+  // If user has MFA enabled but hasn't verified yet in this session
+  if (requiresMfa) {
+    return (
+      <TwoFAVerificationPage
+        onVerified={() => {
+          // Re-check MFA status after verification
+          checkMfaStatus();
+        }}
+        onSignOut={() => {
+          signOut();
+        }}
+      />
+    );
   }
 
   return <AuthenticatedLayout />;

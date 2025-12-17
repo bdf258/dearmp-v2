@@ -37,6 +37,11 @@ interface UseSupabaseDataReturn {
   loading: boolean;
   error: string | null;
 
+  // MFA state
+  requiresMfa: boolean;
+  mfaVerified: boolean;
+  checkMfaStatus: () => Promise<void>;
+
   // Current office
   currentOffice: Office | null;
   currentOfficeMode: 'casework' | 'westminster';
@@ -106,6 +111,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // MFA state
+  const [requiresMfa, setRequiresMfa] = useState(false);
+  const [mfaVerified, setMfaVerified] = useState(false);
+
   // Office mode (UI state)
   const [currentOfficeMode, setCurrentOfficeMode] = useState<'casework' | 'westminster'>('casework');
 
@@ -133,6 +142,45 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // Helper functions
   const getMyOfficeId = useCallback(() => profile?.office_id || null, [profile]);
   const getCurrentUserId = useCallback(() => user?.id || null, [user]);
+
+  // Check MFA status - determines if user needs to complete MFA verification
+  const checkMfaStatus = useCallback(async () => {
+    if (!user) {
+      setRequiresMfa(false);
+      setMfaVerified(false);
+      return;
+    }
+
+    try {
+      // Get current session to check assurance level
+      const { data: { session } } = await supabase.auth.getSession();
+      // The aal (Authenticator Assurance Level) indicates MFA status
+      // aal1 = password only, aal2 = password + MFA verified
+      const currentAal = (session as { aal?: string } | null)?.aal || 'aal1';
+
+      // List user's MFA factors
+      const { data: factorsData } = await supabase.auth.mfa.listFactors();
+      const hasVerifiedFactor = factorsData?.totp?.some(f => f.status === 'verified') || false;
+
+      // User requires MFA if they have a verified factor but session is only aal1
+      if (hasVerifiedFactor && currentAal === 'aal1') {
+        setRequiresMfa(true);
+        setMfaVerified(false);
+      } else if (hasVerifiedFactor && currentAal === 'aal2') {
+        setRequiresMfa(false);
+        setMfaVerified(true);
+      } else {
+        // No MFA factor enrolled
+        setRequiresMfa(false);
+        setMfaVerified(false);
+      }
+    } catch (err) {
+      console.error('Error checking MFA status:', err);
+      // On error, don't block the user but don't claim MFA is verified
+      setRequiresMfa(false);
+      setMfaVerified(false);
+    }
+  }, [user]);
 
   // Fetch all data for current office
   const fetchData = useCallback(async () => {
@@ -261,6 +309,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   useEffect(() => {
     if (user) {
       fetchData();
+      checkMfaStatus();
     } else {
       // Clear data on sign out
       setProfile(null);
@@ -280,6 +329,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setNotes([]);
       setNoteReplies([]);
       setEmailIntegration(null);
+      setRequiresMfa(false);
+      setMfaVerified(false);
       setLoading(false);
     }
   }, [user, fetchData]);
@@ -767,6 +818,11 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     profile,
     loading,
     error,
+
+    // MFA
+    requiresMfa,
+    mfaVerified,
+    checkMfaStatus,
 
     // Office
     currentOffice,
