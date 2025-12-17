@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { LogOut, Settings, Users, Mail, Tags, Pencil, Trash2, Plus, Check, X, RefreshCw } from 'lucide-react';
 import type { UserRole, Tag } from '@/lib/database.types';
+import { TwoFASettings } from '@/components/settings/TwoFASettings';
 
 const TAG_COLORS = [
   { value: '#ef4444', label: 'Red' },
@@ -393,6 +394,9 @@ export default function SettingsPage() {
                 </div>
               </AccordionContent>
             </AccordionItem>
+
+            {/* Two-Factor Authentication */}
+            <TwoFASettings />
 
       {/* Outlook Integration */}
       {currentOffice?.id && <OutlookConnect officeId={currentOffice.id} />}
