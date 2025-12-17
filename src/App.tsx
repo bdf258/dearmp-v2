@@ -21,6 +21,9 @@ import PolicyEmailsPage from '@/pages/policy/PolicyEmailsPage';
 import PolicyEmailGroupDetailPage from '@/pages/policy/PolicyEmailGroupDetailPage';
 import OfficeStylePage from '@/pages/policy/OfficeStylePage';
 import MPApprovalPage from '@/pages/mp/MPApprovalPage';
+import CasePrototypeTabs from '@/pages/prototypes/case/CasePrototypeTabs';
+import CasePrototypeColumns from '@/pages/prototypes/case/CasePrototypeColumns';
+import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
 
 function LoadingScreen() {
   return (
@@ -94,6 +97,11 @@ function AuthenticatedLayout() {
             <Route path="/casework/inbound-rules" element={<InboundRulesPage />} />
             <Route path="/casework/reporting" element={<ReportingPage />} />
             <Route path="/mp-approval" element={<MPApprovalPage />} />
+
+            {/* Prototype Routes - Not linked in navigation */}
+            <Route path="/prototypes/case/tabs" element={<CasePrototypeTabs />} />
+            <Route path="/prototypes/case/columns" element={<CasePrototypeColumns />} />
+            <Route path="/prototypes/case/cards" element={<CasePrototypeCards />} />
           </Routes>
         </main>
       </div>
