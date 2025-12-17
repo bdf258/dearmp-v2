@@ -12,7 +12,6 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -34,7 +33,6 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import {
-  Mail,
   CheckCircle2,
   AlertCircle,
   ChevronRight,
@@ -517,7 +515,6 @@ export default function TriagePrototype1() {
   const [currentPhase, setCurrentPhase] = useState<1 | 2 | 3 | 4>(1);
   const [completedPhases, setCompletedPhases] = useState<Set<number>>(new Set());
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
-  const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
   const [processedEmails, setProcessedEmails] = useState<Set<string>>(new Set());
 
   const campaignGroups = groupByCampaign(campaignEmails);

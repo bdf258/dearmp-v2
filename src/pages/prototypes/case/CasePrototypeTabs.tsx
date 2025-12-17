@@ -17,7 +17,6 @@ import {
   Mail,
   Phone,
   MapPin,
-  Calendar,
   Clock,
   Tag,
   FileText,
@@ -568,7 +567,7 @@ export default function CasePrototypeTabs() {
 
               <ScrollArea className="h-[550px]">
                 <div className="space-y-3 pr-4">
-                  {DEMO_EMAILS.map((email, index) => (
+                  {DEMO_EMAILS.map((email) => (
                     <Tooltip key={email.id}>
                       <TooltipTrigger asChild>
                         <Card className={email.direction === 'outbound' ? 'border-l-4 border-l-primary' : ''}>

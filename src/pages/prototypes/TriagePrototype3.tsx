@@ -9,7 +9,7 @@
  */
 
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -38,10 +38,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu';
 import {
   Table,
@@ -52,29 +49,23 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Mail,
   CheckCircle2,
-  AlertCircle,
   AlertTriangle,
   User,
   Tag,
   Search,
   Filter,
-  SlidersHorizontal,
   ChevronDown,
   Check,
   X,
-  ExternalLink,
   Keyboard,
   Zap,
   Eye,
   ArrowUpDown,
-  MoreHorizontal,
   Users,
   FileText,
   Flag,
   Sparkles,
-  Pencil,
   RefreshCw,
 } from 'lucide-react';
 

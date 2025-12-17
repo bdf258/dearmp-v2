@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -19,19 +19,12 @@ import {
   Mail,
   Phone,
   MapPin,
-  Calendar,
-  Clock,
   Tag,
-  FileText,
   Activity,
-  BarChart3,
   ChevronDown,
   ChevronRight,
   Send,
   Paperclip,
-  ExternalLink,
-  AlertCircle,
-  CheckCircle2,
   Lightbulb,
   Eye,
   EyeOff,
