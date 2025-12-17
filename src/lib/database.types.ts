@@ -954,6 +954,88 @@ export type Database = {
           },
         ]
       }
+      office_settings: {
+        Row: {
+          id: string
+          office_id: string
+          ai_classification_enabled: boolean
+          ai_draft_response_enabled: boolean
+          ai_tagging_enabled: boolean
+          auto_assign_enabled: boolean
+          round_robin_enabled: boolean
+          default_casework_assignee: string | null
+          default_policy_assignee: string | null
+          policy_response_style: 'formal' | 'friendly' | 'brief'
+          casework_acknowledgment_enabled: boolean
+          mp_name: string | null
+          mp_email: string | null
+          signature_template: string | null
+          inbound_email: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          office_id: string
+          ai_classification_enabled?: boolean
+          ai_draft_response_enabled?: boolean
+          ai_tagging_enabled?: boolean
+          auto_assign_enabled?: boolean
+          round_robin_enabled?: boolean
+          default_casework_assignee?: string | null
+          default_policy_assignee?: string | null
+          policy_response_style?: 'formal' | 'friendly' | 'brief'
+          casework_acknowledgment_enabled?: boolean
+          mp_name?: string | null
+          mp_email?: string | null
+          signature_template?: string | null
+          inbound_email?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          office_id?: string
+          ai_classification_enabled?: boolean
+          ai_draft_response_enabled?: boolean
+          ai_tagging_enabled?: boolean
+          auto_assign_enabled?: boolean
+          round_robin_enabled?: boolean
+          default_casework_assignee?: string | null
+          default_policy_assignee?: string | null
+          policy_response_style?: 'formal' | 'friendly' | 'brief'
+          casework_acknowledgment_enabled?: boolean
+          mp_name?: string | null
+          mp_email?: string | null
+          signature_template?: string | null
+          inbound_email?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_settings_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: true
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "office_settings_default_casework_assignee_fkey"
+            columns: ["default_casework_assignee"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "office_settings_default_policy_assignee_fkey"
+            columns: ["default_policy_assignee"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       offices: {
         Row: {
           created_at: string
@@ -1415,6 +1497,8 @@ export type EmailQueueStatus = 'pending' | 'processing' | 'sent' | 'failed';
 
 // Convenience type aliases
 export type Office = Database['public']['Tables']['offices']['Row'];
+export type OfficeSettings = Database['public']['Tables']['office_settings']['Row'];
+export type OfficeSettingsUpdate = Database['public']['Tables']['office_settings']['Update'];
 export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Constituent = Database['public']['Tables']['constituents']['Row'];
 export type ConstituentContact = Database['public']['Tables']['constituent_contacts']['Row'];
