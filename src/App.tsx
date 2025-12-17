@@ -42,6 +42,10 @@ function LoadingScreen() {
 
 function AuthenticatedLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(() => {
+    const saved = localStorage.getItem('sidebarMinimized');
+    return saved ? JSON.parse(saved) : false;
+  });
 
   // Check if mobile on initial load and collapse sidebar
   useEffect(() => {
@@ -59,12 +63,20 @@ function AuthenticatedLayout() {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
 
+  const toggleMinimize = () => {
+    const newValue = !isSidebarMinimized;
+    setIsSidebarMinimized(newValue);
+    localStorage.setItem('sidebarMinimized', JSON.stringify(newValue));
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar Navigation */}
       <SidebarNav
         isCollapsed={isSidebarCollapsed}
         onToggle={toggleSidebar}
+        isMinimized={isSidebarMinimized}
+        onMinimize={toggleMinimize}
       />
 
       {/* Main Content Area */}
