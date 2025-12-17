@@ -14,6 +14,9 @@ dist
 dist-ssr
 *.local
 
+# Claude Code settings (may contain sensitive data)
+.claude/settings.local.json
+
 .env
 
 # Editor directories and files
