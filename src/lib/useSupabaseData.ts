@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 import type {
   Office,
+  OfficeSettings,
+  OfficeSettingsUpdate,
   Profile,
   Constituent,
   ConstituentContact,
@@ -44,6 +46,7 @@ interface UseSupabaseDataReturn {
 
   // Current office
   currentOffice: Office | null;
+  currentOfficeSettings: OfficeSettings | null;
   currentOfficeMode: 'casework' | 'westminster';
   setCurrentOfficeMode: (mode: 'casework' | 'westminster') => void;
 
@@ -82,6 +85,8 @@ interface UseSupabaseDataReturn {
 
   // Settings actions
   updateOffice: (updates: { name?: string }) => Promise<Office | null>;
+  updateOfficeSettings: (updates: OfficeSettingsUpdate) => Promise<OfficeSettings | null>;
+  fetchOfficeSettings: () => Promise<OfficeSettings | null>;
   updateProfileRole: (profileId: string, role: UserRole) => Promise<Profile | null>;
   createTag: (name: string, color: string) => Promise<Tag | null>;
   updateTag: (id: string, updates: { name?: string; color?: string }) => Promise<Tag | null>;
@@ -135,6 +140,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const [notes, setNotes] = useState<Note[]>([]);
   const [noteReplies, setNoteReplies] = useState<NoteReply[]>([]);
   const [emailIntegration, setEmailIntegration] = useState<OutlookSession | null>(null);
+  const [currentOfficeSettings, setCurrentOfficeSettings] = useState<OfficeSettings | null>(null);
 
   // Derived state
   const currentOffice = offices.find(o => o.id === profile?.office_id) || null;
@@ -224,6 +230,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         bulkRes,
         notesRes,
         noteRepliesRes,
+        officeSettingsRes,
       ] = await Promise.all([
         supabase.from('offices').select('*'),
         supabase.from('profiles').select('*'),
@@ -240,9 +247,10 @@ export function useSupabaseData(): UseSupabaseDataReturn {
         supabase.from('bulk_responses').select('*').order('created_at', { ascending: false }),
         supabase.from('notes').select('*').order('created_at', { ascending: false }),
         supabase.from('note_replies').select('*').order('created_at', { ascending: true }),
+        supabase.from('office_settings').select('*').eq('office_id', (profileData as Profile).office_id).maybeSingle(),
       ]);
 
-      // Check for errors
+      // Check for errors (excluding officeSettingsRes which may not exist yet)
       const errors = [
         officesRes.error,
         profilesRes.error,
@@ -281,6 +289,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setBulkResponses((bulkRes.data || []) as BulkResponse[]);
       setNotes((notesRes.data || []) as Note[]);
       setNoteReplies((noteRepliesRes.data || []) as NoteReply[]);
+      setCurrentOfficeSettings(officeSettingsRes.data as OfficeSettings | null);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -329,6 +338,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       setNotes([]);
       setNoteReplies([]);
       setEmailIntegration(null);
+      setCurrentOfficeSettings(null);
       setRequiresMfa(false);
       setMfaVerified(false);
       setLoading(false);
@@ -652,6 +662,75 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     return true;
   };
 
+  // Office settings functions
+  const fetchOfficeSettings = async (): Promise<OfficeSettings | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const { data, error: fetchError } = await supabase
+      .from('office_settings')
+      .select('*')
+      .eq('office_id', officeId)
+      .single();
+
+    if (fetchError) {
+      // No settings found - this is expected for new offices
+      if (fetchError.code !== 'PGRST116') {
+        console.error('Error fetching office settings:', fetchError);
+      }
+      setCurrentOfficeSettings(null);
+      return null;
+    }
+
+    const settings = data as OfficeSettings;
+    setCurrentOfficeSettings(settings);
+    return settings;
+  };
+
+  const updateOfficeSettings = async (updates: OfficeSettingsUpdate): Promise<OfficeSettings | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    // First try to update existing settings
+    const { data: existingData, error: selectError } = await supabase
+      .from('office_settings')
+      .select('id')
+      .eq('office_id', officeId)
+      .single();
+
+    if (selectError && selectError.code !== 'PGRST116') {
+      console.error('Error checking office settings:', selectError);
+      return null;
+    }
+
+    let result;
+    if (existingData) {
+      // Update existing
+      result = await supabase
+        .from('office_settings')
+        .update(updates as never)
+        .eq('office_id', officeId)
+        .select()
+        .single();
+    } else {
+      // Insert new
+      result = await supabase
+        .from('office_settings')
+        .insert({ ...updates, office_id: officeId } as never)
+        .select()
+        .single();
+    }
+
+    if (result.error) {
+      console.error('Error updating office settings:', result.error);
+      return null;
+    }
+
+    const updatedSettings = result.data as OfficeSettings;
+    setCurrentOfficeSettings(updatedSettings);
+    return updatedSettings;
+  };
+
   // Process a bulk response by calling the RPC function that uses constituent_contacts as source of truth
   const processBulkResponse = async (bulkResponseId: string): Promise<{ queued_count: number } | null> => {
     const officeId = getMyOfficeId();
@@ -826,6 +905,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     // Office
     currentOffice,
+    currentOfficeSettings,
     currentOfficeMode,
     setCurrentOfficeMode,
 
@@ -864,6 +944,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     // Settings actions
     updateOffice,
+    updateOfficeSettings,
+    fetchOfficeSettings,
     updateProfileRole,
     createTag,
     updateTag,

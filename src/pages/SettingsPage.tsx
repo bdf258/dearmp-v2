@@ -27,8 +27,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { LogOut, Settings, Users, Mail, Tags, Pencil, Trash2, Plus, Check, X, RefreshCw } from 'lucide-react';
-import type { UserRole, Tag } from '@/lib/database.types';
+import { LogOut, Settings, Users, Mail, Tags, Pencil, Trash2, Plus, Check, X, RefreshCw, Bot, UserCog } from 'lucide-react';
+import type { UserRole, Tag, OfficeSettingsUpdate } from '@/lib/database.types';
 import { TwoFASettings } from '@/components/settings/TwoFASettings';
 
 const TAG_COLORS = [
@@ -50,9 +50,11 @@ export default function SettingsPage() {
     signOut,
     profile,
     currentOffice,
+    currentOfficeSettings,
     profiles,
     tags,
     updateOffice,
+    updateOfficeSettings,
     updateProfileRole,
     createTag,
     updateTag,
@@ -81,6 +83,9 @@ export default function SettingsPage() {
 
   // User Management state
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);
+
+  // Office Settings state
+  const [savingSettings, setSavingSettings] = useState(false);
 
   // Initialize office name
   useEffect(() => {
@@ -155,6 +160,12 @@ export default function SettingsPage() {
     setUpdatingRole(profileId);
     await updateProfileRole(profileId, role);
     setUpdatingRole(null);
+  };
+
+  const handleUpdateSettings = async (updates: OfficeSettingsUpdate) => {
+    setSavingSettings(true);
+    await updateOfficeSettings(updates);
+    setSavingSettings(false);
   };
 
   const isAdmin = profile?.role === 'admin';
@@ -498,6 +509,217 @@ export default function SettingsPage() {
                   {!emailIntegration && (
                     <p className="text-sm text-muted-foreground">
                       No email integration configured. Contact your administrator to set up email importing.
+                    </p>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* AI Settings */}
+            <AccordionItem value="ai-settings">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-3">
+                  <Bot className="h-5 w-5 text-muted-foreground" />
+                  <div className="text-left">
+                    <div className="font-medium">AI Settings</div>
+                    <div className="text-sm text-muted-foreground font-normal">Configure AI-powered features for email processing</div>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pl-8 pt-2 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Email Classification</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically classify incoming emails as policy or casework
+                      </p>
+                    </div>
+                    <Switch
+                      checked={currentOfficeSettings?.ai_classification_enabled ?? true}
+                      onCheckedChange={(checked) => handleUpdateSettings({ ai_classification_enabled: checked })}
+                      disabled={!isAdmin || savingSettings}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Draft Response Generation</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Generate AI draft responses for policy emails
+                      </p>
+                    </div>
+                    <Switch
+                      checked={currentOfficeSettings?.ai_draft_response_enabled ?? true}
+                      onCheckedChange={(checked) => handleUpdateSettings({ ai_draft_response_enabled: checked })}
+                      disabled={!isAdmin || savingSettings}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Auto-Tagging</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically suggest tags for incoming emails
+                      </p>
+                    </div>
+                    <Switch
+                      checked={currentOfficeSettings?.ai_tagging_enabled ?? true}
+                      onCheckedChange={(checked) => handleUpdateSettings({ ai_tagging_enabled: checked })}
+                      disabled={!isAdmin || savingSettings}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <Label>Response Style</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Set the tone for AI-generated policy responses
+                    </p>
+                    <Select
+                      value={currentOfficeSettings?.policy_response_style ?? 'formal'}
+                      onValueChange={(value) => handleUpdateSettings({ policy_response_style: value as 'formal' | 'friendly' | 'brief' })}
+                      disabled={!isAdmin || savingSettings}
+                    >
+                      <SelectTrigger className="w-48">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="formal">Formal</SelectItem>
+                        <SelectItem value="friendly">Friendly</SelectItem>
+                        <SelectItem value="brief">Brief</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {!isAdmin && (
+                    <p className="text-sm text-muted-foreground pt-2">
+                      Only administrators can modify AI settings.
+                    </p>
+                  )}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Assignment Settings */}
+            <AccordionItem value="assignment-settings">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-3">
+                  <UserCog className="h-5 w-5 text-muted-foreground" />
+                  <div className="text-left">
+                    <div className="font-medium">Assignment Settings</div>
+                    <div className="text-sm text-muted-foreground font-normal">Configure how emails and cases are assigned</div>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="pl-8 pt-2 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Auto-Assignment</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically assign incoming emails to staff members
+                      </p>
+                    </div>
+                    <Switch
+                      checked={currentOfficeSettings?.auto_assign_enabled ?? true}
+                      onCheckedChange={(checked) => handleUpdateSettings({ auto_assign_enabled: checked })}
+                      disabled={!isAdmin || savingSettings}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Round-Robin Distribution</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Distribute assignments evenly among staff members
+                      </p>
+                    </div>
+                    <Switch
+                      checked={currentOfficeSettings?.round_robin_enabled ?? false}
+                      onCheckedChange={(checked) => handleUpdateSettings({ round_robin_enabled: checked })}
+                      disabled={!isAdmin || savingSettings}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <Label>Default Casework Assignee</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Default staff member to assign casework emails to
+                    </p>
+                    <Select
+                      value={currentOfficeSettings?.default_casework_assignee ?? 'none'}
+                      onValueChange={(value) => handleUpdateSettings({ default_casework_assignee: value === 'none' ? null : value })}
+                      disabled={!isAdmin || savingSettings}
+                    >
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="No default assignee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No default assignee</SelectItem>
+                        {profiles.filter(p => p.office_id === currentOffice?.id).map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.full_name || 'Unknown'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <Label>Default Policy Assignee</Label>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Default staff member to assign policy emails to
+                    </p>
+                    <Select
+                      value={currentOfficeSettings?.default_policy_assignee ?? 'none'}
+                      onValueChange={(value) => handleUpdateSettings({ default_policy_assignee: value === 'none' ? null : value })}
+                      disabled={!isAdmin || savingSettings}
+                    >
+                      <SelectTrigger className="w-64">
+                        <SelectValue placeholder="No default assignee" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No default assignee</SelectItem>
+                        {profiles.filter(p => p.office_id === currentOffice?.id).map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.full_name || 'Unknown'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Casework Acknowledgment</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Automatically send acknowledgment emails for casework requests
+                      </p>
+                    </div>
+                    <Switch
+                      checked={currentOfficeSettings?.casework_acknowledgment_enabled ?? false}
+                      onCheckedChange={(checked) => handleUpdateSettings({ casework_acknowledgment_enabled: checked })}
+                      disabled={!isAdmin || savingSettings}
+                    />
+                  </div>
+
+                  {!isAdmin && (
+                    <p className="text-sm text-muted-foreground pt-2">
+                      Only administrators can modify assignment settings.
                     </p>
                   )}
                 </div>
