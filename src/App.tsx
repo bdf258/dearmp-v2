@@ -24,6 +24,7 @@ import MPApprovalPage from '@/pages/mp/MPApprovalPage';
 import TriagePrototype1 from '@/pages/prototypes/TriagePrototype1';
 import TriagePrototype2 from '@/pages/prototypes/TriagePrototype2';
 import TriagePrototype3 from '@/pages/prototypes/TriagePrototype3';
+import TriagePrototype4 from '@/pages/prototypes/TriagePrototype4';
 import CasePrototypeTabs from '@/pages/prototypes/case/CasePrototypeTabs';
 import CasePrototypeColumns from '@/pages/prototypes/case/CasePrototypeColumns';
 import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
@@ -118,6 +119,7 @@ function AuthenticatedLayout() {
             <Route path="/triage-prototype-1" element={<TriagePrototype1 />} />
             <Route path="/triage-prototype-2" element={<TriagePrototype2 />} />
             <Route path="/triage-prototype-3" element={<TriagePrototype3 />} />
+            <Route path="/triage-prototype-4" element={<TriagePrototype4 />} />
             {/* Prototype Routes - Not linked in navigation */}
             <Route path="/prototypes/case/tabs" element={<CasePrototypeTabs />} />
             <Route path="/prototypes/case/columns" element={<CasePrototypeColumns />} />
