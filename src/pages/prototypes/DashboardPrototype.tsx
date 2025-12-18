@@ -21,6 +21,27 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import {
   Flag,
   MapPin,
   ArrowLeft,
@@ -33,7 +54,9 @@ import {
   CircleUser,
   Palette,
   FileText,
+  Plus,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Separator } from '@radix-ui/react-separator';
 
 // Import shared data
@@ -41,6 +64,8 @@ import {
   dashboardCampaigns,
   responseEmails as initialResponseEmails,
   newCaseEmails as initialNewCaseEmails,
+  caseworkers,
+  tags,
   type DashboardCampaign,
   type ResponseEmail,
 } from './prototypeData';
@@ -396,6 +421,9 @@ function CampaignFullPageView({
 }) {
   const [activeTab, setActiveTab] = useState<'known' | 'has_address' | 'no_address'>('known');
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>(caseworkers[0]?.id || '');
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagsPopoverOpen, setTagsPopoverOpen] = useState(false);
 
   const knownEmails = campaign.emails.filter(e => e.constituentStatus === 'known');
   const hasAddressEmails = campaign.emails.filter(e => e.constituentStatus === 'has_address');
@@ -446,6 +474,91 @@ function CampaignFullPageView({
           <Flag className="h-5 w-5 text-blue-600" />
           <h1 className="text-xl font-semibold">{campaign.name}</h1>
           <Badge variant="secondary">{pendingCount} pending</Badge>
+        </div>
+
+        {/* Menubar: Assignee & Tags */}
+        <div className="flex items-center gap-4">
+          {/* Assignee Dropdown */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-muted-foreground">Assignee:</Label>
+            <Select value={selectedAssigneeId} onValueChange={setSelectedAssigneeId}>
+              <SelectTrigger className="w-[140px] h-8">
+                <SelectValue placeholder="Select assignee" />
+              </SelectTrigger>
+              <SelectContent>
+                {caseworkers.map((cw) => (
+                  <SelectItem key={cw.id} value={cw.id}>
+                    {cw.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Tags Popover */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-muted-foreground">Tags:</Label>
+            <Popover open={tagsPopoverOpen} onOpenChange={setTagsPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 min-w-[120px] justify-start">
+                  {selectedTagIds.length > 0 ? (
+                    <div className="flex items-center gap-1 overflow-hidden">
+                      {selectedTagIds.slice(0, 2).map((tagId) => {
+                        const tag = tags.find(t => t.id === tagId);
+                        return tag ? (
+                          <Badge key={tag.id} className={cn('text-xs h-5', tag.color)}>
+                            {tag.name}
+                          </Badge>
+                        ) : null;
+                      })}
+                      {selectedTagIds.length > 2 && (
+                        <span className="text-xs text-muted-foreground">+{selectedTagIds.length - 2}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Plus className="h-3 w-3" />
+                      Add tags
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[220px] p-0" align="end">
+                <Command shouldFilter={false}>
+                  <CommandInput placeholder="Search tags..." />
+                  <CommandList>
+                    <CommandEmpty>No tags found.</CommandEmpty>
+                    <CommandGroup>
+                      {tags.map((tag) => {
+                        const isSelected = selectedTagIds.includes(tag.id);
+                        return (
+                          <CommandItem
+                            key={tag.id}
+                            value={tag.id}
+                            onSelect={() => {
+                              if (isSelected) {
+                                setSelectedTagIds(selectedTagIds.filter((id) => id !== tag.id));
+                              } else {
+                                setSelectedTagIds([...selectedTagIds, tag.id]);
+                              }
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 flex-1">
+                              <Badge className={cn('text-xs', tag.color)}>
+                                {tag.name}
+                              </Badge>
+                            </div>
+                            {isSelected && <Check className="h-4 w-4" />}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </div>
 
