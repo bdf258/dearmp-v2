@@ -1346,82 +1346,84 @@ export default function TriagePrototype5() {
   }
 
   return (
-    <div className="flex flex-1 gap-4 overflow-hidden">
+    <div className="flex flex-1 gap-4 h-[calc(100vh-8rem)] overflow-hidden">
       {/* Left Panel - Email View */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-background">
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Email Header */}
-          <div className="shrink-0 border-b pb-4 mb-4">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-              Subject
+      <div className="flex-1 min-h-0 bg-background">
+        <ScrollArea className="h-full pr-4">
+          <div className="flex flex-col">
+            {/* Email Header */}
+            <div className="shrink-0 border-b pb-4 mb-4">
+              <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                Subject
+              </div>
+              <h2 className="text-lg font-semibold">{currentTriageCase.email.subject}</h2>
+              <div className="text-sm text-muted-foreground mt-2">
+                From: {currentTriageCase.email.fromName} &lt;{currentTriageCase.email.fromEmail}&gt;
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {new Date(currentTriageCase.email.receivedAt).toLocaleString()}
+              </div>
             </div>
-            <h2 className="text-lg font-semibold">{currentTriageCase.email.subject}</h2>
-            <div className="text-sm text-muted-foreground mt-2">
-              From: {currentTriageCase.email.fromName} &lt;{currentTriageCase.email.fromEmail}&gt;
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {new Date(currentTriageCase.email.receivedAt).toLocaleString()}
-            </div>
-          </div>
 
-          {/* Email Body */}
-          <div className="flex-1 overflow-hidden">
-            <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
-              Body
-            </div>
-            <ScrollArea className="h-full pr-4">
+            {/* Email Body */}
+            <div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
+                Body
+              </div>
               <div className="whitespace-pre-wrap text-sm leading-relaxed">
                 {currentTriageCase.email.body}
               </div>
-            </ScrollArea>
-          </div>
-
-          {/* Thread Emails */}
-          {currentTriageCase.threadEmails.length > 0 && (
-            <div className="shrink-0 pt-4 mt-4 border-t">
-              <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
-                Previous in thread
-              </div>
-              <Accordion type="single" collapsible className="space-y-2">
-                {currentTriageCase.threadEmails.map((threadEmail) => (
-                  <AccordionItem
-                    key={threadEmail.id}
-                    value={threadEmail.id}
-                    className={cn(
-                      'border rounded-md px-3',
-                      threadEmail.direction === 'outbound'
-                        ? 'bg-blue-50/50 border-blue-200'
-                        : 'bg-muted/30'
-                    )}
-                  >
-                    <AccordionTrigger className="py-2 hover:no-underline">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
-                        <span className="font-medium text-xs truncate">
-                          {threadEmail.fromName}
-                        </span>
-                        <span className="text-xs text-muted-foreground ml-auto mr-2">
-                          {new Date(threadEmail.sentAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="whitespace-pre-wrap text-sm leading-relaxed pt-2 border-t">
-                        {threadEmail.body}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
             </div>
-          )}
-        </div>
+
+            {/* Thread Emails */}
+            {currentTriageCase.threadEmails.length > 0 && (
+              <div className="pt-4 mt-4 border-t">
+                <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
+                  Previous in thread
+                </div>
+                <Accordion type="single" collapsible className="space-y-2">
+                  {currentTriageCase.threadEmails.map((threadEmail) => (
+                    <AccordionItem
+                      key={threadEmail.id}
+                      value={threadEmail.id}
+                      className={cn(
+                        'border rounded-md px-3',
+                        threadEmail.direction === 'outbound'
+                          ? 'bg-blue-50/50 border-blue-200'
+                          : 'bg-muted/30'
+                      )}
+                    >
+                      <AccordionTrigger className="py-2 hover:no-underline">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                          <span className="font-medium text-xs truncate">
+                            {threadEmail.fromName}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-auto mr-2">
+                            {new Date(threadEmail.sentAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="whitespace-pre-wrap text-sm leading-relaxed pt-2 border-t">
+                          {threadEmail.body}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       </div>
 
       {/* Right Panel - Case Management */}
-      <div className="w-[320px] h-screen flex flex-col shrink-0">
-        {/* Top Actions */}
-        <div className="shrink-0 p-3 border-b">
+      <div className="w-[320px] h-full flex flex-col shrink-0 bg-background">
+        {/* Scrollable Content */}
+        <ScrollArea className="flex-1 min-h-0 w-[320px] pb-3">
+          <div className="flex flex-col gap-3 w-[320px] min-w-0">
+          {/* Campaign Button */}
           <Button
             variant="secondary"
             className="w-full"
@@ -1430,10 +1432,7 @@ export default function TriagePrototype5() {
             <Megaphone className="mr-2 h-4 w-4" />
             Assign to Campaign
           </Button>
-        </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-1 space-y-3">
           {/* Constituent, Case & Tags Card */}
           <Card>
             <CardContent className="p-4 space-y-4">
@@ -1571,13 +1570,11 @@ export default function TriagePrototype5() {
               <PrioritySelector value={priority} onChange={setPriority} />
             </CardContent>
           </Card>
-        </div>
+          </div>
+        </ScrollArea>
 
         {/* Pinned Action Button */}
-        <div className="shrink-0 p-3 border-t bg-background">
-          <div className="text-xs text-muted-foreground text-center mb-2">
-            Case {currentCaseIndex + 1} of {mockTriageCases.length}
-          </div>
+        <div className="shrink-0 border-t bg-background">
           <Button className="w-full" size="lg" onClick={handleApprove}>
             <Check className="mr-2 h-4 w-4" />
             Approve & Next
