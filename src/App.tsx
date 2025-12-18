@@ -29,6 +29,7 @@ import TriagePrototype4 from '@/pages/prototypes/TriagePrototype4';
 import CasePrototypeTabs from '@/pages/prototypes/case/CasePrototypeTabs';
 import CasePrototypeColumns from '@/pages/prototypes/case/CasePrototypeColumns';
 import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
+import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 
 function LoadingScreen() {
@@ -134,6 +135,9 @@ function AuthenticatedLayout() {
             <Route path="/casework/inbound-rules" element={<InboundRulesPage />} />
             <Route path="/casework/reporting" element={<ReportingPage />} />
             <Route path="/mp-approval" element={<MPApprovalPage />} />
+
+            {/* Prototypes Index */}
+            <Route path="/prototypes" element={<PrototypesPage />} />
 
             {/* Triage Prototypes (not linked in navigation) */}
             <Route path="/triage-prototype-1" element={<TriagePrototype1 />} />

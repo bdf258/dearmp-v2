@@ -127,7 +127,7 @@ export function useSessionSecurity(userId: string | null): UseSessionSecurityRet
       }
 
       if (data) {
-        const result = data as {
+        const result = data as unknown as {
           risk_score?: number;
           anomalies?: SessionAnomaly[];
           action_required?: boolean;

@@ -1298,11 +1298,49 @@ export type Database = {
         Args: { p_bulk_response_id: string; p_office_id: string }
         Returns: Json
       }
+      get_audit_logs: {
+        Args: { p_limit: number; p_offset: number; p_severity: string | null }
+        Returns: {
+          id: string
+          office_id: string
+          actor_id: string | null
+          actor_name: string | null
+          action: string
+          entity_type: string
+          entity_id: string | null
+          metadata: Json | null
+          severity: string
+          ip_address: string | null
+          created_at: string
+        }[]
+      }
+      get_audit_stats: {
+        Args: { p_days: number }
+        Returns: {
+          total_events: number
+          critical_events: number
+          high_events: number
+          unique_actors: number
+          most_common_action: string
+          most_common_count: number
+        }[]
+      }
       get_constituent_primary_email: {
         Args: { p_constituent_id: string }
         Returns: string
       }
       get_my_office_id: { Args: never; Returns: string }
+      get_unresolved_anomalies: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          anomaly_type: string
+          severity: string
+          expected_value: string
+          actual_value: string
+          created_at: string
+        }[]
+      }
       ingest_inbound_email: {
         Args: {
           p_attachments: Json
@@ -1320,8 +1358,24 @@ export type Database = {
         Args: { p_approver_user_id: string; p_bulk_response_id: string }
         Returns: undefined
       }
+      record_session_context: {
+        Args: { p_ip_address: string; p_user_agent: string; p_country_code: string | null }
+        Returns: {
+          risk_score: number
+          anomalies: Json
+          action_required: boolean
+          error: string | null
+        }
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      trust_current_context: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          success: boolean
+          error: string | null
+        }
+      }
     }
     Enums: {
       audit_action:
