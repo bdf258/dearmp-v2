@@ -34,6 +34,7 @@ import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
 import DashboardPrototype from '@/pages/prototypes/DashboardPrototype';
 import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import { CampaignDashboard, TriageWorkspace } from '@/pages/triage';
 
 function LoadingScreen() {
   return (
@@ -138,6 +139,11 @@ function AuthenticatedLayout() {
             <Route path="/casework/inbound-rules" element={<InboundRulesPage />} />
             <Route path="/casework/reporting" element={<ReportingPage />} />
             <Route path="/mp-approval" element={<MPApprovalPage />} />
+
+            {/* Production Triage Routes */}
+            <Route path="/triage/campaigns" element={<CampaignDashboard />} />
+            <Route path="/triage/campaigns/:campaignId" element={<CampaignDashboard />} />
+            <Route path="/triage/messages/:messageId" element={<TriageWorkspace />} />
 
             {/* Prototypes Index */}
             <Route path="/prototypes" element={<PrototypesPage />} />
