@@ -31,6 +31,7 @@ import { LogOut, Settings, Users, Mail, Tags, Pencil, Trash2, Plus, Check, X, Re
 import { Textarea } from '@/components/ui/textarea';
 import type { UserRole, Tag, OfficeSettingsUpdate } from '@/lib/database.types';
 import { TwoFASettings } from '@/components/settings/TwoFASettings';
+import { AuditLogViewer } from '@/components/settings/AuditLogViewer';
 
 const TAG_COLORS = [
   { value: '#ef4444', label: 'Red' },
@@ -691,6 +692,9 @@ export default function SettingsPage() {
 
             {/* Two-Factor Authentication */}
             <TwoFASettings />
+
+            {/* Security Audit Log */}
+            <AuditLogViewer />
 
       {/* Outlook Integration */}
       {currentOffice?.id && <OutlookConnect officeId={currentOffice.id} />}
