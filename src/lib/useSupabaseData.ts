@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
+import { useSessionSecurity } from './useSessionSecurity';
 import type {
   Office,
   OfficeSettings,
@@ -107,6 +108,17 @@ interface UseSupabaseDataReturn {
   getTagsForEntity: (entityType: string, entityId: string) => TagAssignment[];
   addTagToEntity: (tagId: string, entityType: string, entityId: string) => Promise<TagAssignment | null>;
   removeTagFromEntity: (tagId: string, entityType: string, entityId: string) => Promise<boolean>;
+
+  // Session security
+  sessionSecurity: {
+    riskScore: number;
+    anomalies: Array<{ type: string; expected: string; actual: string }>;
+    actionRequired: boolean;
+    isLoading: boolean;
+    error: string | null;
+    trustCurrentContext: () => Promise<boolean>;
+    dismissAnomaly: () => void;
+  };
 }
 
 export function useSupabaseData(): UseSupabaseDataReturn {
@@ -141,6 +153,9 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   const [noteReplies, setNoteReplies] = useState<NoteReply[]>([]);
   const [emailIntegration, setEmailIntegration] = useState<OutlookSession | null>(null);
   const [currentOfficeSettings, setCurrentOfficeSettings] = useState<OfficeSettings | null>(null);
+
+  // Session security
+  const sessionSecurity = useSessionSecurity(user?.id || null);
 
   // Derived state
   const currentOffice = offices.find(o => o.id === profile?.office_id) || null;
@@ -968,5 +983,16 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     getTagsForEntity,
     addTagToEntity,
     removeTagFromEntity,
+
+    // Session security
+    sessionSecurity: {
+      riskScore: sessionSecurity.riskScore,
+      anomalies: sessionSecurity.anomalies,
+      actionRequired: sessionSecurity.actionRequired,
+      isLoading: sessionSecurity.isLoading,
+      error: sessionSecurity.error,
+      trustCurrentContext: sessionSecurity.trustCurrentContext,
+      dismissAnomaly: sessionSecurity.dismissAnomaly,
+    },
   };
 }

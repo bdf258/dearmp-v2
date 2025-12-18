@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       attachments: {
@@ -72,14 +47,114 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "attachments_message_id_fkey"
-            columns: ["message_id"]
+            foreignKeyName: "attachments_office_id_fkey"
+            columns: ["office_id"]
             isOneToOne: false
-            referencedRelation: "messages"
+            referencedRelation: "offices"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      attachments_default: {
+        Row: {
+          created_at: string | null
+          file_size: number | null
+          filename: string
+          id: string
+          message_id: string
+          mime_type: string | null
+          office_id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_size?: number | null
+          filename: string
+          id?: string
+          message_id: string
+          mime_type?: string | null
+          office_id: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string | null
+          file_size?: number | null
+          filename?: string
+          id?: string
+          message_id?: string
+          mime_type?: string | null
+          office_id?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
+      attachments_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
+        Row: {
+          created_at: string | null
+          file_size: number | null
+          filename: string
+          id: string
+          message_id: string
+          mime_type: string | null
+          office_id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_size?: number | null
+          filename: string
+          id?: string
+          message_id: string
+          mime_type?: string | null
+          office_id: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string | null
+          file_size?: number | null
+          filename?: string
+          id?: string
+          message_id?: string
+          mime_type?: string | null
+          office_id?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
+      audit_alert_queue: {
+        Row: {
+          audit_log_id: string
+          created_at: string | null
+          error_message: string | null
+          id: string
+          office_id: string
+          processed_at: string | null
+          retry_count: number | null
+          severity: string
+        }
+        Insert: {
+          audit_log_id: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          office_id: string
+          processed_at?: string | null
+          retry_count?: number | null
+          severity: string
+        }
+        Update: {
+          audit_log_id?: string
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          office_id?: string
+          processed_at?: string | null
+          retry_count?: number | null
+          severity?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "attachments_office_id_fkey"
+            foreignKeyName: "audit_alert_queue_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
             referencedRelation: "offices"
@@ -91,6 +166,7 @@ export type Database = {
         Row: {
           action: Database["public"]["Enums"]["audit_action"]
           actor_id: string | null
+          alert_sent_at: string | null
           created_at: string | null
           entity_id: string | null
           entity_type: string
@@ -98,10 +174,13 @@ export type Database = {
           ip_address: string | null
           metadata: Json | null
           office_id: string
+          requires_alert: boolean | null
+          severity: string | null
         }
         Insert: {
           action: Database["public"]["Enums"]["audit_action"]
           actor_id?: string | null
+          alert_sent_at?: string | null
           created_at?: string | null
           entity_id?: string | null
           entity_type: string
@@ -109,10 +188,13 @@ export type Database = {
           ip_address?: string | null
           metadata?: Json | null
           office_id: string
+          requires_alert?: boolean | null
+          severity?: string | null
         }
         Update: {
           action?: Database["public"]["Enums"]["audit_action"]
           actor_id?: string | null
+          alert_sent_at?: string | null
           created_at?: string | null
           entity_id?: string | null
           entity_type?: string
@@ -120,6 +202,8 @@ export type Database = {
           ip_address?: string | null
           metadata?: Json | null
           office_id?: string
+          requires_alert?: boolean | null
+          severity?: string | null
         }
         Relationships: [
           {
@@ -137,6 +221,96 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      audit_logs_default: {
+        Row: {
+          action: Database["public"]["Enums"]["audit_action"]
+          actor_id: string | null
+          alert_sent_at: string | null
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          office_id: string
+          requires_alert: boolean | null
+          severity: string | null
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["audit_action"]
+          actor_id?: string | null
+          alert_sent_at?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          office_id: string
+          requires_alert?: boolean | null
+          severity?: string | null
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["audit_action"]
+          actor_id?: string | null
+          alert_sent_at?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          office_id?: string
+          requires_alert?: boolean | null
+          severity?: string | null
+        }
+        Relationships: []
+      }
+      audit_logs_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
+        Row: {
+          action: Database["public"]["Enums"]["audit_action"]
+          actor_id: string | null
+          alert_sent_at: string | null
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          office_id: string
+          requires_alert: boolean | null
+          severity: string | null
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["audit_action"]
+          actor_id?: string | null
+          alert_sent_at?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          office_id: string
+          requires_alert?: boolean | null
+          severity?: string | null
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["audit_action"]
+          actor_id?: string | null
+          alert_sent_at?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          office_id?: string
+          requires_alert?: boolean | null
+          severity?: string | null
+        }
+        Relationships: []
       }
       browser_automation_lock: {
         Row: {
@@ -214,13 +388,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bulk_response_log_generated_message_id_fkey"
-            columns: ["generated_message_id"]
-            isOneToOne: false
-            referencedRelation: "messages"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "bulk_response_log_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
@@ -286,47 +453,51 @@ export type Database = {
       }
       campaigns: {
         Row: {
+          canonical_body_preview: string | null
+          canonical_subject: string | null
           created_at: string | null
           description: string | null
           fingerprint_hash: string | null
+          first_seen_at: string | null
           id: string
+          message_count: number | null
           name: string
-          office_id: string
+          office_id: string | null
           status: string | null
           subject_pattern: string | null
           updated_at: string | null
         }
         Insert: {
+          canonical_body_preview?: string | null
+          canonical_subject?: string | null
           created_at?: string | null
           description?: string | null
           fingerprint_hash?: string | null
+          first_seen_at?: string | null
           id?: string
+          message_count?: number | null
           name: string
-          office_id: string
+          office_id?: string | null
           status?: string | null
           subject_pattern?: string | null
           updated_at?: string | null
         }
         Update: {
+          canonical_body_preview?: string | null
+          canonical_subject?: string | null
           created_at?: string | null
           description?: string | null
           fingerprint_hash?: string | null
+          first_seen_at?: string | null
           id?: string
+          message_count?: number | null
           name?: string
-          office_id?: string
+          office_id?: string | null
           status?: string | null
           subject_pattern?: string | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "campaigns_office_id_fkey"
-            columns: ["office_id"]
-            isOneToOne: false
-            referencedRelation: "offices"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       case_parties: {
         Row: {
@@ -703,6 +874,30 @@ export type Database = {
           },
         ]
       }
+      login_attempts: {
+        Row: {
+          attempted_at: string | null
+          email: string
+          id: string
+          ip_address: string | null
+          success: boolean | null
+        }
+        Insert: {
+          attempted_at?: string | null
+          email: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean | null
+        }
+        Update: {
+          attempted_at?: string | null
+          email?: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean | null
+        }
+        Relationships: []
+      }
       message_recipients: {
         Row: {
           constituent_id: string | null
@@ -737,13 +932,6 @@ export type Database = {
             columns: ["constituent_id"]
             isOneToOne: false
             referencedRelation: "constituents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "message_recipients_message_id_fkey"
-            columns: ["message_id"]
-            isOneToOne: false
-            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
           {
@@ -836,6 +1024,126 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      messages_default: {
+        Row: {
+          body_search_text: string | null
+          campaign_id: string | null
+          case_id: string | null
+          channel: Database["public"]["Enums"]["message_channel"] | null
+          direction: Database["public"]["Enums"]["message_direction"]
+          id: string
+          in_reply_to_header: string | null
+          message_id_header: string | null
+          office_id: string
+          received_at: string | null
+          search_vector: unknown
+          sent_at: string | null
+          snippet: string | null
+          storage_path_html: string | null
+          storage_path_text: string | null
+          subject: string | null
+          thread_id: string | null
+        }
+        Insert: {
+          body_search_text?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          channel?: Database["public"]["Enums"]["message_channel"] | null
+          direction: Database["public"]["Enums"]["message_direction"]
+          id?: string
+          in_reply_to_header?: string | null
+          message_id_header?: string | null
+          office_id: string
+          received_at?: string | null
+          search_vector?: unknown
+          sent_at?: string | null
+          snippet?: string | null
+          storage_path_html?: string | null
+          storage_path_text?: string | null
+          subject?: string | null
+          thread_id?: string | null
+        }
+        Update: {
+          body_search_text?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          channel?: Database["public"]["Enums"]["message_channel"] | null
+          direction?: Database["public"]["Enums"]["message_direction"]
+          id?: string
+          in_reply_to_header?: string | null
+          message_id_header?: string | null
+          office_id?: string
+          received_at?: string | null
+          search_vector?: unknown
+          sent_at?: string | null
+          snippet?: string | null
+          storage_path_html?: string | null
+          storage_path_text?: string | null
+          subject?: string | null
+          thread_id?: string | null
+        }
+        Relationships: []
+      }
+      messages_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
+        Row: {
+          body_search_text: string | null
+          campaign_id: string | null
+          case_id: string | null
+          channel: Database["public"]["Enums"]["message_channel"] | null
+          direction: Database["public"]["Enums"]["message_direction"]
+          id: string
+          in_reply_to_header: string | null
+          message_id_header: string | null
+          office_id: string
+          received_at: string | null
+          search_vector: unknown
+          sent_at: string | null
+          snippet: string | null
+          storage_path_html: string | null
+          storage_path_text: string | null
+          subject: string | null
+          thread_id: string | null
+        }
+        Insert: {
+          body_search_text?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          channel?: Database["public"]["Enums"]["message_channel"] | null
+          direction: Database["public"]["Enums"]["message_direction"]
+          id?: string
+          in_reply_to_header?: string | null
+          message_id_header?: string | null
+          office_id: string
+          received_at?: string | null
+          search_vector?: unknown
+          sent_at?: string | null
+          snippet?: string | null
+          storage_path_html?: string | null
+          storage_path_text?: string | null
+          subject?: string | null
+          thread_id?: string | null
+        }
+        Update: {
+          body_search_text?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          channel?: Database["public"]["Enums"]["message_channel"] | null
+          direction?: Database["public"]["Enums"]["message_direction"]
+          id?: string
+          in_reply_to_header?: string | null
+          message_id_header?: string | null
+          office_id?: string
+          received_at?: string | null
+          search_vector?: unknown
+          sent_at?: string | null
+          snippet?: string | null
+          storage_path_html?: string | null
+          storage_path_text?: string | null
+          subject?: string | null
+          thread_id?: string | null
+        }
+        Relationships: []
       }
       note_replies: {
         Row: {
@@ -949,6 +1257,88 @@ export type Database = {
             foreignKeyName: "notes_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      office_settings: {
+        Row: {
+          ai_classification_enabled: boolean | null
+          ai_draft_response_enabled: boolean | null
+          ai_tagging_enabled: boolean | null
+          auto_assign_enabled: boolean | null
+          casework_acknowledgment_enabled: boolean | null
+          created_at: string | null
+          default_casework_assignee: string | null
+          default_policy_assignee: string | null
+          id: string
+          inbound_email: string | null
+          mp_email: string | null
+          mp_name: string | null
+          office_id: string
+          policy_response_style: string | null
+          round_robin_enabled: boolean | null
+          signature_template: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ai_classification_enabled?: boolean | null
+          ai_draft_response_enabled?: boolean | null
+          ai_tagging_enabled?: boolean | null
+          auto_assign_enabled?: boolean | null
+          casework_acknowledgment_enabled?: boolean | null
+          created_at?: string | null
+          default_casework_assignee?: string | null
+          default_policy_assignee?: string | null
+          id?: string
+          inbound_email?: string | null
+          mp_email?: string | null
+          mp_name?: string | null
+          office_id: string
+          policy_response_style?: string | null
+          round_robin_enabled?: boolean | null
+          signature_template?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ai_classification_enabled?: boolean | null
+          ai_draft_response_enabled?: boolean | null
+          ai_tagging_enabled?: boolean | null
+          auto_assign_enabled?: boolean | null
+          casework_acknowledgment_enabled?: boolean | null
+          created_at?: string | null
+          default_casework_assignee?: string | null
+          default_policy_assignee?: string | null
+          id?: string
+          inbound_email?: string | null
+          mp_email?: string | null
+          mp_name?: string | null
+          office_id?: string
+          policy_response_style?: string | null
+          round_robin_enabled?: boolean | null
+          signature_template?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_settings_default_casework_assignee_fkey"
+            columns: ["default_casework_assignee"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "office_settings_default_policy_assignee_fkey"
+            columns: ["default_policy_assignee"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "office_settings_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: true
             referencedRelation: "offices"
             referencedColumns: ["id"]
           },
@@ -1071,6 +1461,8 @@ export type Database = {
           created_at: string | null
           full_name: string | null
           id: string
+          mfa_enabled: boolean | null
+          mfa_verified_at: string | null
           office_id: string | null
           role: Database["public"]["Enums"]["user_role"] | null
           updated_at: string | null
@@ -1080,6 +1472,8 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id: string
+          mfa_enabled?: boolean | null
+          mfa_verified_at?: string | null
           office_id?: string | null
           role?: Database["public"]["Enums"]["user_role"] | null
           updated_at?: string | null
@@ -1089,6 +1483,8 @@ export type Database = {
           created_at?: string | null
           full_name?: string | null
           id?: string
+          mfa_enabled?: boolean | null
+          mfa_verified_at?: string | null
           office_id?: string | null
           role?: Database["public"]["Enums"]["user_role"] | null
           updated_at?: string | null
@@ -1130,6 +1526,90 @@ export type Database = {
           sender_name?: string | null
           subject?: string | null
           target_email?: string
+        }
+        Relationships: []
+      }
+      session_anomalies: {
+        Row: {
+          actual_value: string | null
+          anomaly_type: string
+          created_at: string | null
+          expected_value: string | null
+          id: string
+          resolution: string | null
+          resolved_at: string | null
+          session_id: string
+          severity: string
+          user_id: string | null
+        }
+        Insert: {
+          actual_value?: string | null
+          anomaly_type: string
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          session_id: string
+          severity: string
+          user_id?: string | null
+        }
+        Update: {
+          actual_value?: string | null
+          anomaly_type?: string
+          created_at?: string | null
+          expected_value?: string | null
+          id?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          session_id?: string
+          severity?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      session_contexts: {
+        Row: {
+          country_code: string | null
+          created_at: string | null
+          id: string
+          ip_address: unknown
+          ip_subnet: unknown
+          is_trusted: boolean | null
+          last_seen_at: string | null
+          risk_score: number | null
+          session_id: string
+          user_agent: string | null
+          user_agent_hash: string | null
+          user_id: string | null
+        }
+        Insert: {
+          country_code?: string | null
+          created_at?: string | null
+          id?: string
+          ip_address: unknown
+          ip_subnet?: unknown
+          is_trusted?: boolean | null
+          last_seen_at?: string | null
+          risk_score?: number | null
+          session_id: string
+          user_agent?: string | null
+          user_agent_hash?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          country_code?: string | null
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown
+          ip_subnet?: unknown
+          is_trusted?: boolean | null
+          last_seen_at?: string | null
+          risk_score?: number | null
+          session_id?: string
+          user_agent?: string | null
+          user_agent_hash?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -1207,20 +1687,175 @@ export type Database = {
           },
         ]
       }
+      trusted_contexts: {
+        Row: {
+          context_type: string
+          context_value: string
+          first_seen_at: string | null
+          id: string
+          last_used_at: string | null
+          trusted_at: string | null
+          use_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          context_type: string
+          context_value: string
+          first_seen_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          trusted_at?: string | null
+          use_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          context_type?: string
+          context_value?: string
+          first_seen_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          trusted_at?: string | null
+          use_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      add_or_update_trusted_context: {
+        Args: { p_type: string; p_user_id: string; p_value: string }
+        Returns: undefined
+      }
+      calculate_ip_subnet: { Args: { ip: unknown }; Returns: unknown }
+      check_login_rate_limit: {
+        Args: {
+          p_email: string
+          p_max_attempts?: number
+          p_window_minutes?: number
+        }
+        Returns: boolean
+      }
+      create_office_partition: {
+        Args: { p_office_id: string; p_table_name: string }
+        Returns: undefined
+      }
       generate_campaign_outbox_messages: {
         Args: { p_bulk_response_id: string; p_office_id: string }
         Returns: Json
+      }
+      generate_ua_hash: { Args: { user_agent: string }; Returns: string }
+      get_audit_logs: {
+        Args: {
+          p_action?: string
+          p_end_date?: string
+          p_limit?: number
+          p_offset?: number
+          p_severity?: string
+          p_start_date?: string
+        }
+        Returns: {
+          action: Database["public"]["Enums"]["audit_action"]
+          actor_id: string
+          actor_name: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          ip_address: string
+          metadata: Json
+          office_id: string
+          severity: string
+        }[]
+      }
+      get_audit_stats: {
+        Args: { p_days?: number }
+        Returns: {
+          critical_events: number
+          high_events: number
+          most_common_action: string
+          most_common_count: number
+          total_events: number
+          unique_actors: number
+        }[]
       }
       get_constituent_primary_email: {
         Args: { p_constituent_id: string }
         Returns: string
       }
       get_my_office_id: { Args: never; Returns: string }
+      get_office_settings: {
+        Args: { p_office_id: string }
+        Returns: {
+          ai_classification_enabled: boolean | null
+          ai_draft_response_enabled: boolean | null
+          ai_tagging_enabled: boolean | null
+          auto_assign_enabled: boolean | null
+          casework_acknowledgment_enabled: boolean | null
+          created_at: string | null
+          default_casework_assignee: string | null
+          default_policy_assignee: string | null
+          id: string
+          inbound_email: string | null
+          mp_email: string | null
+          mp_name: string | null
+          office_id: string
+          policy_response_style: string | null
+          round_robin_enabled: boolean | null
+          signature_template: string | null
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "office_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      get_session_aal: { Args: never; Returns: string }
+      get_trusted_contexts: {
+        Args: never
+        Returns: {
+          context_type: string
+          context_value: string
+          first_seen_at: string
+          is_trusted: boolean
+          last_used_at: string
+          use_count: number
+        }[]
+      }
+      get_unresolved_anomalies: {
+        Args: never
+        Returns: {
+          actual_value: string
+          anomaly_type: string
+          created_at: string
+          expected_value: string
+          id: string
+          severity: string
+        }[]
+      }
+      get_user_mfa_status: {
+        Args: { target_user_id?: string }
+        Returns: {
+          full_name: string
+          has_mfa_enabled: boolean
+          office_id: string
+          role: string
+          user_id: string
+          verified_factor_count: number
+        }[]
+      }
+      increment_bulk_response_recipients: {
+        Args: { p_bulk_response_id: string }
+        Returns: undefined
+      }
+      increment_campaign_count: {
+        Args: { p_campaign_id: string }
+        Returns: undefined
+      }
       ingest_inbound_email: {
         Args: {
           p_attachments: Json
@@ -1238,8 +1873,19 @@ export type Database = {
         Args: { p_approver_user_id: string; p_bulk_response_id: string }
         Returns: undefined
       }
+      record_session_context: {
+        Args: {
+          p_country_code?: string
+          p_ip_address: string
+          p_user_agent: string
+        }
+        Returns: Json
+      }
+      requires_mfa_verification: { Args: never; Returns: boolean }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      trust_current_context: { Args: never; Returns: Json }
+      uuid_generate_v7: { Args: never; Returns: string }
     }
     Enums: {
       audit_action:
@@ -1249,6 +1895,23 @@ export type Database = {
         | "view"
         | "login"
         | "send_email"
+        | "mfa_enroll"
+        | "mfa_verify"
+        | "mfa_disable"
+        | "mfa_unenroll"
+        | "login_success"
+        | "login_failure"
+        | "role_change"
+        | "user_create"
+        | "user_delete"
+        | "settings_change"
+        | "outlook_connect"
+        | "outlook_disconnect"
+        | "bulk_export"
+        | "session_anomaly"
+        | "case_assign"
+        | "case_close"
+        | "email_send"
       case_priority: "low" | "medium" | "high" | "urgent"
       case_status: "open" | "pending" | "closed" | "archived"
       contact_type: "email" | "phone" | "address" | "social"
@@ -1380,9 +2043,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       audit_action: [
@@ -1392,6 +2052,23 @@ export const Constants = {
         "view",
         "login",
         "send_email",
+        "mfa_enroll",
+        "mfa_verify",
+        "mfa_disable",
+        "mfa_unenroll",
+        "login_success",
+        "login_failure",
+        "role_change",
+        "user_create",
+        "user_delete",
+        "settings_change",
+        "outlook_connect",
+        "outlook_disconnect",
+        "bulk_export",
+        "session_anomaly",
+        "case_assign",
+        "case_close",
+        "email_send",
       ],
       case_priority: ["low", "medium", "high", "urgent"],
       case_status: ["open", "pending", "closed", "archived"],

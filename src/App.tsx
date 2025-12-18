@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { SupabaseProvider, useSupabase } from '@/lib/SupabaseContext';
+import { TriageProgressProvider } from '@/lib/TriageProgressContext';
 import { Header } from '@/components/Header';
 import { SidebarNav } from '@/components/SidebarNav';
+import { SessionSecurityBanner } from '@/components/SessionSecurityBanner';
 import Dashboard from '@/pages/Dashboard';
 import SettingsPage from '@/pages/SettingsPage';
 import LoginPage from '@/pages/LoginPage';
@@ -25,9 +27,12 @@ import TriagePrototype1 from '@/pages/prototypes/TriagePrototype1';
 import TriagePrototype2 from '@/pages/prototypes/TriagePrototype2';
 import TriagePrototype3 from '@/pages/prototypes/TriagePrototype3';
 import TriagePrototype4 from '@/pages/prototypes/TriagePrototype4';
+import TriagePrototype5 from '@/pages/prototypes/TriagePrototype5';
 import CasePrototypeTabs from '@/pages/prototypes/case/CasePrototypeTabs';
 import CasePrototypeColumns from '@/pages/prototypes/case/CasePrototypeColumns';
 import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
+import DashboardPrototype from '@/pages/prototypes/DashboardPrototype';
+import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 
 function LoadingScreen() {
@@ -42,6 +47,7 @@ function LoadingScreen() {
 }
 
 function AuthenticatedLayout() {
+  const { sessionSecurity, signOut } = useSupabase();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(() => {
     const saved = localStorage.getItem('sidebarMinimized');
@@ -70,6 +76,11 @@ function AuthenticatedLayout() {
     localStorage.setItem('sidebarMinimized', JSON.stringify(newValue));
   };
 
+  const handleSecurityLogout = async () => {
+    // Log out and redirect to login page
+    await signOut();
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar Navigation */}
@@ -87,6 +98,19 @@ function AuthenticatedLayout() {
           onToggleSidebar={toggleSidebar}
           isSidebarCollapsed={isSidebarCollapsed}
         />
+
+        {/* Session Security Banner */}
+        {sessionSecurity.actionRequired && (
+          <div className="px-6 pt-4">
+            <SessionSecurityBanner
+              riskScore={sessionSecurity.riskScore}
+              anomalies={sessionSecurity.anomalies}
+              onTrust={sessionSecurity.trustCurrentContext}
+              onLogout={handleSecurityLogout}
+              onDismiss={sessionSecurity.dismissAnomaly}
+            />
+          </div>
+        )}
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-6">
@@ -115,15 +139,20 @@ function AuthenticatedLayout() {
             <Route path="/casework/reporting" element={<ReportingPage />} />
             <Route path="/mp-approval" element={<MPApprovalPage />} />
 
+            {/* Prototypes Index */}
+            <Route path="/prototypes" element={<PrototypesPage />} />
+
             {/* Triage Prototypes (not linked in navigation) */}
             <Route path="/triage-prototype-1" element={<TriagePrototype1 />} />
             <Route path="/triage-prototype-2" element={<TriagePrototype2 />} />
             <Route path="/triage-prototype-3" element={<TriagePrototype3 />} />
             <Route path="/triage-prototype-4" element={<TriagePrototype4 />} />
+            <Route path="/triage-prototype-5" element={<TriagePrototype5 />} />
             {/* Prototype Routes - Not linked in navigation */}
             <Route path="/prototypes/case/tabs" element={<CasePrototypeTabs />} />
             <Route path="/prototypes/case/columns" element={<CasePrototypeColumns />} />
             <Route path="/prototypes/case/cards" element={<CasePrototypeCards />} />
+            <Route path="/prototypes/dashboard" element={<DashboardPrototype />} />
 
             {/* 404 Catch-all Route */}
             <Route path="*" element={<NotFoundPage />} />
@@ -167,7 +196,9 @@ function App() {
   return (
     <BrowserRouter>
       <SupabaseProvider>
-        <RootLayout />
+        <TriageProgressProvider>
+          <RootLayout />
+        </TriageProgressProvider>
       </SupabaseProvider>
     </BrowserRouter>
   );
