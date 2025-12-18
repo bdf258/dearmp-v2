@@ -41,6 +41,7 @@ import {
   PrioritySelector,
   CreateConstituentDialog,
   CreateCaseDialog,
+  RequestAddressDialog,
 } from '@/components/triage';
 import {
   ArrowLeft,
@@ -103,6 +104,7 @@ export function TriageWorkspace() {
   // Dialog states
   const [showCreateConstituent, setShowCreateConstituent] = useState(false);
   const [showCreateCase, setShowCreateCase] = useState(false);
+  const [showRequestAddress, setShowRequestAddress] = useState(false);
 
   // Initialize triage state from message
   useEffect(() => {
@@ -434,7 +436,11 @@ export function TriageWorkspace() {
           </Button>
 
           {message.constituentStatus === 'no_address' && (
-            <Button variant="outline" className="w-full">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowRequestAddress(true)}
+            >
               <MapPin className="h-4 w-4 mr-2" />
               Request Address
             </Button>
@@ -463,6 +469,14 @@ export function TriageWorkspace() {
         onCreated={handleCaseCreated}
         defaultTitle={message.subject || ''}
         messageId={message.id}
+      />
+
+      <RequestAddressDialog
+        open={showRequestAddress}
+        onOpenChange={setShowRequestAddress}
+        recipientName={message.senderName}
+        recipientEmail={message.senderEmail}
+        originalSubject={message.subject || ''}
       />
     </div>
   );

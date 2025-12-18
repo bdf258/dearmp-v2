@@ -19,6 +19,7 @@ export { TagPicker, TagList } from './TagPicker';
 // Dialogs
 export { CreateConstituentDialog } from './CreateConstituentDialog';
 export { CreateCaseDialog } from './CreateCaseDialog';
+export { RequestAddressDialog } from './RequestAddressDialog';
 
 // Message display
 export { MessageCard, CompactMessageCard, MessageDetailHeader } from './MessageCard';

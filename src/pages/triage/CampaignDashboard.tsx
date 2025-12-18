@@ -7,7 +7,7 @@
  * - Navigate to single-email triage for detailed review
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useSupabase } from '@/lib/SupabaseContext';
 import {
@@ -24,32 +24,33 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   CompactMessageCard,
   MessageDetailHeader,
   TriageSkeletons,
-  ConstituentSelector,
-  CaseSelector,
-  CaseworkerSelector,
-  TagPicker,
-  PrioritySelector,
-  CreateConstituentDialog,
-  CreateCaseDialog,
 } from '@/components/triage';
 import {
   Mail,
   CheckCircle2,
   HelpCircle,
   AlertCircle,
-  ChevronRight,
   CheckCheck,
+  XCircle,
   X,
   Loader2,
-  ArrowLeft,
   ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { CasePriority } from '@/lib/database.types';
 
 // Bucket tab configuration
 const bucketTabs: { id: ConstituentStatus; label: string; icon: React.ReactNode }[] = [
@@ -63,8 +64,9 @@ export function CampaignDashboard() {
   const { campaignId } = useParams<{ campaignId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Get bucket from URL or default to 'known'
+  // Get bucket and messageId from URL
   const currentBucket = (searchParams.get('bucket') || 'known') as ConstituentStatus;
+  const selectedMessageId = searchParams.get('message');
 
   const { campaigns } = useCampaignsWithTriageCounts();
   const { loading } = useSupabase();
@@ -79,10 +81,21 @@ export function CampaignDashboard() {
     navigate(`/triage/campaigns/${id}?bucket=known`);
   }, [navigate]);
 
-  // Handle bucket change
+  // Handle bucket change - preserve message selection if in same bucket
   const handleBucketChange = useCallback((bucket: string) => {
     setSearchParams({ bucket });
   }, [setSearchParams]);
+
+  // Handle message selection for deep-linking
+  const handleMessageSelect = useCallback((messageId: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    if (messageId) {
+      params.set('message', messageId);
+    } else {
+      params.delete('message');
+    }
+    setSearchParams(params);
+  }, [searchParams, setSearchParams]);
 
   if (loading) {
     return (
@@ -136,6 +149,8 @@ export function CampaignDashboard() {
             campaign={selectedCampaign}
             currentBucket={currentBucket}
             onBucketChange={handleBucketChange}
+            selectedMessageId={selectedMessageId}
+            onMessageSelect={handleMessageSelect}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center">
@@ -206,18 +221,23 @@ function CampaignInbox({
   campaign,
   currentBucket,
   onBucketChange,
+  selectedMessageId,
+  onMessageSelect,
 }: {
   campaign: ReturnType<typeof useCampaignsWithTriageCounts>['campaigns'][0];
   currentBucket: ConstituentStatus;
   onBucketChange: (bucket: string) => void;
+  selectedMessageId: string | null;
+  onMessageSelect: (messageId: string | null) => void;
 }) {
   const navigate = useNavigate();
   const { messages } = useTriageQueue({ campaignId: campaign.id, constituentStatus: currentBucket });
-  const { approveTriage, isProcessing } = useTriageActions();
+  const { approveTriage, bulkDismissTriage, isProcessing } = useTriageActions();
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [detailMessageId, setDetailMessageId] = useState<string | null>(null);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [actionInProgress, setActionInProgress] = useState<'approve' | 'reject' | null>(null);
 
   // Get counts for tabs
   const { allMessages } = useTriageQueue({ campaignId: campaign.id });
@@ -226,6 +246,21 @@ function CampaignInbox({
     has_address: allMessages.filter(m => m.constituentStatus === 'has_address').length,
     no_address: allMessages.filter(m => m.constituentStatus === 'no_address').length,
   }), [allMessages]);
+
+  // Detail message from URL or selection
+  const detailMessage = useMemo(() => {
+    if (selectedMessageId) {
+      return messages.find(m => m.id === selectedMessageId) || null;
+    }
+    return null;
+  }, [selectedMessageId, messages]);
+
+  // Sync detail message on bucket change if current selection not in new bucket
+  useEffect(() => {
+    if (selectedMessageId && !messages.find(m => m.id === selectedMessageId)) {
+      onMessageSelect(null);
+    }
+  }, [messages, selectedMessageId, onMessageSelect]);
 
   // Toggle selection
   const toggleSelection = useCallback((id: string) => {
@@ -254,6 +289,7 @@ function CampaignInbox({
   const handleBulkApprove = useCallback(async () => {
     if (selectedIds.size === 0) return;
 
+    setActionInProgress('approve');
     const selectedMessages = messages.filter(m => selectedIds.has(m.id));
     let successCount = 0;
 
@@ -262,25 +298,49 @@ function CampaignInbox({
       if (message.senderConstituent) {
         const result = await approveTriage(message.id, {
           constituentId: message.senderConstituent.id,
-          // Could add more logic here for suggested case
         });
         if (result.success) successCount++;
       }
     }
 
-    toast.success(`Approved ${successCount} messages`);
+    if (successCount === selectedMessages.length) {
+      toast.success(`Approved ${successCount} messages`);
+    } else {
+      toast.warning(`Approved ${successCount} of ${selectedMessages.length} messages`);
+    }
     clearSelection();
+    setActionInProgress(null);
   }, [selectedIds, messages, approveTriage, clearSelection]);
+
+  // Bulk reject (dismiss messages)
+  const handleBulkReject = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+
+    setActionInProgress('reject');
+    const result = await bulkDismissTriage(
+      Array.from(selectedIds),
+      'Not a valid constituent email'
+    );
+
+    if (result.success) {
+      toast.success(`Dismissed ${result.successCount} messages`);
+    } else if (result.successCount > 0) {
+      toast.warning(`Dismissed ${result.successCount} of ${selectedIds.size} messages`);
+    } else {
+      toast.error('Failed to dismiss messages');
+    }
+
+    clearSelection();
+    setShowRejectConfirm(false);
+    setActionInProgress(null);
+  }, [selectedIds, bulkDismissTriage, clearSelection]);
 
   // Navigate to single triage
   const handleOpenTriage = useCallback((messageId: string) => {
-    navigate(`/triage/messages/${messageId}`);
+    navigate(`/triage/messages/${messageId}?from=${encodeURIComponent(window.location.pathname + window.location.search)}`);
   }, [navigate]);
 
-  // Detail message
-  const detailMessage = detailMessageId
-    ? messages.find(m => m.id === detailMessageId)
-    : null;
+  const isActionInProgress = isProcessing || actionInProgress !== null;
 
   return (
     <>
@@ -299,8 +359,12 @@ function CampaignInbox({
                 {selectedIds.size} selected
               </span>
               {currentBucket === 'known' && (
-                <Button size="sm" onClick={handleBulkApprove} disabled={isProcessing}>
-                  {isProcessing ? (
+                <Button
+                  size="sm"
+                  onClick={handleBulkApprove}
+                  disabled={isActionInProgress}
+                >
+                  {actionInProgress === 'approve' ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-1" />
                   ) : (
                     <CheckCheck className="h-4 w-4 mr-1" />
@@ -308,7 +372,20 @@ function CampaignInbox({
                   Approve All
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={clearSelection}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowRejectConfirm(true)}
+                disabled={isActionInProgress}
+              >
+                {actionInProgress === 'reject' ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                ) : (
+                  <XCircle className="h-4 w-4 mr-1" />
+                )}
+                Reject
+              </Button>
+              <Button size="sm" variant="ghost" onClick={clearSelection}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -349,6 +426,7 @@ function CampaignInbox({
                   if (checked) selectAll();
                   else clearSelection();
                 }}
+                disabled={messages.length === 0}
               />
               <span className="text-sm text-muted-foreground">
                 {messages.length} messages
@@ -358,6 +436,7 @@ function CampaignInbox({
             <ScrollArea className="flex-1">
               {messages.length === 0 ? (
                 <div className="p-8 text-center">
+                  <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">No messages in this bucket</p>
                 </div>
               ) : (
@@ -367,8 +446,8 @@ function CampaignInbox({
                     message={message}
                     isSelected={selectedIds.has(message.id)}
                     onSelect={() => toggleSelection(message.id)}
-                    onClick={() => setDetailMessageId(message.id)}
-                    isActive={message.id === detailMessageId}
+                    onClick={() => onMessageSelect(message.id)}
+                    isActive={message.id === selectedMessageId}
                   />
                 ))
               )}
@@ -395,6 +474,37 @@ function CampaignInbox({
           </div>
         </div>
       </Tabs>
+
+      {/* Reject confirmation dialog */}
+      <AlertDialog open={showRejectConfirm} onOpenChange={setShowRejectConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dismiss selected messages?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark {selectedIds.size} message{selectedIds.size !== 1 ? 's' : ''} as
+              &quot;not from constituent&quot; and remove them from the triage queue.
+              This action can be undone from the message history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actionInProgress === 'reject'}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkReject}
+              disabled={actionInProgress === 'reject'}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {actionInProgress === 'reject' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Dismissing...
+                </>
+              ) : (
+                'Dismiss Messages'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
