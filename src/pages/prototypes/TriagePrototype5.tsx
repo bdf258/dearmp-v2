@@ -14,6 +14,7 @@
  */
 
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -71,304 +72,19 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ============= TYPES =============
-
-interface Constituent {
-  id: string;
-  name: string;
-  email: string;
-  address?: string;
-}
-
-interface Case {
-  id: string;
-  ref: string;
-  title: string;
-  constituentId?: string;
-}
-
-interface CaseTag {
-  id: string;
-  name: string;
-  color: string;
-  borderColor: string; // For 'new' state styling
-}
-
-interface Caseworker {
-  id: string;
-  name: string;
-}
-
-interface Campaign {
-  id: string;
-  title: string;
-  description: string;
-  tags: string[];
-}
-
-interface Email {
-  id: string;
-  subject: string;
-  body: string;
-  fromEmail: string;
-  fromName: string;
-  receivedAt: string;
-  addressFound?: string;
-}
-
-// ============= MOCK DATA =============
-
-const mockConstituents: Constituent[] = [
-  { id: 'con-1', name: 'Maria Santos', email: 'maria.santos@gmail.com', address: '45 Park Lane, Westminster' },
-  { id: 'con-2', name: 'John Smith', email: 'john.smith@email.com', address: '12 High Street' },
-  { id: 'con-3', name: 'Sarah Williams', email: 'sarah.w@outlook.com' },
-  { id: 'con-4', name: 'David Brown', email: 'david.brown@gmail.com', address: '78 Oak Road' },
-  { id: 'con-5', name: 'Emma Wilson', email: 'emma.wilson@yahoo.com' },
-];
-
-const mockCases: Case[] = [
-  { id: 'case-1', ref: 'CW-2024-0123', title: 'Housing Association Dispute', constituentId: 'con-1' },
-  { id: 'case-2', ref: 'CW-2024-0098', title: 'Council Tax Dispute', constituentId: 'con-2' },
-  { id: 'case-3', ref: 'CW-2024-0087', title: 'Planning Application Query', constituentId: 'con-1' },
-  { id: 'case-4', ref: 'CW-2023-0456', title: 'Benefits Query - PIP', constituentId: 'con-4' },
-  { id: 'case-5', ref: 'CW-2024-0134', title: 'Parking Permit Issue' },
-];
-
-const mockTags: CaseTag[] = [
-  { id: 'tag-1', name: 'Urgent', color: 'bg-red-100 text-red-700', borderColor: 'border-red-700' },
-  { id: 'tag-2', name: 'Housing', color: 'bg-blue-100 text-blue-700', borderColor: 'border-blue-700' },
-  { id: 'tag-3', name: 'Benefits', color: 'bg-green-100 text-green-700', borderColor: 'border-green-700' },
-  { id: 'tag-4', name: 'Follow-up Required', color: 'bg-yellow-100 text-yellow-700', borderColor: 'border-yellow-700' },
-  { id: 'tag-5', name: 'Immigration', color: 'bg-purple-100 text-purple-700', borderColor: 'border-purple-700' },
-  { id: 'tag-6', name: 'Council Tax', color: 'bg-orange-100 text-orange-700', borderColor: 'border-orange-700' },
-  { id: 'tag-7', name: 'Planning', color: 'bg-teal-100 text-teal-700', borderColor: 'border-teal-700' },
-  { id: 'tag-8', name: 'NHS', color: 'bg-pink-100 text-pink-700', borderColor: 'border-pink-700' },
-];
-
-const mockCaseworkers: Caseworker[] = [
-  { id: 'cw-1', name: 'Caseworker 1' },
-  { id: 'cw-2', name: 'Caseworker 2' },
-  { id: 'cw-3', name: 'Senior Caseworker' },
-  { id: 'cw-4', name: 'Office Manager' },
-];
-
-const mockCampaigns: Campaign[] = [
-  { id: 'camp-1', title: 'Housing Crisis Response', description: 'Coordinated response to housing issues in the constituency', tags: ['Housing', 'Urgent'] },
-  { id: 'camp-2', title: 'Benefits Support Drive', description: 'Helping constituents with PIP and Universal Credit applications', tags: ['Benefits'] },
-  { id: 'camp-3', title: 'Local Planning Objections', description: 'Coordinating response to major planning applications', tags: ['Planning'] },
-  { id: 'camp-4', title: 'NHS Waiting Times', description: 'Campaign addressing NHS delays and waiting lists', tags: ['NHS', 'Health'] },
-];
-
-// Thread email type
-interface ThreadEmail {
-  id: string;
-  direction: 'inbound' | 'outbound';
-  subject: string;
-  snippet: string;
-  body: string;
-  sentAt: string;
-  fromName: string;
-}
-
-// Triage case bundles all data for one email to process
-interface TriageCase {
-  email: Email;
-  threadEmails: ThreadEmail[];
-  suggestedConstituentId: string | null;
-  suggestedCaseId: string | null;
-  suggestedTagIds: string[];
-  suggestedAssigneeId: string;
-  suggestedPriority: 'L' | 'M' | 'H';
-}
-
-const mockTriageCases: TriageCase[] = [
-  // Case 1: Maria Santos - Housing/Eviction
-  {
-    email: {
-      id: 'email-1',
-      subject: 'URGENT - Eviction notice received',
-      body: `Dear MP,
-
-I am writing to you in desperation as I have just received an eviction notice from my housing association.
-
-I have been a tenant at this property for over 8 years and have always paid my rent on time. However, due to recent changes in my circumstances (I was made redundant from my job in March), I fell behind on a few payments.
-
-I have since found new employment and have been making regular payments to catch up on arrears, but the housing association is still proceeding with eviction proceedings.
-
-I am terrified of losing my home. I have two young children who are settled in local schools and this would be devastating for our family.
-
-Please, I am begging you to help me. Is there anything you can do to intervene or advise me on my options?
-
-I can be reached at this email address or by phone on 07700 900123.
-
-Thank you for any help you can provide.
-
-Yours sincerely,
-Maria Santos`,
-      fromEmail: 'maria.santos@gmail.com',
-      fromName: 'Maria Santos',
-      receivedAt: '2024-01-15T09:30:00Z',
-      addressFound: '45 Park Lane, Westminster',
-    },
-    threadEmails: [
-      {
-        id: 'thread-1-1',
-        direction: 'outbound',
-        subject: 'Re: URGENT - Eviction notice received',
-        snippet: 'Thank you for contacting my office. I have asked my caseworker to look into this matter urgently...',
-        body: `Dear Ms Santos,
-
-Thank you for contacting my office. I have asked my caseworker to look into this matter urgently.
-
-I understand how distressing this situation must be for you and your family.
-
-Kind regards,
-[MP Name]`,
-        sentAt: '2024-01-14T14:22:00Z',
-        fromName: 'Office of [MP Name]',
-      },
-    ],
-    suggestedConstituentId: 'con-1',
-    suggestedCaseId: 'case-1',
-    suggestedTagIds: ['tag-1', 'tag-2'],
-    suggestedAssigneeId: 'cw-1',
-    suggestedPriority: 'H',
-  },
-  // Case 2: John Smith - Council Tax
-  {
-    email: {
-      id: 'email-2',
-      subject: 'Council Tax Bill Query',
-      body: `Dear MP,
-
-I am writing regarding my council tax bill which I believe contains errors. I have been charged for a Band D property but my house was reassessed last year and should be Band C.
-
-I have contacted the council multiple times but they keep sending me the same incorrect bill. I am worried about penalties if I don't pay, but I don't want to overpay either.
-
-Could you please help me resolve this matter with the council?
-
-Best regards,
-John Smith
-12 High Street`,
-      fromEmail: 'john.smith@email.com',
-      fromName: 'John Smith',
-      receivedAt: '2024-01-15T10:15:00Z',
-      addressFound: '12 High Street',
-    },
-    threadEmails: [],
-    suggestedConstituentId: 'con-2',
-    suggestedCaseId: 'case-2',
-    suggestedTagIds: ['tag-6'],
-    suggestedAssigneeId: 'cw-2',
-    suggestedPriority: 'M',
-  },
-  // Case 3: New constituent - Immigration
-  {
-    email: {
-      id: 'email-3',
-      subject: 'Spouse Visa Application Delay',
-      body: `Dear MP,
-
-My name is Amara Okonkwo and I am writing to seek your assistance with my spouse visa application.
-
-I applied for a spouse visa to join my husband in the UK over 14 months ago. We have a 2-year-old British citizen daughter who has never met her father in person.
-
-The Home Office website shows "awaiting decision" but we have heard nothing despite multiple enquiries. The separation is causing immense distress to our family.
-
-I would be extremely grateful if you could make enquiries on our behalf.
-
-Yours faithfully,
-Amara Okonkwo
-Currently residing in Lagos, Nigeria`,
-      fromEmail: 'amara.okonkwo@gmail.com',
-      fromName: 'Amara Okonkwo',
-      receivedAt: '2024-01-15T11:00:00Z',
-    },
-    threadEmails: [],
-    suggestedConstituentId: null,
-    suggestedCaseId: null,
-    suggestedTagIds: ['tag-5', 'tag-1'],
-    suggestedAssigneeId: 'cw-3',
-    suggestedPriority: 'H',
-  },
-  // Case 4: Benefits query
-  {
-    email: {
-      id: 'email-4',
-      subject: 'PIP Assessment Appeal Help',
-      body: `Dear MP,
-
-I am writing to ask for your help with my PIP appeal. I was recently reassessed and my award was reduced from enhanced to standard rate for daily living, despite my condition worsening.
-
-I have fibromyalgia and chronic fatigue syndrome which severely impacts my daily life. The assessor spent only 20 minutes with me and seemed to ignore what I told them.
-
-I have submitted a mandatory reconsideration but I am scared about managing if my benefits are cut.
-
-Please could you advise on what I can do?
-
-Thank you,
-David Brown
-78 Oak Road`,
-      fromEmail: 'david.brown@gmail.com',
-      fromName: 'David Brown',
-      receivedAt: '2024-01-15T11:45:00Z',
-      addressFound: '78 Oak Road',
-    },
-    threadEmails: [
-      {
-        id: 'thread-4-1',
-        direction: 'inbound',
-        subject: 'Benefits concern',
-        snippet: 'I wanted to let you know about my upcoming PIP assessment...',
-        body: `Dear MP,
-
-I wanted to let you know about my upcoming PIP assessment. I am very anxious about it.
-
-Thank you,
-David Brown`,
-        sentAt: '2024-01-10T09:00:00Z',
-        fromName: 'David Brown',
-      },
-    ],
-    suggestedConstituentId: 'con-4',
-    suggestedCaseId: 'case-4',
-    suggestedTagIds: ['tag-3', 'tag-4'],
-    suggestedAssigneeId: 'cw-2',
-    suggestedPriority: 'M',
-  },
-  // Case 5: Planning concern
-  {
-    email: {
-      id: 'email-5',
-      subject: 'Objection to Planning Application 2024/0892',
-      body: `Dear MP,
-
-I am writing to express my strong objection to planning application 2024/0892 for a 5-storey apartment block on Green Lane.
-
-This development would:
-- Overlook my garden and remove all privacy
-- Block natural light to my property
-- Increase traffic on an already congested road
-- Destroy the character of our neighbourhood
-
-The council planning committee is meeting next week. Could you please intervene?
-
-I have lived here for 30 years and this would ruin our quality of life.
-
-Regards,
-Emma Wilson`,
-      fromEmail: 'emma.wilson@yahoo.com',
-      fromName: 'Emma Wilson',
-      receivedAt: '2024-01-15T14:20:00Z',
-    },
-    threadEmails: [],
-    suggestedConstituentId: 'con-5',
-    suggestedCaseId: null,
-    suggestedTagIds: ['tag-7'],
-    suggestedAssigneeId: 'cw-1',
-    suggestedPriority: 'M',
-  },
-];
+// Import shared data
+import {
+  constituents,
+  cases,
+  tags,
+  caseworkers,
+  campaigns,
+  triageCases,
+  originalCaseTags,
+  type Constituent,
+  type Campaign,
+  type Email,
+} from './prototypeData';
 
 // ============= SEARCHABLE DROPDOWN COMPONENT =============
 
@@ -433,65 +149,65 @@ function SearchableDropdown({
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-        <PopoverContent className="w-[300px] p-0" align="start">
-          <Command shouldFilter={false}>
-            <CommandInput
-              placeholder={`Search ${label.toLowerCase()}...`}
-              value={search}
-              onValueChange={setSearch}
-            />
-            <CommandList>
-              {/* Pinned Create New option */}
-              <CommandGroup>
-                <CommandItem
-                  onSelect={() => {
-                    setOpen(false);
-                    setSearch('');
-                    onCreateNew();
-                  }}
-                  className="text-primary"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  {createNewLabel}
-                </CommandItem>
-              </CommandGroup>
-              <CommandSeparator />
-              {/* Filtered items */}
-              <CommandGroup>
-                {filteredItems.length === 0 ? (
-                  <CommandEmpty>No results found.</CommandEmpty>
-                ) : (
-                  filteredItems.map((item) => (
-                    <CommandItem
-                      key={item.id}
-                      value={item.id}
-                      onSelect={() => {
-                        onSelect(item.id === selectedId ? null : item.id);
-                        setOpen(false);
-                        setSearch('');
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          'mr-2 h-4 w-4',
-                          selectedId === item.id ? 'opacity-100' : 'opacity-0'
-                        )}
-                      />
-                      <div className="flex flex-col">
-                        <span>{item.name}</span>
-                        {item.secondary && (
-                          <span className="text-xs text-muted-foreground">
-                            {item.secondary}
-                          </span>
-                        )}
-                      </div>
-                    </CommandItem>
-                  ))
-                )}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
+          <PopoverContent className="w-[300px] p-0" align="start">
+            <Command shouldFilter={false}>
+              <CommandInput
+                placeholder={`Search ${label.toLowerCase()}...`}
+                value={search}
+                onValueChange={setSearch}
+              />
+              <CommandList>
+                {/* Pinned Create New option */}
+                <CommandGroup>
+                  <CommandItem
+                    onSelect={() => {
+                      setOpen(false);
+                      setSearch('');
+                      onCreateNew();
+                    }}
+                    className="text-primary"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {createNewLabel}
+                  </CommandItem>
+                </CommandGroup>
+                <CommandSeparator />
+                {/* Filtered items */}
+                <CommandGroup>
+                  {filteredItems.length === 0 ? (
+                    <CommandEmpty>No results found.</CommandEmpty>
+                  ) : (
+                    filteredItems.map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={item.id}
+                        onSelect={() => {
+                          onSelect(item.id === selectedId ? null : item.id);
+                          setOpen(false);
+                          setSearch('');
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            'mr-2 h-4 w-4',
+                            selectedId === item.id ? 'opacity-100' : 'opacity-0'
+                          )}
+                        />
+                        <div className="flex flex-col">
+                          <span>{item.name}</span>
+                          {item.secondary && (
+                            <span className="text-xs text-muted-foreground">
+                              {item.secondary}
+                            </span>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))
+                  )}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
         </Popover>
         {isRecognized && selectedId && (
           <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
@@ -791,9 +507,9 @@ function AssignToCampaignModal({
   const [tagInput, setTagInput] = useState('');
 
   const filteredCampaigns = useMemo(() => {
-    if (!search) return mockCampaigns;
+    if (!search) return campaigns;
     const lowerSearch = search.toLowerCase();
-    return mockCampaigns.filter(
+    return campaigns.filter(
       (c) =>
         c.title.toLowerCase().includes(lowerSearch) ||
         c.description.toLowerCase().includes(lowerSearch) ||
@@ -801,7 +517,7 @@ function AssignToCampaignModal({
     );
   }, [search]);
 
-  const selectedCampaign = mockCampaigns.find((c) => c.id === selectedCampaignId);
+  const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
 
   const handleSelectCampaign = (id: string) => {
     setSelectedCampaignId(id);
@@ -1133,20 +849,26 @@ function SuccessPage({ onReset }: { onReset: () => void }) {
 
 // ============= MAIN COMPONENT =============
 
-// Mock: original tags for existing cases (simulating what was saved)
-const originalCaseTags: Record<string, string[]> = {
-  'case-1': ['tag-1', 'tag-2'],
-  'case-2': ['tag-6'],
-  'case-3': ['tag-7'],
-  'case-4': ['tag-3'],
-  'case-5': [],
-};
-
 export default function TriagePrototype5() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // Get case index from URL param
+  const urlCaseIndex = useMemo(() => {
+    const caseParam = searchParams.get('case');
+    if (caseParam) {
+      const index = parseInt(caseParam, 10);
+      if (!isNaN(index) && index >= 0 && index < triageCases.length) {
+        return index;
+      }
+    }
+    return 0;
+  }, [searchParams]);
+
   // Current case index
-  const [currentCaseIndex, setCurrentCaseIndex] = useState(0);
+  const [currentCaseIndex, setCurrentCaseIndex] = useState(urlCaseIndex);
   const [isCompleted, setIsCompleted] = useState(false);
-  const currentTriageCase = mockTriageCases[currentCaseIndex];
+  const currentTriageCase = triageCases[currentCaseIndex];
   const { setProgress } = useTriageProgress();
 
   // State for selected values (initialized from current triage case)
@@ -1175,27 +897,32 @@ export default function TriagePrototype5() {
   const [requestAddressModalOpen, setRequestAddressModalOpen] = useState(false);
   const [assignCampaignModalOpen, setAssignCampaignModalOpen] = useState(false);
 
+  // Sync URL parameter with state when it changes
+  useEffect(() => {
+    if (urlCaseIndex !== currentCaseIndex) {
+      setCurrentCaseIndex(urlCaseIndex);
+      setIsCompleted(false);
+      // Load case data for new index
+      const triageCase = triageCases[urlCaseIndex];
+      setSelectedConstituentId(triageCase.suggestedConstituentId);
+      setSelectedCaseId(triageCase.suggestedCaseId);
+      setSelectedTagIds(triageCase.suggestedTagIds);
+      setSelectedAssigneeId(triageCase.suggestedAssigneeId);
+      setPriority(triageCase.suggestedPriority);
+      setIsNewCase(!triageCase.suggestedCaseId);
+    }
+  }, [urlCaseIndex, currentCaseIndex]);
+
   // Update header progress bar
   useEffect(() => {
     if (!isCompleted) {
-      setProgress({ current: currentCaseIndex, total: mockTriageCases.length });
+      setProgress({ current: currentCaseIndex, total: triageCases.length });
     } else {
       setProgress(null);
     }
     // Cleanup on unmount
     return () => setProgress(null);
   }, [currentCaseIndex, isCompleted, setProgress]);
-
-  // Load case data when index changes
-  const loadCase = (index: number) => {
-    const triageCase = mockTriageCases[index];
-    setSelectedConstituentId(triageCase.suggestedConstituentId);
-    setSelectedCaseId(triageCase.suggestedCaseId);
-    setSelectedTagIds(triageCase.suggestedTagIds);
-    setSelectedAssigneeId(triageCase.suggestedAssigneeId);
-    setPriority(triageCase.suggestedPriority);
-    setIsNewCase(!triageCase.suggestedCaseId);
-  };
 
   // Handle approve and move to next case
   const handleApprove = () => {
@@ -1208,10 +935,10 @@ export default function TriagePrototype5() {
     });
 
     // Move to next case if available
-    if (currentCaseIndex < mockTriageCases.length - 1) {
+    if (currentCaseIndex < triageCases.length - 1) {
       const nextIndex = currentCaseIndex + 1;
-      setCurrentCaseIndex(nextIndex);
-      loadCase(nextIndex);
+      // Navigate to next case - the useEffect will handle loading the case data
+      navigate(`/triage-prototype-5?case=${nextIndex}`);
     } else {
       // All cases processed - show success page
       setIsCompleted(true);
@@ -1220,13 +947,13 @@ export default function TriagePrototype5() {
 
   // Reset triage (for demo purposes)
   const handleReset = () => {
-    setCurrentCaseIndex(0);
+    // Navigate to first case - the useEffect will handle loading the case data
+    navigate('/triage-prototype-5?case=0');
     setIsCompleted(false);
-    loadCase(0);
   };
 
   // Get constituent items for dropdown
-  const constituentItems = mockConstituents.map((c) => ({
+  const constituentItems = constituents.map((c) => ({
     id: c.id,
     name: c.name,
     secondary: c.email,
@@ -1234,12 +961,12 @@ export default function TriagePrototype5() {
 
   // Get case items for dropdown (filtered by constituent if selected)
   const caseItems = useMemo(() => {
-    const cases = selectedConstituentId
-      ? mockCases.filter(
+    const filteredCases = selectedConstituentId
+      ? cases.filter(
           (c) => !c.constituentId || c.constituentId === selectedConstituentId
         )
-      : mockCases;
-    return cases.map((c) => ({
+      : cases;
+    return filteredCases.map((c) => ({
       id: c.id,
       name: `${c.ref}: ${c.title}`,
       ref: c.ref,
@@ -1248,10 +975,10 @@ export default function TriagePrototype5() {
   }, [selectedConstituentId]);
 
   // Get selected case for display
-  const selectedCase = mockCases.find((c) => c.id === selectedCaseId);
+  const selectedCase = cases.find((c) => c.id === selectedCaseId);
 
   // Get selected items for display
-  const selectedConstituent = mockConstituents.find(
+  const selectedConstituent = constituents.find(
     (c) => c.id === selectedConstituentId
   );
 
@@ -1292,7 +1019,7 @@ export default function TriagePrototype5() {
   // Get all tags to display (current + removed)
   const displayTags = useMemo(() => {
     const allTagIds = new Set([...selectedTagIds, ...originalTags.filter((id) => !selectedTagIds.includes(id))]);
-    return mockTags.filter((t) => allTagIds.has(t.id));
+    return tags.filter((t) => allTagIds.has(t.id));
   }, [selectedTagIds, originalTags]);
 
   // Prefill data from email
@@ -1353,9 +1080,6 @@ export default function TriagePrototype5() {
           <div className="flex flex-col">
             {/* Email Header */}
             <div className="shrink-0 border-b pb-4 mb-4">
-              <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-                Subject
-              </div>
               <h2 className="text-lg font-semibold">{currentTriageCase.email.subject}</h2>
               <div className="text-sm text-muted-foreground mt-2">
                 From: {currentTriageCase.email.fromName} &lt;{currentTriageCase.email.fromEmail}&gt;
@@ -1367,9 +1091,6 @@ export default function TriagePrototype5() {
 
             {/* Email Body */}
             <div>
-              <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
-                Body
-              </div>
               <div className="whitespace-pre-wrap text-sm leading-relaxed">
                 {currentTriageCase.email.body}
               </div>
@@ -1513,7 +1234,7 @@ export default function TriagePrototype5() {
                       <CommandList>
                         <CommandEmpty>No tags found.</CommandEmpty>
                         <CommandGroup>
-                          {mockTags.map((tag) => {
+                          {tags.map((tag) => {
                             const isSelected = selectedTagIds.includes(tag.id);
                             return (
                               <CommandItem
@@ -1557,7 +1278,7 @@ export default function TriagePrototype5() {
                     <SelectValue placeholder="Select assignee" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockCaseworkers.map((cw) => (
+                    {caseworkers.map((cw) => (
                       <SelectItem key={cw.id} value={cw.id}>
                         {cw.name}
                       </SelectItem>
