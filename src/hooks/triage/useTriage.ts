@@ -471,6 +471,52 @@ export function useTriageActions() {
     }
   }, [refreshData]);
 
+  // Dismiss/reject message from triage (not a valid constituent email)
+  const dismissTriage = useCallback(async (
+    messageId: string,
+    reason?: string
+  ): Promise<TriageActionResult> => {
+    setIsProcessing(true);
+    try {
+      // Mark message as dismissed by setting a triage_status
+      const { error } = await supabase
+        .from('messages')
+        .update({
+          triage_status: 'dismissed',
+          triage_metadata: reason ? { dismissReason: reason } : null,
+        })
+        .eq('id', messageId);
+
+      if (error) throw error;
+      await refreshData();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [refreshData]);
+
+  // Bulk dismiss multiple messages
+  const bulkDismissTriage = useCallback(async (
+    messageIds: string[],
+    reason?: string
+  ): Promise<{ success: boolean; successCount: number; error?: string }> => {
+    setIsProcessing(true);
+    let successCount = 0;
+    try {
+      for (const messageId of messageIds) {
+        const result = await dismissTriage(messageId, reason);
+        if (result.success) successCount++;
+      }
+      return { success: successCount === messageIds.length, successCount };
+    } catch (err) {
+      return { success: false, successCount, error: err instanceof Error ? err.message : 'Unknown error' };
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [dismissTriage]);
+
   // Batch approve triage
   const approveTriage = useCallback(async (
     messageId: string,
@@ -547,6 +593,8 @@ export function useTriageActions() {
     linkConstituentToCase,
     linkRecipientToConstituent,
     approveTriage,
+    dismissTriage,
+    bulkDismissTriage,
   };
 }
 
