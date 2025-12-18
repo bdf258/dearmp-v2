@@ -30,6 +30,7 @@ import TriagePrototype5 from '@/pages/prototypes/TriagePrototype5';
 import CasePrototypeTabs from '@/pages/prototypes/case/CasePrototypeTabs';
 import CasePrototypeColumns from '@/pages/prototypes/case/CasePrototypeColumns';
 import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
+import DashboardPrototype from '@/pages/prototypes/DashboardPrototype';
 import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 
@@ -150,6 +151,7 @@ function AuthenticatedLayout() {
             <Route path="/prototypes/case/tabs" element={<CasePrototypeTabs />} />
             <Route path="/prototypes/case/columns" element={<CasePrototypeColumns />} />
             <Route path="/prototypes/case/cards" element={<CasePrototypeCards />} />
+            <Route path="/prototypes/dashboard" element={<DashboardPrototype />} />
 
             {/* 404 Catch-all Route */}
             <Route path="*" element={<NotFoundPage />} />
