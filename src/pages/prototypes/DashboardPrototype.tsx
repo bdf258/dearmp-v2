@@ -9,6 +9,7 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -21,7 +22,12 @@ import {
   X,
   MapPinOff,
   User,
-  HelpCircle
+  HelpCircle,
+  Link,
+  Plus,
+  FolderOpen,
+  UserPlus,
+  FileQuestion,
 } from 'lucide-react';
 import { Separator } from '@radix-ui/react-separator';
 
@@ -45,6 +51,35 @@ interface Campaign {
   id: string;
   name: string;
   emails: CampaignEmail[];
+}
+
+// Response email types
+type ConstituentPillStatus = 'linked' | 'new' | 'unknown';
+type CasePillStatus = 'linked' | 'new_case' | 'no_case';
+type CaseworkerPillStatus = 'assigned' | 'unassigned';
+
+interface ResponseEmail {
+  id: string;
+  subject: string;
+  preview: string;
+  fromEmail: string;
+  receivedAt: string;
+  isSelected: boolean;
+  constituent: {
+    status: ConstituentPillStatus;
+    name?: string;
+    id?: string;
+  };
+  case: {
+    status: CasePillStatus;
+    caseNumber?: string;
+    caseId?: string;
+  };
+  caseworker: {
+    status: CaseworkerPillStatus;
+    name?: string;
+    id?: string;
+  };
 }
 
 // ============= MOCK DATA =============
@@ -364,6 +399,68 @@ const mockCampaigns: Campaign[] = [
   },
 ];
 
+// Mock response emails - showing different states for each pill
+const mockResponseEmails: ResponseEmail[] = [
+  {
+    id: 'resp-1',
+    subject: 'URGENT - Eviction notice received',
+    preview: 'Dear MP, I am writing to you because I have just received an eviction notice...',
+    fromEmail: 'maria.santos@gmail.com',
+    receivedAt: '2024-01-15T14:30:00Z',
+    isSelected: false,
+    constituent: {
+      status: 'linked',
+      name: 'Maria Santos',
+      id: 'con-101',
+    },
+    case: {
+      status: 'linked',
+      caseNumber: 'CW-2014-0123',
+      caseId: 'case-101',
+    },
+    caseworker: {
+      status: 'assigned',
+      name: 'Mark',
+      id: 'cw-1',
+    },
+  },
+  {
+    id: 'resp-2',
+    subject: 'Re: Benefits application query',
+    preview: 'Thank you for your previous help. I wanted to follow up regarding my PIP application...',
+    fromEmail: 'james.okonkwo@outlook.com',
+    receivedAt: '2024-01-15T11:15:00Z',
+    isSelected: false,
+    constituent: {
+      status: 'new',
+      name: 'James Okonkwo',
+    },
+    case: {
+      status: 'new_case',
+    },
+    caseworker: {
+      status: 'unassigned',
+    },
+  },
+  {
+    id: 'resp-3',
+    subject: 'Question about local planning decision',
+    preview: 'Hello, I saw in the local paper that there is a new development planned for...',
+    fromEmail: 'unknown.sender@proton.me',
+    receivedAt: '2024-01-15T09:45:00Z',
+    isSelected: false,
+    constituent: {
+      status: 'unknown',
+    },
+    case: {
+      status: 'no_case',
+    },
+    caseworker: {
+      status: 'unassigned',
+    },
+  },
+];
+
 // ============= HELPER COMPONENTS =============
 
 function CampaignCard({
@@ -424,6 +521,124 @@ function CampaignCard({
         >
           Review
         </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Constituent Pill Component
+function ConstituentPill({ constituent }: { constituent: ResponseEmail['constituent'] }) {
+  switch (constituent.status) {
+    case 'linked':
+      return (
+        <Badge variant="secondary" className="bg-green-100 text-green-700 gap-1 shrink-0">
+          <Link className="h-3 w-3" />
+          {constituent.name}
+        </Badge>
+      );
+    case 'new':
+      return (
+        <Badge variant="secondary" className="bg-blue-100 text-blue-700 gap-1 shrink-0">
+          <UserPlus className="h-3 w-3" />
+          {constituent.name}
+        </Badge>
+      );
+    case 'unknown':
+      return (
+        <Badge variant="secondary" className="bg-amber-100 text-amber-700 gap-1 shrink-0">
+          <HelpCircle className="h-3 w-3" />
+          Unknown
+        </Badge>
+      );
+  }
+}
+
+// Case Pill Component
+function CasePill({ caseInfo }: { caseInfo: ResponseEmail['case'] }) {
+  switch (caseInfo.status) {
+    case 'linked':
+      return (
+        <Badge variant="secondary" className="bg-green-100 text-green-700 gap-1 shrink-0">
+          <FolderOpen className="h-3 w-3" />
+          {caseInfo.caseNumber}
+        </Badge>
+      );
+    case 'new_case':
+      return (
+        <Badge variant="secondary" className="bg-blue-100 text-blue-700 gap-1 shrink-0">
+          <Plus className="h-3 w-3" />
+          New case
+        </Badge>
+      );
+    case 'no_case':
+      return (
+        <Badge variant="secondary" className="bg-gray-100 text-gray-500 gap-1 shrink-0">
+          <FileQuestion className="h-3 w-3" />
+          No case
+        </Badge>
+      );
+  }
+}
+
+// Caseworker Pill Component
+function CaseworkerPill({ caseworker }: { caseworker: ResponseEmail['caseworker'] }) {
+  switch (caseworker.status) {
+    case 'assigned':
+      return (
+        <Badge variant="secondary" className="bg-green-100 text-green-700 gap-1 shrink-0">
+          <User className="h-3 w-3" />
+          {caseworker.name}
+        </Badge>
+      );
+    case 'unassigned':
+      return (
+        <Badge variant="secondary" className="bg-gray-100 text-gray-500 gap-1 shrink-0">
+          <User className="h-3 w-3" />
+          Unassigned
+        </Badge>
+      );
+  }
+}
+
+// Response Email Row Component
+function ResponseEmailRow({
+  email,
+  onSelectionChange,
+}: {
+  email: ResponseEmail;
+  onSelectionChange: (id: string, checked: boolean) => void;
+}) {
+  return (
+    <Card className="hover:shadow-md transition-all border bg-white">
+      <CardContent className="p-3">
+        {/* Top row: checkbox, subject, preview */}
+        <div className="flex items-start gap-3 mb-2">
+          <Checkbox
+            checked={email.isSelected}
+            onCheckedChange={(checked) => onSelectionChange(email.id, checked === true)}
+            className="mt-0.5 shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium truncate">{email.subject}</h3>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {email.preview.slice(0, 40)}...
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom row: email, pills */}
+        <div className="flex items-center gap-2 ml-7">
+          <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+            {email.fromEmail}
+          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <ConstituentPill constituent={email.constituent} />
+            <CasePill caseInfo={email.case} />
+            <CaseworkerPill caseworker={email.caseworker} />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -683,6 +898,7 @@ export default function DashboardPrototype() {
   const [activeTab, setActiveTab] = useState<'campaigns' | 'responses' | 'new-cases'>('campaigns');
   const [campaigns, setCampaigns] = useState<Campaign[]>(mockCampaigns);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [responseEmails, setResponseEmails] = useState<ResponseEmail[]>(mockResponseEmails);
 
   const totalPendingEmails = useMemo(() =>
     campaigns.reduce((sum, c) => sum + c.emails.filter(e => e.status === 'pending').length, 0),
@@ -711,6 +927,12 @@ export default function DashboardPrototype() {
         email.id === emailId ? { ...email, status: 'rejected' as const } : email
       )
     })));
+  };
+
+  const handleResponseEmailSelection = (emailId: string, checked: boolean) => {
+    setResponseEmails(prev => prev.map(email =>
+      email.id === emailId ? { ...email, isSelected: checked } : email
+    ));
   };
 
   // If a campaign is selected, show the full page view
@@ -769,15 +991,17 @@ export default function DashboardPrototype() {
           </div>
         </TabsContent>
 
-        {/* Communications Tab Content */}
+        {/* Responses Tab Content */}
         <TabsContent value="responses" className="mt-0">
-          <Card className="bg-white">
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">
-                Communications view coming soon...
-              </p>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col gap-3">
+            {responseEmails.map((email) => (
+              <ResponseEmailRow
+                key={email.id}
+                email={email}
+                onSelectionChange={handleResponseEmailSelection}
+              />
+            ))}
+          </div>
         </TabsContent>
 
               {/* Communications Tab Content */}
