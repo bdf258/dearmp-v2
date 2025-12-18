@@ -22,6 +22,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -52,14 +58,15 @@ import {
 } from '@/components/ui/select';
 import {
   Check,
+  CheckCircle2,
   ChevronDown,
   Plus,
   X,
   User,
   Briefcase,
-  Tag,
-  Reply,
+  FileText,
   Mail,
+  Reply,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -162,6 +169,49 @@ Maria Santos`,
   addressFound: '45 Park Lane, Westminster',
 };
 
+// Mock thread emails (previous emails in this conversation)
+const mockThreadEmails = [
+  {
+    id: 'thread-1',
+    direction: 'outbound' as const,
+    subject: 'Re: URGENT - Eviction notice received',
+    snippet: 'Thank you for contacting my office. I have asked my caseworker to look into this matter urgently...',
+    body: `Dear Ms Santos,
+
+Thank you for contacting my office. I have asked my caseworker to look into this matter urgently.
+
+I understand how distressing this situation must be for you and your family. Please rest assured that we take housing issues very seriously.
+
+My caseworker, Sarah, will be in touch with you within the next 24 hours to discuss your case in more detail and explore what options may be available to you.
+
+In the meantime, I would advise you to contact Shelter (0808 800 4444) who can provide immediate advice on your rights as a tenant.
+
+Kind regards,
+[MP Name]
+Member of Parliament for [Constituency]`,
+    sentAt: '2024-01-14T14:22:00Z',
+    fromName: 'Office of [MP Name]',
+  },
+  {
+    id: 'thread-2',
+    direction: 'inbound' as const,
+    subject: 'URGENT - Eviction notice received',
+    snippet: 'Dear MP, I am writing to you in desperation as I have just received an eviction notice...',
+    body: `Dear MP,
+
+I am writing to you in desperation as I have just received an eviction notice from my housing association.
+
+I have been a tenant at this property for over 8 years and have always paid my rent on time. However, due to recent changes in my circumstances (I was made redundant from my job in March), I fell behind on a few payments.
+
+Please, I am begging you to help me.
+
+Yours sincerely,
+Maria Santos`,
+    sentAt: '2024-01-13T11:05:00Z',
+    fromName: 'Maria Santos',
+  },
+];
+
 // ============= SEARCHABLE DROPDOWN COMPONENT =============
 
 interface SearchableDropdownProps {
@@ -173,6 +223,7 @@ interface SearchableDropdownProps {
   onSelect: (id: string | null) => void;
   onCreateNew: () => void;
   createNewLabel: string;
+  isRecognized?: boolean;
 }
 
 function SearchableDropdown({
@@ -184,6 +235,7 @@ function SearchableDropdown({
   onSelect,
   onCreateNew,
   createNewLabel,
+  isRecognized,
 }: SearchableDropdownProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -203,25 +255,26 @@ function SearchableDropdown({
   return (
     <div className="space-y-2">
       <Label className="text-sm font-medium">{label}</Label>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between h-10"
-          >
-            <span className="flex items-center gap-2 truncate">
-              {icon}
-              {selectedItem ? (
-                <span className="truncate">{selectedItem.name}</span>
-              ) : (
-                <span className="text-muted-foreground">{placeholder}</span>
-              )}
-            </span>
-            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
+      <div className="flex items-center gap-2">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className="w-full justify-between h-10"
+            >
+              <span className="flex items-center gap-2 truncate">
+                {icon}
+                {selectedItem ? (
+                  <span className="truncate">{selectedItem.name}</span>
+                ) : (
+                  <span className="text-muted-foreground">{placeholder}</span>
+                )}
+              </span>
+              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
         <PopoverContent className="w-[300px] p-0" align="start">
           <Command shouldFilter={false}>
             <CommandInput
@@ -281,7 +334,11 @@ function SearchableDropdown({
             </CommandList>
           </Command>
         </PopoverContent>
-      </Popover>
+        </Popover>
+        {isRecognized && selectedId && (
+          <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+        )}
+      </div>
     </div>
   );
 }
@@ -717,7 +774,6 @@ export default function TriagePrototype5() {
   const selectedConstituent = mockConstituents.find(
     (c) => c.id === selectedConstituentId
   );
-  const selectedCase = mockCases.find((c) => c.id === selectedCaseId);
   const selectedTags = mockTags.filter((t) => selectedTagIds.includes(t.id));
 
   // Prefill data from email
@@ -753,10 +809,10 @@ export default function TriagePrototype5() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-6">
+    <div className="flex f-full gap-4">
       {/* Left Panel - Email View */}
-      <Card className="flex-1 flex flex-col overflow-hidden">
-        <CardContent className="flex-1 flex flex-col p-6 overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden bg-background">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {/* Email Header */}
           <div className="shrink-0 border-b pb-4 mb-4">
             <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
@@ -783,21 +839,54 @@ export default function TriagePrototype5() {
             </ScrollArea>
           </div>
 
-          {/* Reply To */}
-          <div className="shrink-0 pt-4 mt-4 border-t">
-            <Button className="w-full" variant="outline">
-              <Reply className="mr-2 h-4 w-4" />
-              Reply to
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          {/* Thread Emails */}
+          {mockThreadEmails.length > 0 && (
+            <div className="shrink-0 pt-4 mt-4 border-t">
+              <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
+                Previous in thread
+              </div>
+              <Accordion type="single" collapsible className="space-y-2">
+                {mockThreadEmails.map((threadEmail) => (
+                  <AccordionItem
+                    key={threadEmail.id}
+                    value={threadEmail.id}
+                    className={cn(
+                      'border rounded-md px-3',
+                      threadEmail.direction === 'outbound'
+                        ? 'bg-blue-50/50 border-blue-200'
+                        : 'bg-muted/30'
+                    )}
+                  >
+                    <AccordionTrigger className="py-2 hover:no-underline">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Mail className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span className="font-medium text-xs truncate">
+                          {threadEmail.fromName}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-auto mr-2">
+                          {new Date(threadEmail.sentAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed pt-2 border-t">
+                        {threadEmail.body}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Right Panel - Case Management */}
       <div className="w-[320px] flex flex-col gap-4">
-        {/* Constituent Dropdown */}
+        {/* Constituent, Case & Tags Card */}
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-4 space-y-4">
+            {/* Constituent Dropdown */}
             <SearchableDropdown
               label="Constituent"
               icon={<User className="h-4 w-4" />}
@@ -807,32 +896,35 @@ export default function TriagePrototype5() {
               onSelect={setSelectedConstituentId}
               onCreateNew={() => setCreateConstituentModalOpen(true)}
               createNewLabel="Create new constituent"
+              isRecognized={!!selectedConstituentId}
             />
-          </CardContent>
-        </Card>
 
-        {/* Case Dropdown */}
-        <Card>
-          <CardContent className="p-4">
-            <SearchableDropdown
-              label="Case"
-              icon={<Briefcase className="h-4 w-4" />}
-              placeholder="Select case..."
-              items={caseItems}
-              selectedId={selectedCaseId}
-              onSelect={setSelectedCaseId}
-              onCreateNew={() => setCreateCaseModalOpen(true)}
-              createNewLabel="Create new case"
-            />
-          </CardContent>
-        </Card>
+            {/* Case Dropdown */}
+            <div className="space-y-2">
+              <SearchableDropdown
+                label="Case"
+                icon={<Briefcase className="h-4 w-4" />}
+                placeholder="Select case..."
+                items={caseItems}
+                selectedId={selectedCaseId}
+                onSelect={setSelectedCaseId}
+                onCreateNew={() => setCreateCaseModalOpen(true)}
+                createNewLabel="Create new case"
+                isRecognized={!!selectedCaseId}
+              />
+              {/* Case Pill - shown when case is selected */}
+              {selectedCaseId && (
+                <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
+                  <FileText className="h-3 w-3 mr-1" />
+                  {caseItems.find((c) => c.id === selectedCaseId)?.name}
+                </Badge>
+              )}
+            </div>
 
-        {/* Case Tags */}
-        <Card>
-          <CardContent className="p-4">
+            {/* Case Tags */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Case Tags</Label>
+                <Label className="text-sm font-medium">Tags</Label>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -842,7 +934,7 @@ export default function TriagePrototype5() {
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex flex-wrap gap-1.5 min-h-[60px] p-2 border rounded-md bg-muted/30">
+              <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2 border rounded-md bg-muted/30">
                 {selectedTags.length > 0 ? (
                   selectedTags.map((tag) => (
                     <Badge
