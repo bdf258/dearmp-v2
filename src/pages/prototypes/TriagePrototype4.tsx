@@ -35,7 +35,17 @@ import {
   HelpCircle,
   Check,
   Mail,
+  Pencil,
+  ArrowLeft,
+  Search,
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // ============= TYPES =============
 
@@ -270,13 +280,17 @@ function DesignTooltip({ children, comment }: { children: React.ReactNode; comme
 }
 
 function EmailCard({ email }: { email: CampaignEmail }) {
+  // For has_address, show yellow ? if address needs verification, green check if verified
+  // (For demo purposes, we'll show yellow ? since addresses aren't verified yet)
+  const addressVerified = false; // In real app, this would come from email data
+
   return (
     <Card className="hover:shadow-md transition-shadow cursor-pointer">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Mail className="h-3.5 w-3.5" />
-            <span className="truncate">{email.fromName}</span>
+            <span className="truncate">{email.fromEmail}</span>
           </div>
           {email.constituentStatus === 'known' && email.constituentName && (
             <Badge variant="secondary" className="bg-green-100 text-green-700 shrink-0">
@@ -284,17 +298,26 @@ function EmailCard({ email }: { email: CampaignEmail }) {
               {email.constituentName}
             </Badge>
           )}
-          {email.constituentStatus === 'has_address' && email.addressFromEmail && (
-            <Badge variant="secondary" className="bg-blue-100 text-blue-700 shrink-0">
-              <MapPin className="mr-1 h-3 w-3" />
-              Address found
+          {email.constituentStatus === 'has_address' && (
+            <Badge
+              variant="secondary"
+              className={addressVerified
+                ? "bg-green-100 text-green-700 shrink-0"
+                : "bg-yellow-100 text-yellow-700 shrink-0"
+              }
+            >
+              {addressVerified
+                ? <CheckCircle2 className="mr-1 h-3 w-3" />
+                : <HelpCircle className="mr-1 h-3 w-3" />
+              }
+              {email.fromName}
             </Badge>
           )}
         </div>
         <h4 className="font-semibold text-sm mb-2 line-clamp-2">{email.subject}</h4>
         <p className="text-sm text-muted-foreground line-clamp-3">{email.body}</p>
         {email.constituentStatus === 'has_address' && email.addressFromEmail && (
-          <div className="mt-2 text-xs text-blue-600 bg-blue-50 rounded px-2 py-1">
+          <div className="mt-2 text-xs text-yellow-700 bg-yellow-50 rounded px-2 py-1">
             <MapPin className="inline h-3 w-3 mr-1" />
             {email.addressFromEmail}
           </div>
@@ -327,8 +350,8 @@ function CampaignModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
-        <DialogHeader className="flex-shrink-0">
+      <DialogContent className="max-w-4xl h-[80vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <div className="flex items-center justify-between pr-8">
             <div className="flex items-center gap-3">
               <Flag className="h-5 w-5 text-blue-600" />
@@ -345,9 +368,9 @@ function CampaignModal({
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as typeof activeTab)}
-          className="flex-1 flex flex-col min-h-0"
+          className="flex-1 flex flex-col overflow-hidden"
         >
-          <TabsList className="grid w-full grid-cols-3 flex-shrink-0">
+          <TabsList className="grid w-full grid-cols-3 shrink-0">
             <TabsTrigger value="known" className="gap-2">
               <CheckCircle2 className="h-4 w-4" />
               Known
@@ -365,7 +388,7 @@ function CampaignModal({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="known" className="flex-1 flex flex-col min-h-0 mt-4">
+          <TabsContent value="known" className="flex-1 flex flex-col overflow-hidden mt-4 data-[state=inactive]:hidden">
             <ScrollArea className="flex-1">
               {knownEmails.length > 0 ? (
                 <div className="grid grid-cols-2 gap-4 pr-4">
@@ -381,7 +404,7 @@ function CampaignModal({
               )}
             </ScrollArea>
             {knownEmails.length > 0 && (
-              <div className="flex justify-end pt-4 border-t mt-4 flex-shrink-0">
+              <div className="flex justify-end pt-4 border-t mt-4 shrink-0">
                 <Button onClick={() => onApprove(campaign.name, 'known')}>
                   <Check className="mr-2 h-4 w-4" />
                   Approve emails and add to constituents
@@ -390,7 +413,7 @@ function CampaignModal({
             )}
           </TabsContent>
 
-          <TabsContent value="has_address" className="flex-1 flex flex-col min-h-0 mt-4">
+          <TabsContent value="has_address" className="flex-1 flex flex-col overflow-hidden mt-4 data-[state=inactive]:hidden">
             <ScrollArea className="flex-1">
               {hasAddressEmails.length > 0 ? (
                 <div className="grid grid-cols-2 gap-4 pr-4">
@@ -406,7 +429,7 @@ function CampaignModal({
               )}
             </ScrollArea>
             {hasAddressEmails.length > 0 && (
-              <div className="flex justify-end pt-4 border-t mt-4 flex-shrink-0">
+              <div className="flex justify-end pt-4 border-t mt-4 shrink-0">
                 <Button onClick={() => onApprove(campaign.name, 'has_address')}>
                   <Check className="mr-2 h-4 w-4" />
                   Approve emails and create constituents
@@ -415,7 +438,7 @@ function CampaignModal({
             )}
           </TabsContent>
 
-          <TabsContent value="no_address" className="flex-1 flex flex-col min-h-0 mt-4">
+          <TabsContent value="no_address" className="flex-1 flex flex-col overflow-hidden mt-4 data-[state=inactive]:hidden">
             <ScrollArea className="flex-1">
               {noAddressEmails.length > 0 ? (
                 <div className="grid grid-cols-2 gap-4 pr-4">
@@ -431,7 +454,7 @@ function CampaignModal({
               )}
             </ScrollArea>
             {noAddressEmails.length > 0 && (
-              <div className="flex justify-end pt-4 border-t mt-4 flex-shrink-0">
+              <div className="flex justify-end pt-4 border-t mt-4 shrink-0">
                 <Button onClick={() => onApprove(campaign.name, 'no_address')}>
                   <Check className="mr-2 h-4 w-4" />
                   Approve emails and request address
@@ -445,11 +468,280 @@ function CampaignModal({
   );
 }
 
+// Full Page List View - email list on left, detail pane on right
+function CampaignFullPageView({
+  campaign,
+  onBack,
+  onApproveEmail,
+}: {
+  campaign: Campaign;
+  onBack: () => void;
+  onApproveEmail: (emailId: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<'known' | 'has_address' | 'no_address'>('known');
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+
+  const knownEmails = campaign.emails.filter(e => e.constituentStatus === 'known' && !e.processed);
+  const hasAddressEmails = campaign.emails.filter(e => e.constituentStatus === 'has_address' && !e.processed);
+  const noAddressEmails = campaign.emails.filter(e => e.constituentStatus === 'no_address' && !e.processed);
+
+  const totalPending = knownEmails.length + hasAddressEmails.length + noAddressEmails.length;
+
+  const getCurrentEmails = () => {
+    switch (activeTab) {
+      case 'known': return knownEmails;
+      case 'has_address': return hasAddressEmails;
+      case 'no_address': return noAddressEmails;
+    }
+  };
+
+  const currentEmails = getCurrentEmails();
+  const selectedEmail = currentEmails.find(e => e.id === selectedEmailId) || currentEmails[0] || null;
+
+  // Mock constituent options for dropdowns
+  const constituentOptions = [
+    { value: 'con-1', label: 'John Smith' },
+    { value: 'con-2', label: 'Mary Jones' },
+    { value: 'con-3', label: 'Robert Brown' },
+    { value: 'new', label: '+ Create new constituent' },
+  ];
+
+  const caseOptions = [
+    { value: 'case-1', label: 'Library Funding Review' },
+    { value: 'case-2', label: 'Community Services' },
+    { value: 'new', label: '+ Create new case' },
+  ];
+
+  const topicOptions = [
+    { value: 'libraries', label: 'Libraries' },
+    { value: 'education', label: 'Education' },
+    { value: 'community', label: 'Community Services' },
+    { value: 'housing', label: 'Housing' },
+  ];
+
+  return (
+    <div className="h-[calc(100vh-8rem)] flex flex-col">
+      {/* Header */}
+      <div className="shrink-0 flex items-center justify-between pb-4 border-b mb-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <div className="h-4 w-px bg-border" />
+          <Flag className="h-5 w-5 text-blue-600" />
+          <h1 className="text-xl font-semibold">{campaign.name}</h1>
+          <Badge variant="secondary">{totalPending} pending</Badge>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => {
+          setActiveTab(v as typeof activeTab);
+          setSelectedEmailId(null);
+        }}
+        className="flex-1 flex flex-col overflow-hidden"
+      >
+        <TabsList className="grid w-full grid-cols-3 shrink-0">
+          <TabsTrigger value="known" className="gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            Known
+            <Badge variant="outline" className="ml-1">{knownEmails.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="has_address" className="gap-2">
+            <MapPin className="h-4 w-4" />
+            Address included
+            <Badge variant="outline" className="ml-1">{hasAddressEmails.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="no_address" className="gap-2">
+            <HelpCircle className="h-4 w-4" />
+            No address
+            <Badge variant="outline" className="ml-1">{noAddressEmails.length}</Badge>
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="flex-1 flex overflow-hidden mt-4 gap-0">
+          {/* Left sidebar - email list */}
+          <div className="w-1/3 flex flex-col overflow-hidden border-y border-l bg-muted/30">
+            <ScrollArea className="flex-1">
+              <div className="divide-y">
+                {currentEmails.length > 0 ? (
+                  currentEmails.map(email => (
+                    <div
+                      key={email.id}
+                      className={`px-3 py-2 cursor-pointer transition-colors flex items-center gap-2 ${
+                        selectedEmail?.id === email.id
+                          ? 'bg-blue-100'
+                          : 'hover:bg-muted'
+                      }`}
+                      onClick={() => setSelectedEmailId(email.id)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{email.fromEmail}</div>
+                        <div className="text-xs text-muted-foreground truncate">{email.fromName}</div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onApproveEmail(email.id);
+                          }}
+                        >
+                          <Check className="h-3.5 w-3.5 text-green-600" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEmailId(email.id);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-muted-foreground text-sm">
+                    No emails in this category
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Right pane - email detail */}
+          <div className="w-2/3 flex flex-col overflow-hidden border bg-background relative">
+            {selectedEmail ? (
+              <>
+                {/* Floating toolbar */}
+                <div className="absolute top-0 left-0 right-0 bg-background/95 backdrop-blur border-b z-10 px-4 py-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Select defaultValue={selectedEmail.constituentId || ''}>
+                          <SelectTrigger className="h-7 w-[160px] text-xs">
+                            <SelectValue placeholder="Link constituent..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {constituentOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Flag className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Select>
+                          <SelectTrigger className="h-7 w-[160px] text-xs">
+                            <SelectValue placeholder="Link to case..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {caseOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Select>
+                          <SelectTrigger className="h-7 w-[140px] text-xs">
+                            <SelectValue placeholder="Topic..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {topicOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => onApproveEmail(selectedEmail.id)}
+                    >
+                      <Check className="h-3.5 w-3.5 mr-1" />
+                      Approve
+                    </Button>
+                  </div>
+                </div>
+
+                <ScrollArea className="flex-1 pt-12">
+                  <div className="p-4 space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="font-semibold text-lg">{selectedEmail.subject}</h3>
+                        <div className="text-sm text-muted-foreground mt-1">
+                          From: {selectedEmail.fromName} &lt;{selectedEmail.fromEmail}&gt;
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {new Date(selectedEmail.receivedAt).toLocaleString()}
+                        </div>
+                      </div>
+                      {selectedEmail.constituentStatus === 'known' && selectedEmail.constituentName && (
+                        <Badge variant="secondary" className="bg-green-100 text-green-700 shrink-0">
+                          <User className="mr-1 h-3 w-3" />
+                          {selectedEmail.constituentName}
+                        </Badge>
+                      )}
+                      {selectedEmail.constituentStatus === 'has_address' && (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 shrink-0">
+                          <HelpCircle className="mr-1 h-3 w-3" />
+                          {selectedEmail.fromName}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {selectedEmail.constituentStatus === 'has_address' && selectedEmail.addressFromEmail && (
+                      <div className="text-sm text-yellow-700 bg-yellow-50 px-3 py-2">
+                        <MapPin className="inline h-4 w-4 mr-1" />
+                        Address found: {selectedEmail.addressFromEmail}
+                      </div>
+                    )}
+
+                    <div className="border-t pt-4">
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{selectedEmail.body}</p>
+                    </div>
+                  </div>
+                </ScrollArea>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <Mail className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Select an email to view</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </Tabs>
+    </div>
+  );
+}
+
 // ============= MAIN COMPONENT =============
 
 export default function TriagePrototype4() {
   const [emails, setEmails] = useState<CampaignEmail[]>(mockCampaignEmails);
   const [selectedCampaign, setSelectedCampaign] = useState<string | null>(null);
+  const [fullPageCampaign, setFullPageCampaign] = useState<string | null>(null);
 
   // Group emails by campaign
   const campaigns = useMemo(() => {
@@ -469,6 +761,10 @@ export default function TriagePrototype4() {
     return campaigns.find(c => c.name === selectedCampaign) || null;
   }, [campaigns, selectedCampaign]);
 
+  const fullPageCampaignData = useMemo(() => {
+    return campaigns.find(c => c.name === fullPageCampaign) || null;
+  }, [campaigns, fullPageCampaign]);
+
   const handleApprove = (campaignName: string, status?: 'known' | 'has_address' | 'no_address') => {
     setEmails(prev => prev.map(e => {
       if (e.campaignName !== campaignName) return e;
@@ -482,8 +778,27 @@ export default function TriagePrototype4() {
     }
   };
 
+  const handleApproveEmail = (emailId: string) => {
+    setEmails(prev => prev.map(e =>
+      e.id === emailId ? { ...e, processed: true } : e
+    ));
+  };
+
   const totalPending = emails.filter(e => !e.processed).length;
   const totalProcessed = emails.filter(e => e.processed).length;
+
+  // If full page view is active, render that instead
+  if (fullPageCampaignData) {
+    return (
+      <TooltipProvider>
+        <CampaignFullPageView
+          campaign={fullPageCampaignData}
+          onBack={() => setFullPageCampaign(null)}
+          onApproveEmail={handleApproveEmail}
+        />
+      </TooltipProvider>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -500,55 +815,66 @@ export default function TriagePrototype4() {
           </div>
         </DesignTooltip>
 
-        {/* Campaign Cards Grid */}
+        {/* Campaign Cards List */}
         {campaigns.length > 0 ? (
-          <DesignTooltip comment="Campaign cards show at-a-glance stats. Clicking opens modal with full email list sorted by constituent status.">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <DesignTooltip comment="Campaign rows show at-a-glance stats. Clicking Review opens modal with full email list sorted by constituent status.">
+            <div className="flex flex-col gap-3">
               {campaigns.map(campaign => {
                 const knownCount = campaign.emails.filter(e => e.constituentStatus === 'known').length;
                 const hasAddressCount = campaign.emails.filter(e => e.constituentStatus === 'has_address').length;
                 const noAddressCount = campaign.emails.filter(e => e.constituentStatus === 'no_address').length;
 
+                const subjectLine = campaign.emails[0]?.subject || campaign.name;
+
                 return (
                   <Card
                     key={campaign.name}
-                    className="cursor-pointer hover:shadow-lg transition-all hover:border-blue-300 border-blue-200 bg-blue-50/50"
+                    className="hover:shadow-md transition-all hover:border-blue-300 border-blue-200 bg-blue-50/50 cursor-pointer"
                     onClick={() => setSelectedCampaign(campaign.name)}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Flag className="h-5 w-5 text-blue-600" />
-                        <h3 className="font-semibold truncate flex-1">{campaign.name}</h3>
-                        <Badge>{campaign.emails.length}</Badge>
-                      </div>
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <Flag className="h-4 w-4 text-blue-600 shrink-0" />
+                      <h3 className="text-sm font-medium truncate flex-1">{subjectLine}</h3>
 
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center justify-between text-muted-foreground">
-                          <span className="flex items-center gap-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                            Known constituents
+                      <div className="flex items-center gap-3 text-xs">
+                        <span className="font-semibold text-foreground">{campaign.emails.length}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3 text-green-600" />
+                            <span className="text-muted-foreground">{knownCount}</span>
                           </span>
-                          <span className="font-medium text-foreground">{knownCount}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-muted-foreground">
-                          <span className="flex items-center gap-1.5">
-                            <MapPin className="h-3.5 w-3.5 text-blue-600" />
-                            Address included
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-blue-600" />
+                            <span className="text-muted-foreground">{hasAddressCount}</span>
                           </span>
-                          <span className="font-medium text-foreground">{hasAddressCount}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-muted-foreground">
-                          <span className="flex items-center gap-1.5">
-                            <HelpCircle className="h-3.5 w-3.5 text-gray-500" />
-                            No address
+                          <span className="flex items-center gap-1">
+                            <HelpCircle className="h-3 w-3 text-gray-500" />
+                            <span className="text-muted-foreground">{noAddressCount}</span>
                           </span>
-                          <span className="font-medium text-foreground">{noAddressCount}</span>
                         </div>
                       </div>
 
-                      <div className="mt-4 pt-3 border-t">
-                        <Button className="w-full" size="sm">
-                          Review Campaign
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleApprove(campaign.name);
+                          }}
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedCampaign(campaign.name);
+                          }}
+                        >
+                          Review
                         </Button>
                       </div>
                     </CardContent>
@@ -565,6 +891,33 @@ export default function TriagePrototype4() {
               <p className="text-muted-foreground">No campaign emails to process.</p>
             </CardContent>
           </Card>
+        )}
+
+        {/* Alternative Full Page View Card */}
+        {campaigns.length > 0 && (
+          <DesignTooltip comment="Alternative view: Full page layout with email sidebar and detail pane. Click to try.">
+            <Card
+              className="hover:shadow-md transition-all hover:border-purple-300 border-purple-200 bg-purple-50/50 cursor-pointer"
+              onClick={() => setFullPageCampaign(campaigns[0]?.name || null)}
+            >
+              <CardContent className="p-3 flex items-center gap-3">
+                <Mail className="h-4 w-4 text-purple-600 shrink-0" />
+                <h3 className="text-sm font-medium flex-1">Try Full Page View (sidebar + detail pane)</h3>
+                <Badge variant="outline" className="text-purple-600 border-purple-300">Alt Layout</Badge>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs border-purple-300 text-purple-600 hover:bg-purple-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFullPageCampaign(campaigns[0]?.name || null);
+                  }}
+                >
+                  Open
+                </Button>
+              </CardContent>
+            </Card>
+          </DesignTooltip>
         )}
 
         {/* Campaign Modal */}

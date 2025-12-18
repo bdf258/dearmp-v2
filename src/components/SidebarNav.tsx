@@ -209,22 +209,45 @@ export function SidebarNav({ isCollapsed, onToggle, isMinimized, onMinimize }: S
           {/* Logo/Title */}
           <div className={cn(
             'flex h-16 items-center border-b border-sidebar-border',
-            isMinimized ? 'justify-center px-2' : 'justify-between px-6'
+            isMinimized ? 'justify-center px-2' : 'justify-between px-4'
           )}>
             {isMinimized ? (
-              <span className="text-xl font-bold text-sidebar-primary">D</span>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onMinimize}
+                    className="rounded-md p-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                    aria-label="Expand sidebar"
+                  >
+                    <PanelLeftOpen className="h-5 w-5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={10}>
+                  Expand sidebar
+                </TooltipContent>
+              </Tooltip>
             ) : (
-              <h1 className="text-xl font-bold text-sidebar-primary">DearMP</h1>
-            )}
-            {/* Close button for mobile */}
-            {!isMinimized && (
-              <button
-                onClick={onToggle}
-                className="md:hidden rounded-md p-2 hover:bg-sidebar-accent"
-                aria-label="Close sidebar"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <>
+                <h1 className="text-xl font-bold text-sidebar-primary">DearMP</h1>
+                <div className="flex items-center gap-1">
+                  {/* Collapse button for desktop */}
+                  <button
+                    onClick={onMinimize}
+                    className="hidden md:flex rounded-md p-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+                    aria-label="Collapse sidebar"
+                  >
+                    <PanelLeftClose className="h-5 w-5" />
+                  </button>
+                  {/* Close button for mobile */}
+                  <button
+                    onClick={onToggle}
+                    className="md:hidden rounded-md p-2 hover:bg-sidebar-accent"
+                    aria-label="Close sidebar"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </>
             )}
           </div>
 
@@ -240,31 +263,6 @@ export function SidebarNav({ isCollapsed, onToggle, isMinimized, onMinimize }: S
 
             {/* Office Section - title links to dashboard */}
             {renderNavSection('Office', officeItems, '/dashboard')}
-          </div>
-
-          {/* Collapse Toggle Button - Desktop only */}
-          <div className={cn(
-            'hidden md:flex border-t border-sidebar-border',
-            isMinimized ? 'justify-center p-2' : 'justify-end p-4'
-          )}>
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onMinimize}
-                  className="rounded-md p-2 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-                  aria-label={isMinimized ? 'Expand sidebar' : 'Collapse sidebar'}
-                >
-                  {isMinimized ? (
-                    <PanelLeftOpen className="h-4 w-4" />
-                  ) : (
-                    <PanelLeftClose className="h-4 w-4" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={10}>
-                {isMinimized ? 'Expand sidebar' : 'Collapse sidebar'}
-              </TooltipContent>
-            </Tooltip>
           </div>
         </div>
       </aside>
