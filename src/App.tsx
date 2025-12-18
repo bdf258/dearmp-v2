@@ -24,9 +24,11 @@ import MPApprovalPage from '@/pages/mp/MPApprovalPage';
 import TriagePrototype1 from '@/pages/prototypes/TriagePrototype1';
 import TriagePrototype2 from '@/pages/prototypes/TriagePrototype2';
 import TriagePrototype3 from '@/pages/prototypes/TriagePrototype3';
+import TriagePrototype4 from '@/pages/prototypes/TriagePrototype4';
 import CasePrototypeTabs from '@/pages/prototypes/case/CasePrototypeTabs';
 import CasePrototypeColumns from '@/pages/prototypes/case/CasePrototypeColumns';
 import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
+import NotFoundPage from '@/pages/NotFoundPage';
 
 function LoadingScreen() {
   return (
@@ -41,6 +43,10 @@ function LoadingScreen() {
 
 function AuthenticatedLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(() => {
+    const saved = localStorage.getItem('sidebarMinimized');
+    return saved ? JSON.parse(saved) : false;
+  });
 
   // Check if mobile on initial load and collapse sidebar
   useEffect(() => {
@@ -58,12 +64,20 @@ function AuthenticatedLayout() {
     setIsSidebarCollapsed(!isSidebarCollapsed);
   };
 
+  const toggleMinimize = () => {
+    const newValue = !isSidebarMinimized;
+    setIsSidebarMinimized(newValue);
+    localStorage.setItem('sidebarMinimized', JSON.stringify(newValue));
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar Navigation */}
       <SidebarNav
         isCollapsed={isSidebarCollapsed}
         onToggle={toggleSidebar}
+        isMinimized={isSidebarMinimized}
+        onMinimize={toggleMinimize}
       />
 
       {/* Main Content Area */}
@@ -105,10 +119,14 @@ function AuthenticatedLayout() {
             <Route path="/triage-prototype-1" element={<TriagePrototype1 />} />
             <Route path="/triage-prototype-2" element={<TriagePrototype2 />} />
             <Route path="/triage-prototype-3" element={<TriagePrototype3 />} />
+            <Route path="/triage-prototype-4" element={<TriagePrototype4 />} />
             {/* Prototype Routes - Not linked in navigation */}
             <Route path="/prototypes/case/tabs" element={<CasePrototypeTabs />} />
             <Route path="/prototypes/case/columns" element={<CasePrototypeColumns />} />
             <Route path="/prototypes/case/cards" element={<CasePrototypeCards />} />
+
+            {/* 404 Catch-all Route */}
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
       </div>
