@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { SupabaseProvider, useSupabase } from '@/lib/SupabaseContext';
 import { Header } from '@/components/Header';
 import { SidebarNav } from '@/components/SidebarNav';
+import { SessionSecurityBanner } from '@/components/SessionSecurityBanner';
 import Dashboard from '@/pages/Dashboard';
 import SettingsPage from '@/pages/SettingsPage';
 import LoginPage from '@/pages/LoginPage';
@@ -42,6 +43,7 @@ function LoadingScreen() {
 }
 
 function AuthenticatedLayout() {
+  const { sessionSecurity, signOut } = useSupabase();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(() => {
     const saved = localStorage.getItem('sidebarMinimized');
@@ -70,6 +72,11 @@ function AuthenticatedLayout() {
     localStorage.setItem('sidebarMinimized', JSON.stringify(newValue));
   };
 
+  const handleSecurityLogout = async () => {
+    // Log out and redirect to login page
+    await signOut();
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar Navigation */}
@@ -87,6 +94,19 @@ function AuthenticatedLayout() {
           onToggleSidebar={toggleSidebar}
           isSidebarCollapsed={isSidebarCollapsed}
         />
+
+        {/* Session Security Banner */}
+        {sessionSecurity.actionRequired && (
+          <div className="px-6 pt-4">
+            <SessionSecurityBanner
+              riskScore={sessionSecurity.riskScore}
+              anomalies={sessionSecurity.anomalies}
+              onTrust={sessionSecurity.trustCurrentContext}
+              onLogout={handleSecurityLogout}
+              onDismiss={sessionSecurity.dismissAnomaly}
+            />
+          </div>
+        )}
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-6">
