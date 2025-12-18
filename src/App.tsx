@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { SupabaseProvider, useSupabase } from '@/lib/SupabaseContext';
+import { TriageProgressProvider } from '@/lib/TriageProgressContext';
 import { Header } from '@/components/Header';
 import { SidebarNav } from '@/components/SidebarNav';
 import { SessionSecurityBanner } from '@/components/SessionSecurityBanner';
@@ -195,7 +196,9 @@ function App() {
   return (
     <BrowserRouter>
       <SupabaseProvider>
-        <RootLayout />
+        <TriageProgressProvider>
+          <RootLayout />
+        </TriageProgressProvider>
       </SupabaseProvider>
     </BrowserRouter>
   );

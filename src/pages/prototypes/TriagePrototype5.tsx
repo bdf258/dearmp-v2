@@ -13,7 +13,7 @@
  * - Request address submodal with email template
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useTriageProgress } from '@/lib/TriageProgressContext';
 import {
   Accordion,
   AccordionContent,
@@ -61,12 +62,12 @@ import {
   CheckCircle2,
   ChevronDown,
   Plus,
-  X,
   User,
   Briefcase,
   FileText,
   Mail,
   Reply,
+  Megaphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -81,7 +82,8 @@ interface Constituent {
 
 interface Case {
   id: string;
-  name: string;
+  ref: string;
+  title: string;
   constituentId?: string;
 }
 
@@ -89,11 +91,19 @@ interface CaseTag {
   id: string;
   name: string;
   color: string;
+  borderColor: string; // For 'new' state styling
 }
 
 interface Caseworker {
   id: string;
   name: string;
+}
+
+interface Campaign {
+  id: string;
+  title: string;
+  description: string;
+  tags: string[];
 }
 
 interface Email {
@@ -117,22 +127,22 @@ const mockConstituents: Constituent[] = [
 ];
 
 const mockCases: Case[] = [
-  { id: 'case-1', name: 'Housing Association', constituentId: 'con-1' },
-  { id: 'case-2', name: 'Council Tax Dispute', constituentId: 'con-2' },
-  { id: 'case-3', name: 'Planning Application', constituentId: 'con-1' },
-  { id: 'case-4', name: 'Benefits Query', constituentId: 'con-4' },
-  { id: 'case-5', name: 'Parking Permit Issue' },
+  { id: 'case-1', ref: 'CW-2024-0123', title: 'Housing Association Dispute', constituentId: 'con-1' },
+  { id: 'case-2', ref: 'CW-2024-0098', title: 'Council Tax Dispute', constituentId: 'con-2' },
+  { id: 'case-3', ref: 'CW-2024-0087', title: 'Planning Application Query', constituentId: 'con-1' },
+  { id: 'case-4', ref: 'CW-2023-0456', title: 'Benefits Query - PIP', constituentId: 'con-4' },
+  { id: 'case-5', ref: 'CW-2024-0134', title: 'Parking Permit Issue' },
 ];
 
 const mockTags: CaseTag[] = [
-  { id: 'tag-1', name: 'Urgent', color: 'bg-red-100 text-red-700' },
-  { id: 'tag-2', name: 'Housing', color: 'bg-blue-100 text-blue-700' },
-  { id: 'tag-3', name: 'Benefits', color: 'bg-green-100 text-green-700' },
-  { id: 'tag-4', name: 'Follow-up Required', color: 'bg-yellow-100 text-yellow-700' },
-  { id: 'tag-5', name: 'Immigration', color: 'bg-purple-100 text-purple-700' },
-  { id: 'tag-6', name: 'Council Tax', color: 'bg-orange-100 text-orange-700' },
-  { id: 'tag-7', name: 'Planning', color: 'bg-teal-100 text-teal-700' },
-  { id: 'tag-8', name: 'NHS', color: 'bg-pink-100 text-pink-700' },
+  { id: 'tag-1', name: 'Urgent', color: 'bg-red-100 text-red-700', borderColor: 'border-red-700' },
+  { id: 'tag-2', name: 'Housing', color: 'bg-blue-100 text-blue-700', borderColor: 'border-blue-700' },
+  { id: 'tag-3', name: 'Benefits', color: 'bg-green-100 text-green-700', borderColor: 'border-green-700' },
+  { id: 'tag-4', name: 'Follow-up Required', color: 'bg-yellow-100 text-yellow-700', borderColor: 'border-yellow-700' },
+  { id: 'tag-5', name: 'Immigration', color: 'bg-purple-100 text-purple-700', borderColor: 'border-purple-700' },
+  { id: 'tag-6', name: 'Council Tax', color: 'bg-orange-100 text-orange-700', borderColor: 'border-orange-700' },
+  { id: 'tag-7', name: 'Planning', color: 'bg-teal-100 text-teal-700', borderColor: 'border-teal-700' },
+  { id: 'tag-8', name: 'NHS', color: 'bg-pink-100 text-pink-700', borderColor: 'border-pink-700' },
 ];
 
 const mockCaseworkers: Caseworker[] = [
@@ -142,10 +152,42 @@ const mockCaseworkers: Caseworker[] = [
   { id: 'cw-4', name: 'Office Manager' },
 ];
 
-const mockEmail: Email = {
-  id: 'email-1',
-  subject: 'URGENT - Eviction notice received',
-  body: `Dear MP,
+const mockCampaigns: Campaign[] = [
+  { id: 'camp-1', title: 'Housing Crisis Response', description: 'Coordinated response to housing issues in the constituency', tags: ['Housing', 'Urgent'] },
+  { id: 'camp-2', title: 'Benefits Support Drive', description: 'Helping constituents with PIP and Universal Credit applications', tags: ['Benefits'] },
+  { id: 'camp-3', title: 'Local Planning Objections', description: 'Coordinating response to major planning applications', tags: ['Planning'] },
+  { id: 'camp-4', title: 'NHS Waiting Times', description: 'Campaign addressing NHS delays and waiting lists', tags: ['NHS', 'Health'] },
+];
+
+// Thread email type
+interface ThreadEmail {
+  id: string;
+  direction: 'inbound' | 'outbound';
+  subject: string;
+  snippet: string;
+  body: string;
+  sentAt: string;
+  fromName: string;
+}
+
+// Triage case bundles all data for one email to process
+interface TriageCase {
+  email: Email;
+  threadEmails: ThreadEmail[];
+  suggestedConstituentId: string | null;
+  suggestedCaseId: string | null;
+  suggestedTagIds: string[];
+  suggestedAssigneeId: string;
+  suggestedPriority: 'L' | 'M' | 'H';
+}
+
+const mockTriageCases: TriageCase[] = [
+  // Case 1: Maria Santos - Housing/Eviction
+  {
+    email: {
+      id: 'email-1',
+      subject: 'URGENT - Eviction notice received',
+      body: `Dear MP,
 
 I am writing to you in desperation as I have just received an eviction notice from my housing association.
 
@@ -163,52 +205,168 @@ Thank you for any help you can provide.
 
 Yours sincerely,
 Maria Santos`,
-  fromEmail: 'maria.santos@gmail.com',
-  fromName: 'Maria Santos',
-  receivedAt: '2024-01-15T09:30:00Z',
-  addressFound: '45 Park Lane, Westminster',
-};
-
-// Mock thread emails (previous emails in this conversation)
-const mockThreadEmails = [
-  {
-    id: 'thread-1',
-    direction: 'outbound' as const,
-    subject: 'Re: URGENT - Eviction notice received',
-    snippet: 'Thank you for contacting my office. I have asked my caseworker to look into this matter urgently...',
-    body: `Dear Ms Santos,
+      fromEmail: 'maria.santos@gmail.com',
+      fromName: 'Maria Santos',
+      receivedAt: '2024-01-15T09:30:00Z',
+      addressFound: '45 Park Lane, Westminster',
+    },
+    threadEmails: [
+      {
+        id: 'thread-1-1',
+        direction: 'outbound',
+        subject: 'Re: URGENT - Eviction notice received',
+        snippet: 'Thank you for contacting my office. I have asked my caseworker to look into this matter urgently...',
+        body: `Dear Ms Santos,
 
 Thank you for contacting my office. I have asked my caseworker to look into this matter urgently.
 
-I understand how distressing this situation must be for you and your family. Please rest assured that we take housing issues very seriously.
-
-My caseworker, Sarah, will be in touch with you within the next 24 hours to discuss your case in more detail and explore what options may be available to you.
-
-In the meantime, I would advise you to contact Shelter (0808 800 4444) who can provide immediate advice on your rights as a tenant.
+I understand how distressing this situation must be for you and your family.
 
 Kind regards,
-[MP Name]
-Member of Parliament for [Constituency]`,
-    sentAt: '2024-01-14T14:22:00Z',
-    fromName: 'Office of [MP Name]',
+[MP Name]`,
+        sentAt: '2024-01-14T14:22:00Z',
+        fromName: 'Office of [MP Name]',
+      },
+    ],
+    suggestedConstituentId: 'con-1',
+    suggestedCaseId: 'case-1',
+    suggestedTagIds: ['tag-1', 'tag-2'],
+    suggestedAssigneeId: 'cw-1',
+    suggestedPriority: 'H',
   },
+  // Case 2: John Smith - Council Tax
   {
-    id: 'thread-2',
-    direction: 'inbound' as const,
-    subject: 'URGENT - Eviction notice received',
-    snippet: 'Dear MP, I am writing to you in desperation as I have just received an eviction notice...',
-    body: `Dear MP,
+    email: {
+      id: 'email-2',
+      subject: 'Council Tax Bill Query',
+      body: `Dear MP,
 
-I am writing to you in desperation as I have just received an eviction notice from my housing association.
+I am writing regarding my council tax bill which I believe contains errors. I have been charged for a Band D property but my house was reassessed last year and should be Band C.
 
-I have been a tenant at this property for over 8 years and have always paid my rent on time. However, due to recent changes in my circumstances (I was made redundant from my job in March), I fell behind on a few payments.
+I have contacted the council multiple times but they keep sending me the same incorrect bill. I am worried about penalties if I don't pay, but I don't want to overpay either.
 
-Please, I am begging you to help me.
+Could you please help me resolve this matter with the council?
 
-Yours sincerely,
-Maria Santos`,
-    sentAt: '2024-01-13T11:05:00Z',
-    fromName: 'Maria Santos',
+Best regards,
+John Smith
+12 High Street`,
+      fromEmail: 'john.smith@email.com',
+      fromName: 'John Smith',
+      receivedAt: '2024-01-15T10:15:00Z',
+      addressFound: '12 High Street',
+    },
+    threadEmails: [],
+    suggestedConstituentId: 'con-2',
+    suggestedCaseId: 'case-2',
+    suggestedTagIds: ['tag-6'],
+    suggestedAssigneeId: 'cw-2',
+    suggestedPriority: 'M',
+  },
+  // Case 3: New constituent - Immigration
+  {
+    email: {
+      id: 'email-3',
+      subject: 'Spouse Visa Application Delay',
+      body: `Dear MP,
+
+My name is Amara Okonkwo and I am writing to seek your assistance with my spouse visa application.
+
+I applied for a spouse visa to join my husband in the UK over 14 months ago. We have a 2-year-old British citizen daughter who has never met her father in person.
+
+The Home Office website shows "awaiting decision" but we have heard nothing despite multiple enquiries. The separation is causing immense distress to our family.
+
+I would be extremely grateful if you could make enquiries on our behalf.
+
+Yours faithfully,
+Amara Okonkwo
+Currently residing in Lagos, Nigeria`,
+      fromEmail: 'amara.okonkwo@gmail.com',
+      fromName: 'Amara Okonkwo',
+      receivedAt: '2024-01-15T11:00:00Z',
+    },
+    threadEmails: [],
+    suggestedConstituentId: null,
+    suggestedCaseId: null,
+    suggestedTagIds: ['tag-5', 'tag-1'],
+    suggestedAssigneeId: 'cw-3',
+    suggestedPriority: 'H',
+  },
+  // Case 4: Benefits query
+  {
+    email: {
+      id: 'email-4',
+      subject: 'PIP Assessment Appeal Help',
+      body: `Dear MP,
+
+I am writing to ask for your help with my PIP appeal. I was recently reassessed and my award was reduced from enhanced to standard rate for daily living, despite my condition worsening.
+
+I have fibromyalgia and chronic fatigue syndrome which severely impacts my daily life. The assessor spent only 20 minutes with me and seemed to ignore what I told them.
+
+I have submitted a mandatory reconsideration but I am scared about managing if my benefits are cut.
+
+Please could you advise on what I can do?
+
+Thank you,
+David Brown
+78 Oak Road`,
+      fromEmail: 'david.brown@gmail.com',
+      fromName: 'David Brown',
+      receivedAt: '2024-01-15T11:45:00Z',
+      addressFound: '78 Oak Road',
+    },
+    threadEmails: [
+      {
+        id: 'thread-4-1',
+        direction: 'inbound',
+        subject: 'Benefits concern',
+        snippet: 'I wanted to let you know about my upcoming PIP assessment...',
+        body: `Dear MP,
+
+I wanted to let you know about my upcoming PIP assessment. I am very anxious about it.
+
+Thank you,
+David Brown`,
+        sentAt: '2024-01-10T09:00:00Z',
+        fromName: 'David Brown',
+      },
+    ],
+    suggestedConstituentId: 'con-4',
+    suggestedCaseId: 'case-4',
+    suggestedTagIds: ['tag-3', 'tag-4'],
+    suggestedAssigneeId: 'cw-2',
+    suggestedPriority: 'M',
+  },
+  // Case 5: Planning concern
+  {
+    email: {
+      id: 'email-5',
+      subject: 'Objection to Planning Application 2024/0892',
+      body: `Dear MP,
+
+I am writing to express my strong objection to planning application 2024/0892 for a 5-storey apartment block on Green Lane.
+
+This development would:
+- Overlook my garden and remove all privacy
+- Block natural light to my property
+- Increase traffic on an already congested road
+- Destroy the character of our neighbourhood
+
+The council planning committee is meeting next week. Could you please intervene?
+
+I have lived here for 30 years and this would ruin our quality of life.
+
+Regards,
+Emma Wilson`,
+      fromEmail: 'emma.wilson@yahoo.com',
+      fromName: 'Emma Wilson',
+      receivedAt: '2024-01-15T14:20:00Z',
+    },
+    threadEmails: [],
+    suggestedConstituentId: 'con-5',
+    suggestedCaseId: null,
+    suggestedTagIds: ['tag-7'],
+    suggestedAssigneeId: 'cw-1',
+    suggestedPriority: 'M',
   },
 ];
 
@@ -262,14 +420,14 @@ function SearchableDropdown({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="w-full justify-between h-10"
+              className="flex-1 justify-between h-10 min-w-0"
             >
-              <span className="flex items-center gap-2 truncate">
-                {icon}
+              <span className="flex items-center gap-2 truncate min-w-0">
+                <span className="shrink-0">{icon}</span>
                 {selectedItem ? (
                   <span className="truncate">{selectedItem.name}</span>
                 ) : (
-                  <span className="text-muted-foreground">{placeholder}</span>
+                  <span className="text-muted-foreground truncate">{placeholder}</span>
                 )}
               </span>
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -340,95 +498,6 @@ function SearchableDropdown({
         )}
       </div>
     </div>
-  );
-}
-
-// ============= TAG SELECTOR MODAL =============
-
-interface TagSelectorModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  availableTags: CaseTag[];
-  selectedTagIds: string[];
-  onTagsChange: (tagIds: string[]) => void;
-}
-
-function TagSelectorModal({
-  open,
-  onOpenChange,
-  availableTags,
-  selectedTagIds,
-  onTagsChange,
-}: TagSelectorModalProps) {
-  const [search, setSearch] = useState('');
-
-  const filteredTags = useMemo(() => {
-    if (!search) return availableTags;
-    return availableTags.filter((tag) =>
-      tag.name.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [availableTags, search]);
-
-  const toggleTag = (tagId: string) => {
-    if (selectedTagIds.includes(tagId)) {
-      onTagsChange(selectedTagIds.filter((id) => id !== tagId));
-    } else {
-      onTagsChange([...selectedTagIds, tagId]);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add Case Tags</DialogTitle>
-          <DialogDescription>
-            Search and select tags to add to this case.
-          </DialogDescription>
-        </DialogHeader>
-        <Command className="rounded-lg border shadow-md">
-          <CommandInput
-            placeholder="Search tags..."
-            value={search}
-            onValueChange={setSearch}
-          />
-          <CommandList>
-            <CommandEmpty>No tags found.</CommandEmpty>
-            <CommandGroup>
-              {filteredTags.map((tag) => {
-                const isSelected = selectedTagIds.includes(tag.id);
-                return (
-                  <CommandItem
-                    key={tag.id}
-                    value={tag.id}
-                    onSelect={() => toggleTag(tag.id)}
-                  >
-                    <div
-                      className={cn(
-                        'mr-2 flex h-4 w-4 items-center justify-center rounded border',
-                        isSelected
-                          ? 'bg-primary border-primary text-primary-foreground'
-                          : 'opacity-50'
-                      )}
-                    >
-                      {isSelected && <Check className="h-3 w-3" />}
-                    </div>
-                    <Badge className={cn('font-normal', tag.color)}>
-                      {tag.name}
-                    </Badge>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Done
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -696,6 +765,246 @@ Member of Parliament for [Constituency]`;
   );
 }
 
+// ============= ASSIGN TO CAMPAIGN MODAL =============
+
+interface AssignToCampaignModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAssign: (campaignId: string) => void;
+  onCreate: (campaign: Omit<Campaign, 'id'>) => void;
+}
+
+function AssignToCampaignModal({
+  open,
+  onOpenChange,
+  onAssign,
+  onCreate,
+}: AssignToCampaignModalProps) {
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [search, setSearch] = useState('');
+
+  // New campaign form state
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newTags, setNewTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
+
+  const filteredCampaigns = useMemo(() => {
+    if (!search) return mockCampaigns;
+    const lowerSearch = search.toLowerCase();
+    return mockCampaigns.filter(
+      (c) =>
+        c.title.toLowerCase().includes(lowerSearch) ||
+        c.description.toLowerCase().includes(lowerSearch) ||
+        c.tags.some((t) => t.toLowerCase().includes(lowerSearch))
+    );
+  }, [search]);
+
+  const selectedCampaign = mockCampaigns.find((c) => c.id === selectedCampaignId);
+
+  const handleSelectCampaign = (id: string) => {
+    setSelectedCampaignId(id);
+    setIsCreatingNew(false);
+  };
+
+  const handleSelectCreateNew = () => {
+    setSelectedCampaignId(null);
+    setIsCreatingNew(true);
+  };
+
+  const handleAddTag = () => {
+    if (tagInput.trim() && !newTags.includes(tagInput.trim())) {
+      setNewTags([...newTags, tagInput.trim()]);
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setNewTags(newTags.filter((t) => t !== tag));
+  };
+
+  const handleConfirm = () => {
+    if (isCreatingNew && newTitle) {
+      onCreate({ title: newTitle, description: newDescription, tags: newTags });
+    } else if (selectedCampaignId) {
+      onAssign(selectedCampaignId);
+    }
+    // Reset state
+    setSelectedCampaignId(null);
+    setIsCreatingNew(false);
+    setSearch('');
+    setNewTitle('');
+    setNewDescription('');
+    setNewTags([]);
+    onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    setSelectedCampaignId(null);
+    setIsCreatingNew(false);
+    setSearch('');
+    setNewTitle('');
+    setNewDescription('');
+    setNewTags([]);
+    onOpenChange(false);
+  };
+
+  const canConfirm = isCreatingNew ? !!newTitle : !!selectedCampaignId;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Assign to Campaign</DialogTitle>
+          <DialogDescription>
+            Add this email to an existing campaign or create a new one.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          {/* Campaign Search Command */}
+          <Command className="border rounded-md" shouldFilter={false}>
+            <CommandInput
+              placeholder="Search campaigns..."
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList className="max-h-[200px]">
+              {/* Pinned Create New option */}
+              <CommandGroup>
+                <CommandItem
+                  onSelect={handleSelectCreateNew}
+                  className={cn(
+                    'text-primary',
+                    isCreatingNew && 'bg-accent'
+                  )}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create new campaign
+                </CommandItem>
+              </CommandGroup>
+              <CommandSeparator />
+              {/* Existing campaigns */}
+              <CommandGroup heading="Existing Campaigns">
+                {filteredCampaigns.length === 0 ? (
+                  <CommandEmpty>No campaigns found.</CommandEmpty>
+                ) : (
+                  filteredCampaigns.map((campaign) => (
+                    <CommandItem
+                      key={campaign.id}
+                      value={campaign.id}
+                      onSelect={() => handleSelectCampaign(campaign.id)}
+                      className={cn(
+                        selectedCampaignId === campaign.id && 'bg-accent'
+                      )}
+                    >
+                      <Check
+                        className={cn(
+                          'mr-2 h-4 w-4',
+                          selectedCampaignId === campaign.id ? 'opacity-100' : 'opacity-0'
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{campaign.title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {campaign.description}
+                        </span>
+                      </div>
+                    </CommandItem>
+                  ))
+                )}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+
+          {/* Selected campaign info */}
+          {selectedCampaign && !isCreatingNew && (
+            <div className="p-3 bg-muted/50 rounded-md space-y-2">
+              <div className="font-medium">{selectedCampaign.title}</div>
+              <div className="text-sm text-muted-foreground">
+                {selectedCampaign.description}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {selectedCampaign.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* New campaign form */}
+          {isCreatingNew && (
+            <div className="space-y-4 p-3 bg-muted/50 rounded-md">
+              <div className="space-y-2">
+                <Label htmlFor="campaign-title">Title</Label>
+                <Input
+                  id="campaign-title"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Campaign title"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="campaign-description">Description</Label>
+                <Textarea
+                  id="campaign-description"
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="Brief description of the campaign"
+                  className="min-h-[80px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    placeholder="Add a tag"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTag();
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="icon" onClick={handleAddTag}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {newTags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {newTags.map((tag) => (
+                      <Badge
+                        key={tag}
+                        variant="secondary"
+                        className="text-xs cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                        onClick={() => handleRemoveTag(tag)}
+                      >
+                        {tag} ×
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirm} disabled={!canConfirm}>
+            {isCreatingNew ? 'Create & Assign' : 'Assign to Campaign'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ============= PRIORITY SELECTOR =============
 
 interface PrioritySelectorProps {
@@ -705,9 +1014,9 @@ interface PrioritySelectorProps {
 
 function PrioritySelector({ value, onChange }: PrioritySelectorProps) {
   const priorities: { key: 'L' | 'M' | 'H'; label: string; color: string }[] = [
-    { key: 'L', label: 'L', color: 'bg-green-100 text-green-700 border-green-300' },
-    { key: 'M', label: 'M', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
-    { key: 'H', label: 'H', color: 'bg-red-100 text-red-700 border-red-300' },
+    { key: 'L', label: 'Low', color: 'bg-green-100 text-green-700 border-green-300' },
+    { key: 'M', label: 'Med', color: 'bg-yellow-100 text-yellow-700 border-yellow-300' },
+    { key: 'H', label: 'High', color: 'bg-red-100 text-red-700 border-red-300' },
   ];
 
   return (
@@ -734,21 +1043,187 @@ function PrioritySelector({ value, onChange }: PrioritySelectorProps) {
   );
 }
 
+// ============= CONFETTI COMPONENT =============
+
+function Confetti() {
+  const [pieces, setPieces] = useState<Array<{
+    id: number;
+    x: number;
+    color: string;
+    delay: number;
+    duration: number;
+  }>>([]);
+
+  useEffect(() => {
+    const colors = [
+      '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+      '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'
+    ];
+
+    const newPieces = Array.from({ length: 100 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      delay: Math.random() * 0.5,
+      duration: 2 + Math.random() * 2,
+    }));
+
+    setPieces(newPieces);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-50">
+      {pieces.map((piece) => (
+        <div
+          key={piece.id}
+          className="absolute w-3 h-3 animate-confetti"
+          style={{
+            left: `${piece.x}%`,
+            top: '-20px',
+            backgroundColor: piece.color,
+            animationDelay: `${piece.delay}s`,
+            animationDuration: `${piece.duration}s`,
+            transform: `rotate(${Math.random() * 360}deg)`,
+          }}
+        />
+      ))}
+      <style>{`
+        @keyframes confetti-fall {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(100vh) rotate(720deg);
+            opacity: 0;
+          }
+        }
+        .animate-confetti {
+          animation: confetti-fall linear forwards;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ============= SUCCESS PAGE COMPONENT =============
+
+function SuccessPage({ onReset }: { onReset: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full bg-gradient-to-b from-green-50 to-white">
+      <Confetti />
+      <div className="text-center space-y-6">
+        <div className="text-8xl mb-4">0</div>
+        <h1 className="text-4xl font-bold text-green-600">Congratulations!</h1>
+        <p className="text-2xl text-muted-foreground">Inbox Zero</p>
+        <p className="text-sm text-muted-foreground mt-8">
+          All emails have been triaged successfully.
+        </p>
+        <Button
+          variant="outline"
+          className="mt-8"
+          onClick={onReset}
+        >
+          Start Over (Demo)
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ============= MAIN COMPONENT =============
 
+// Mock: original tags for existing cases (simulating what was saved)
+const originalCaseTags: Record<string, string[]> = {
+  'case-1': ['tag-1', 'tag-2'],
+  'case-2': ['tag-6'],
+  'case-3': ['tag-7'],
+  'case-4': ['tag-3'],
+  'case-5': [],
+};
+
 export default function TriagePrototype5() {
-  // State for selected values
-  const [selectedConstituentId, setSelectedConstituentId] = useState<string | null>('con-1');
-  const [selectedCaseId, setSelectedCaseId] = useState<string | null>('case-1');
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(['tag-1', 'tag-2']);
-  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('cw-1');
-  const [priority, setPriority] = useState<'L' | 'M' | 'H'>('H');
+  // Current case index
+  const [currentCaseIndex, setCurrentCaseIndex] = useState(0);
+  const [isCompleted, setIsCompleted] = useState(false);
+  const currentTriageCase = mockTriageCases[currentCaseIndex];
+  const { setProgress } = useTriageProgress();
+
+  // State for selected values (initialized from current triage case)
+  const [selectedConstituentId, setSelectedConstituentId] = useState<string | null>(
+    currentTriageCase.suggestedConstituentId
+  );
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(
+    currentTriageCase.suggestedCaseId
+  );
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
+    currentTriageCase.suggestedTagIds
+  );
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>(
+    currentTriageCase.suggestedAssigneeId
+  );
+  const [priority, setPriority] = useState<'L' | 'M' | 'H'>(
+    currentTriageCase.suggestedPriority
+  );
+
+  // Track if this is a newly created case (no original tags)
+  const [isNewCase, setIsNewCase] = useState(!currentTriageCase.suggestedCaseId);
 
   // Modal states
-  const [tagModalOpen, setTagModalOpen] = useState(false);
   const [createConstituentModalOpen, setCreateConstituentModalOpen] = useState(false);
   const [createCaseModalOpen, setCreateCaseModalOpen] = useState(false);
   const [requestAddressModalOpen, setRequestAddressModalOpen] = useState(false);
+  const [assignCampaignModalOpen, setAssignCampaignModalOpen] = useState(false);
+
+  // Update header progress bar
+  useEffect(() => {
+    if (!isCompleted) {
+      setProgress({ current: currentCaseIndex, total: mockTriageCases.length });
+    } else {
+      setProgress(null);
+    }
+    // Cleanup on unmount
+    return () => setProgress(null);
+  }, [currentCaseIndex, isCompleted, setProgress]);
+
+  // Load case data when index changes
+  const loadCase = (index: number) => {
+    const triageCase = mockTriageCases[index];
+    setSelectedConstituentId(triageCase.suggestedConstituentId);
+    setSelectedCaseId(triageCase.suggestedCaseId);
+    setSelectedTagIds(triageCase.suggestedTagIds);
+    setSelectedAssigneeId(triageCase.suggestedAssigneeId);
+    setPriority(triageCase.suggestedPriority);
+    setIsNewCase(!triageCase.suggestedCaseId);
+  };
+
+  // Handle approve and move to next case
+  const handleApprove = () => {
+    console.log('Approved case:', currentCaseIndex, {
+      constituentId: selectedConstituentId,
+      caseId: selectedCaseId,
+      tagIds: selectedTagIds,
+      assigneeId: selectedAssigneeId,
+      priority,
+    });
+
+    // Move to next case if available
+    if (currentCaseIndex < mockTriageCases.length - 1) {
+      const nextIndex = currentCaseIndex + 1;
+      setCurrentCaseIndex(nextIndex);
+      loadCase(nextIndex);
+    } else {
+      // All cases processed - show success page
+      setIsCompleted(true);
+    }
+  };
+
+  // Reset triage (for demo purposes)
+  const handleReset = () => {
+    setCurrentCaseIndex(0);
+    setIsCompleted(false);
+    loadCase(0);
+  };
 
   // Get constituent items for dropdown
   const constituentItems = mockConstituents.map((c) => ({
@@ -766,21 +1241,65 @@ export default function TriagePrototype5() {
       : mockCases;
     return cases.map((c) => ({
       id: c.id,
-      name: c.name,
+      name: `${c.ref}: ${c.title}`,
+      ref: c.ref,
+      title: c.title,
     }));
   }, [selectedConstituentId]);
+
+  // Get selected case for display
+  const selectedCase = mockCases.find((c) => c.id === selectedCaseId);
 
   // Get selected items for display
   const selectedConstituent = mockConstituents.find(
     (c) => c.id === selectedConstituentId
   );
-  const selectedTags = mockTags.filter((t) => selectedTagIds.includes(t.id));
+
+  // Get original tags for the selected case (empty if new case)
+  const originalTags = useMemo(() => {
+    if (isNewCase || !selectedCaseId) return [];
+    return originalCaseTags[selectedCaseId] || [];
+  }, [selectedCaseId, isNewCase]);
+
+  // Compute tag states: 'no-change' | 'new' | 'removed'
+  const tagStates = useMemo(() => {
+    const states: Record<string, 'no-change' | 'new' | 'removed'> = {};
+
+    // For new cases, all selected tags are 'no-change'
+    if (isNewCase) {
+      selectedTagIds.forEach((id) => {
+        states[id] = 'no-change';
+      });
+      return states;
+    }
+
+    // For existing cases, compute changes
+    // Tags in both original and current = no-change
+    // Tags in current but not original = new
+    // Tags in original but not current = removed
+    selectedTagIds.forEach((id) => {
+      states[id] = originalTags.includes(id) ? 'no-change' : 'new';
+    });
+    originalTags.forEach((id) => {
+      if (!selectedTagIds.includes(id)) {
+        states[id] = 'removed';
+      }
+    });
+
+    return states;
+  }, [selectedTagIds, originalTags, isNewCase]);
+
+  // Get all tags to display (current + removed)
+  const displayTags = useMemo(() => {
+    const allTagIds = new Set([...selectedTagIds, ...originalTags.filter((id) => !selectedTagIds.includes(id))]);
+    return mockTags.filter((t) => allTagIds.has(t.id));
+  }, [selectedTagIds, originalTags]);
 
   // Prefill data from email
   const prefillConstituentData = {
-    name: mockEmail.fromName,
-    email: mockEmail.fromEmail,
-    address: mockEmail.addressFound,
+    name: currentTriageCase.email.fromName,
+    email: currentTriageCase.email.fromEmail,
+    address: currentTriageCase.email.addressFound,
   };
 
   const prefillCaseData = {
@@ -797,6 +1316,9 @@ export default function TriagePrototype5() {
   const handleCreateCase = (caseName: string) => {
     console.log('Creating case:', caseName);
     // In real app, this would create the case and select it
+    // Mark as new case so all tags show as 'no-change' state
+    setIsNewCase(true);
+    setSelectedTagIds([]); // Reset tags for new case
   };
 
   const handleSendAddressRequest = (message: string) => {
@@ -804,12 +1326,27 @@ export default function TriagePrototype5() {
     // In real app, this would send the email
   };
 
-  const removeTag = (tagId: string) => {
-    setSelectedTagIds(selectedTagIds.filter((id) => id !== tagId));
+  const handleAssignToCampaign = (campaignId: string) => {
+    console.log('Assigning email to campaign:', campaignId);
+    // In real app, this would link the email to the campaign
   };
 
+  const handleCreateCampaign = (campaign: Omit<Campaign, 'id'>) => {
+    console.log('Creating new campaign:', campaign);
+    // In real app, this would create the campaign and assign the email
+  };
+
+  // Show success page if all cases are completed
+  if (isCompleted) {
+    return (
+      <div className="h-full">
+        <SuccessPage onReset={handleReset} />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex f-full gap-4">
+    <div className="flex flex-1 gap-4 overflow-hidden">
       {/* Left Panel - Email View */}
       <div className="flex-1 flex flex-col overflow-hidden bg-background">
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -818,12 +1355,12 @@ export default function TriagePrototype5() {
             <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
               Subject
             </div>
-            <h2 className="text-lg font-semibold">{mockEmail.subject}</h2>
+            <h2 className="text-lg font-semibold">{currentTriageCase.email.subject}</h2>
             <div className="text-sm text-muted-foreground mt-2">
-              From: {mockEmail.fromName} &lt;{mockEmail.fromEmail}&gt;
+              From: {currentTriageCase.email.fromName} &lt;{currentTriageCase.email.fromEmail}&gt;
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {new Date(mockEmail.receivedAt).toLocaleString()}
+              {new Date(currentTriageCase.email.receivedAt).toLocaleString()}
             </div>
           </div>
 
@@ -834,19 +1371,19 @@ export default function TriagePrototype5() {
             </div>
             <ScrollArea className="h-full pr-4">
               <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                {mockEmail.body}
+                {currentTriageCase.email.body}
               </div>
             </ScrollArea>
           </div>
 
           {/* Thread Emails */}
-          {mockThreadEmails.length > 0 && (
+          {currentTriageCase.threadEmails.length > 0 && (
             <div className="shrink-0 pt-4 mt-4 border-t">
               <div className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
                 Previous in thread
               </div>
               <Accordion type="single" collapsible className="space-y-2">
-                {mockThreadEmails.map((threadEmail) => (
+                {currentTriageCase.threadEmails.map((threadEmail) => (
                   <AccordionItem
                     key={threadEmail.id}
                     value={threadEmail.id}
@@ -882,126 +1419,173 @@ export default function TriagePrototype5() {
       </div>
 
       {/* Right Panel - Case Management */}
-      <div className="w-[320px] flex flex-col gap-4">
-        {/* Constituent, Case & Tags Card */}
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            {/* Constituent Dropdown */}
-            <SearchableDropdown
-              label="Constituent"
-              icon={<User className="h-4 w-4" />}
-              placeholder="Select constituent..."
-              items={constituentItems}
-              selectedId={selectedConstituentId}
-              onSelect={setSelectedConstituentId}
-              onCreateNew={() => setCreateConstituentModalOpen(true)}
-              createNewLabel="Create new constituent"
-              isRecognized={!!selectedConstituentId}
-            />
+      <div className="w-[320px] h-screen flex flex-col shrink-0">
+        {/* Top Actions */}
+        <div className="shrink-0 p-3 border-b">
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() => setAssignCampaignModalOpen(true)}
+          >
+            <Megaphone className="mr-2 h-4 w-4" />
+            Assign to Campaign
+          </Button>
+        </div>
 
-            {/* Case Dropdown */}
-            <div className="space-y-2">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-1 space-y-3">
+          {/* Constituent, Case & Tags Card */}
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              {/* Constituent Dropdown */}
               <SearchableDropdown
-                label="Case"
-                icon={<Briefcase className="h-4 w-4" />}
-                placeholder="Select case..."
-                items={caseItems}
-                selectedId={selectedCaseId}
-                onSelect={setSelectedCaseId}
-                onCreateNew={() => setCreateCaseModalOpen(true)}
-                createNewLabel="Create new case"
-                isRecognized={!!selectedCaseId}
+                label="Constituent"
+                icon={<User className="h-4 w-4" />}
+                placeholder="Select constituent..."
+                items={constituentItems}
+                selectedId={selectedConstituentId}
+                onSelect={setSelectedConstituentId}
+                onCreateNew={() => setCreateConstituentModalOpen(true)}
+                createNewLabel="Create new constituent"
+                isRecognized={!!selectedConstituentId}
               />
-              {/* Case Pill - shown when case is selected */}
-              {selectedCaseId && (
-                <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
-                  <FileText className="h-3 w-3 mr-1" />
-                  {caseItems.find((c) => c.id === selectedCaseId)?.name}
-                </Badge>
-              )}
-            </div>
 
-            {/* Case Tags */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Tags</Label>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={() => setTagModalOpen(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2 border rounded-md bg-muted/30">
-                {selectedTags.length > 0 ? (
-                  selectedTags.map((tag) => (
-                    <Badge
-                      key={tag.id}
-                      className={cn('gap-1 pr-1', tag.color)}
-                    >
-                      {tag.name}
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag.id)}
-                        className="ml-1 rounded-full hover:bg-black/10 p-0.5"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-xs text-muted-foreground">
-                    No tags added
-                  </span>
+              {/* Case Dropdown */}
+              <div className="space-y-2">
+                <SearchableDropdown
+                  label="Case"
+                  icon={<Briefcase className="h-4 w-4" />}
+                  placeholder="Select case..."
+                  items={caseItems}
+                  selectedId={selectedCaseId}
+                  onSelect={setSelectedCaseId}
+                  onCreateNew={() => setCreateCaseModalOpen(true)}
+                  createNewLabel="Create new case"
+                  isRecognized={!!selectedCaseId}
+                />
+                {/* Case Pill - shown when case is selected */}
+                {selectedCase && (
+                  <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
+                    <FileText className="h-3 w-3 mr-1" />
+                    {selectedCase.ref}
+                  </Badge>
                 )}
               </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Assignee & Priority Row */}
-        <Card>
-          <CardContent className="p-4 space-y-4">
-            {/* Assignee */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Assignee</Label>
-              <Select value={selectedAssigneeId} onValueChange={setSelectedAssigneeId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select assignee" />
-                </SelectTrigger>
-                <SelectContent>
-                  {mockCaseworkers.map((cw) => (
-                    <SelectItem key={cw.id} value={cw.id}>
-                      {cw.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+              {/* Tags */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Tags</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2 border rounded-md bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
+                      {displayTags.length > 0 ? (
+                        <>
+                          {displayTags.map((tag) => {
+                            const state = tagStates[tag.id];
+                            // Extract text color class for border styling
+                            const textColorClass = tag.color.split(' ').find(c => c.startsWith('text-')) || '';
+                            return (
+                              <Badge
+                                key={tag.id}
+                                variant={state === 'new' ? 'outline' : 'default'}
+                                className={cn(
+                                  'text-xs',
+                                  state === 'no-change' && tag.color,
+                                  state === 'new' && `bg-transparent ${textColorClass} ${tag.borderColor}`,
+                                  state === 'removed' && `${tag.color} line-through opacity-50`
+                                )}
+                              >
+                                {tag.name}
+                              </Badge>
+                            );
+                          })}
+                        </>
+                      ) : (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Plus className="h-3 w-3" />
+                          Add tags
+                        </span>
+                      )}
+                    </div>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[220px] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput placeholder="Search tags..." />
+                      <CommandList>
+                        <CommandEmpty>No tags found.</CommandEmpty>
+                        <CommandGroup>
+                          {mockTags.map((tag) => {
+                            const isSelected = selectedTagIds.includes(tag.id);
+                            return (
+                              <CommandItem
+                                key={tag.id}
+                                value={tag.id}
+                                onSelect={() => {
+                                  if (isSelected) {
+                                    setSelectedTagIds(selectedTagIds.filter((id) => id !== tag.id));
+                                  } else {
+                                    setSelectedTagIds([...selectedTagIds, tag.id]);
+                                  }
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2 flex-1">
+                                  <Badge className={cn('text-xs', tag.color)}>
+                                    {tag.name}
+                                  </Badge>
+                                </div>
+                                {isSelected && <Check className="h-4 w-4" />}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* Priority */}
-            <PrioritySelector value={priority} onChange={setPriority} />
-          </CardContent>
-        </Card>
+          {/* Assignee & Priority Row */}
+          <Card>
+            <CardContent className="p-4 space-y-4">
+              {/* Assignee */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Assignee</Label>
+                <Select value={selectedAssigneeId} onValueChange={setSelectedAssigneeId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {mockCaseworkers.map((cw) => (
+                      <SelectItem key={cw.id} value={cw.id}>
+                        {cw.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-        {/* Action Button */}
-        <Button className="w-full" size="lg">
-          <Check className="mr-2 h-4 w-4" />
-          Save & Continue
-        </Button>
+              {/* Priority */}
+              <PrioritySelector value={priority} onChange={setPriority} />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Pinned Action Button */}
+        <div className="shrink-0 p-3 border-t bg-background">
+          <div className="text-xs text-muted-foreground text-center mb-2">
+            Case {currentCaseIndex + 1} of {mockTriageCases.length}
+          </div>
+          <Button className="w-full" size="lg" onClick={handleApprove}>
+            <Check className="mr-2 h-4 w-4" />
+            Approve & Next
+          </Button>
+        </div>
       </div>
 
       {/* Modals */}
-      <TagSelectorModal
-        open={tagModalOpen}
-        onOpenChange={setTagModalOpen}
-        availableTags={mockTags}
-        selectedTagIds={selectedTagIds}
-        onTagsChange={setSelectedTagIds}
-      />
-
       <CreateConstituentModal
         open={createConstituentModalOpen}
         onOpenChange={setCreateConstituentModalOpen}
@@ -1023,8 +1607,15 @@ export default function TriagePrototype5() {
       <RequestAddressModal
         open={requestAddressModalOpen}
         onOpenChange={setRequestAddressModalOpen}
-        email={mockEmail}
+        email={currentTriageCase.email}
         onSend={handleSendAddressRequest}
+      />
+
+      <AssignToCampaignModal
+        open={assignCampaignModalOpen}
+        onOpenChange={setAssignCampaignModalOpen}
+        onAssign={handleAssignToCampaign}
+        onCreate={handleCreateCampaign}
       />
     </div>
   );
