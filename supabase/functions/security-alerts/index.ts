@@ -68,7 +68,8 @@ serve(async (req) => {
         audit_log_id,
         severity,
         office_id,
-        created_at
+        created_at,
+        retry_count
       `)
       .is('processed_at', null)
       .order('created_at', { ascending: true })

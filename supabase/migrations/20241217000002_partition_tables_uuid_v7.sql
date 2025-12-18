@@ -125,13 +125,13 @@ CREATE TABLE public.messages (
 CREATE TABLE public.messages_default PARTITION OF public.messages DEFAULT;
 
 -- 3e. Create indexes on partitioned table (will be inherited by partitions)
-CREATE INDEX idx_messages_id ON public.messages (id);
-CREATE INDEX idx_messages_case ON public.messages (case_id);
-CREATE INDEX idx_messages_campaign ON public.messages (campaign_id);
-CREATE INDEX idx_messages_received ON public.messages (received_at DESC);
-CREATE INDEX idx_messages_search ON public.messages USING gin (search_vector);
-CREATE INDEX idx_messages_thread ON public.messages (thread_id);
-CREATE INDEX idx_messages_message_id_header ON public.messages (message_id_header);
+CREATE INDEX IF NOT EXISTS idx_messages_id ON public.messages (id);
+CREATE INDEX IF NOT EXISTS idx_messages_case ON public.messages (case_id);
+CREATE INDEX IF NOT EXISTS idx_messages_campaign ON public.messages (campaign_id);
+CREATE INDEX IF NOT EXISTS idx_messages_received ON public.messages (received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_search ON public.messages USING gin (search_vector);
+CREATE INDEX IF NOT EXISTS idx_messages_thread ON public.messages (thread_id);
+CREATE INDEX IF NOT EXISTS idx_messages_message_id_header ON public.messages (message_id_header);
 
 -- 3f. Migrate data from old table
 INSERT INTO public.messages (
@@ -214,11 +214,11 @@ CREATE TABLE public.audit_logs (
 CREATE TABLE public.audit_logs_default PARTITION OF public.audit_logs DEFAULT;
 
 -- 4d. Create indexes
-CREATE INDEX idx_audit_logs_id ON public.audit_logs (id);
-CREATE INDEX idx_audit_logs_actor ON public.audit_logs (actor_id);
-CREATE INDEX idx_audit_logs_created ON public.audit_logs (created_at DESC);
-CREATE INDEX idx_audit_logs_entity ON public.audit_logs (entity_type, entity_id);
-CREATE INDEX idx_audit_logs_action ON public.audit_logs (action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_id ON public.audit_logs (id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON public.audit_logs (actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON public.audit_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON public.audit_logs (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON public.audit_logs (action);
 
 -- 4e. Migrate data
 INSERT INTO public.audit_logs (
@@ -275,9 +275,9 @@ CREATE TABLE public.attachments (
 CREATE TABLE public.attachments_default PARTITION OF public.attachments DEFAULT;
 
 -- 5d. Create indexes
-CREATE INDEX idx_attachments_id ON public.attachments (id);
-CREATE INDEX idx_attachments_message ON public.attachments (message_id);
-CREATE INDEX idx_attachments_created ON public.attachments (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_attachments_id ON public.attachments (id);
+CREATE INDEX IF NOT EXISTS idx_attachments_message ON public.attachments (message_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_created ON public.attachments (created_at DESC);
 
 -- 5e. Migrate data
 INSERT INTO public.attachments (

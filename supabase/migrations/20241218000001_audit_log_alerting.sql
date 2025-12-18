@@ -80,7 +80,7 @@ ADD COLUMN IF NOT EXISTS requires_alert BOOLEAN DEFAULT false;
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS public.audit_alert_queue (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   audit_log_id UUID NOT NULL,
   office_id UUID NOT NULL REFERENCES offices(id) ON DELETE CASCADE,
   severity TEXT NOT NULL CHECK (severity IN ('critical', 'high', 'standard')),
