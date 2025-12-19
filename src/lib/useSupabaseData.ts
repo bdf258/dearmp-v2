@@ -83,6 +83,14 @@ interface UseSupabaseDataReturn {
   removeCaseParty: (casePartyId: string) => Promise<boolean>;
   createCampaign: (data: { name: string; description?: string; subject_pattern?: string }) => Promise<Campaign | null>;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, invitationCode?: string) => Promise<{ success: boolean; message: string }>;
+  validateInvitation: (token: string) => Promise<{ valid: boolean; officeName?: string; error?: string }>;
+
+  // Invitation management (admin only)
+  createInvitation: (options: { email?: string; role?: UserRole; expiresInDays?: number; maxUses?: number }) => Promise<{ token: string; expiresAt: string } | null>;
+  listInvitations: () => Promise<Array<{ id: string; token: string; email: string | null; role: UserRole; created_at: string; expires_at: string; use_count: number; max_uses: number | null; used_at: string | null }>>;
+  revokeInvitation: (invitationId: string) => Promise<boolean>;
+
   signOut: () => Promise<void>;
 
   // Settings actions
@@ -569,8 +577,257 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     }
   };
 
+  const validateInvitation = async (token: string): Promise<{ valid: boolean; officeName?: string; error?: string }> => {
+    try {
+      // Note: office_invitations table is created by migration 20241219000001
+      // Type assertion needed until database types are regenerated
+      const { data, error: fetchError } = await (supabase as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            eq: (column: string, value: string) => {
+              single: () => Promise<{ data: { id: string; office_id: string; offices?: { name: string } } | null; error: Error | null }>;
+            };
+          };
+        };
+      }).from('office_invitations')
+        .select('id, office_id, offices(name)')
+        .eq('token', token)
+        .single();
+
+      if (fetchError || !data) {
+        return { valid: false, error: 'Invalid invitation code' };
+      }
+
+      const officeName = data.offices?.name;
+      return { valid: true, officeName };
+    } catch {
+      return { valid: false, error: 'Failed to validate invitation' };
+    }
+  };
+
+  const signUp = async (
+    email: string,
+    password: string,
+    fullName: string,
+    invitationCode?: string
+  ): Promise<{ success: boolean; message: string }> => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Step 1: Create the auth user
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
+      });
+
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return { success: false, message: signUpError.message };
+      }
+
+      if (!authData.user) {
+        setLoading(false);
+        return { success: false, message: 'Failed to create account' };
+      }
+
+      // Step 2: If invitation code provided, claim it and assign office
+      if (invitationCode) {
+        // Note: claim_invitation function is created by migration 20241219000001
+        // Type assertion needed until database types are regenerated
+        type ClaimResult = { success: boolean; office_id: string | null; role: UserRole | null; error_message: string | null };
+        const { data: claimResult, error: claimError } = await (supabase.rpc as unknown as (
+          fn: string,
+          params: Record<string, unknown>
+        ) => Promise<{ data: ClaimResult[] | null; error: Error | null }>)('claim_invitation', {
+          p_token: invitationCode,
+          p_user_id: authData.user.id,
+          p_email: email,
+        });
+
+        if (claimError) {
+          console.error('Error claiming invitation:', claimError);
+          // User is created but without office - they can be assigned later
+          setLoading(false);
+          return {
+            success: true,
+            message: 'Account created but invitation could not be applied. Please contact your administrator.',
+          };
+        }
+
+        const result = claimResult?.[0];
+        if (result && result.success && result.office_id) {
+          // Create profile with office assignment
+          const assignedRole: UserRole = result.role || 'staff';
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: authData.user.id,
+              full_name: fullName,
+              office_id: result.office_id,
+              role: assignedRole,
+            });
+
+          if (profileError) {
+            console.error('Error creating profile:', profileError);
+          }
+
+          setLoading(false);
+          return {
+            success: true,
+            message: 'Account created successfully! Please check your email to verify your account.',
+          };
+        } else {
+          setLoading(false);
+          return {
+            success: true,
+            message: result?.error_message || 'Account created but invitation was invalid. Please contact your administrator.',
+          };
+        }
+      }
+
+      // No invitation code - create profile without office (pending assignment)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: authData.user.id,
+          full_name: fullName,
+          office_id: null,
+          role: 'staff',
+        });
+
+      if (profileError) {
+        console.error('Error creating profile:', profileError);
+      }
+
+      setLoading(false);
+      return {
+        success: true,
+        message: 'Account created! Please check your email to verify your account. An administrator will assign you to an office.',
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sign up failed';
+      setError(message);
+      setLoading(false);
+      return { success: false, message };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
+  };
+
+  // Invitation management functions (admin only)
+  type Invitation = {
+    id: string;
+    token: string;
+    email: string | null;
+    role: UserRole;
+    created_at: string;
+    expires_at: string;
+    use_count: number;
+    max_uses: number | null;
+    used_at: string | null;
+  };
+
+  const createInvitation = async (options: {
+    email?: string;
+    role?: UserRole;
+    expiresInDays?: number;
+    maxUses?: number;
+  }): Promise<{ token: string; expiresAt: string } | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    try {
+      // Use the database function to create the invitation
+      const { data, error: rpcError } = await (supabase.rpc as unknown as (
+        fn: string,
+        params: Record<string, unknown>
+      ) => Promise<{ data: { token: string; expires_at: string } | null; error: Error | null }>)('create_office_invitation', {
+        p_office_id: officeId,
+        p_email: options.email || null,
+        p_role: options.role || 'staff',
+        p_expires_in_days: options.expiresInDays || 7,
+        p_max_uses: options.maxUses || 1,
+      });
+
+      if (rpcError || !data) {
+        console.error('Error creating invitation:', rpcError);
+        return null;
+      }
+
+      return { token: data.token, expiresAt: data.expires_at };
+    } catch (err) {
+      console.error('Error creating invitation:', err);
+      return null;
+    }
+  };
+
+  const listInvitations = async (): Promise<Invitation[]> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return [];
+
+    try {
+      // Query the office_invitations table directly
+      // Type assertion needed until database types are regenerated
+      const { data, error: fetchError } = await (supabase as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            eq: (column: string, value: string) => {
+              order: (column: string, options: { ascending: boolean }) => Promise<{ data: Invitation[] | null; error: Error | null }>;
+            };
+          };
+        };
+      }).from('office_invitations')
+        .select('id, token, email, role, created_at, expires_at, use_count, max_uses, used_at')
+        .eq('office_id', officeId)
+        .order('created_at', { ascending: false });
+
+      if (fetchError || !data) {
+        console.error('Error fetching invitations:', fetchError);
+        return [];
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Error fetching invitations:', err);
+      return [];
+    }
+  };
+
+  const revokeInvitation = async (invitationId: string): Promise<boolean> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return false;
+
+    try {
+      // Delete the invitation (RLS will ensure it belongs to the user's office)
+      const { error: deleteError } = await (supabase as unknown as {
+        from: (table: string) => {
+          delete: () => {
+            eq: (column: string, value: string) => Promise<{ error: Error | null }>;
+          };
+        };
+      }).from('office_invitations')
+        .delete()
+        .eq('id', invitationId);
+
+      if (deleteError) {
+        console.error('Error revoking invitation:', deleteError);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Error revoking invitation:', err);
+      return false;
+    }
   };
 
   // Settings actions
@@ -987,6 +1244,11 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     removeCaseParty,
     createCampaign,
     signIn,
+    signUp,
+    validateInvitation,
+    createInvitation,
+    listInvitations,
+    revokeInvitation,
     signOut,
 
     // Settings actions

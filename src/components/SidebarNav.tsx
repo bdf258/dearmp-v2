@@ -6,11 +6,11 @@ import {
   Building2,
   Inbox,
   FolderOpen,
-  BarChart3,
   X,
   PanelLeftClose,
   PanelLeftOpen,
   MessageSquare,
+  LayoutDashboard,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -32,6 +32,12 @@ interface NavItem {
 const navItems: NavItem[] = [
   // Casework section
   {
+    title: 'Dashboard',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+    section: 'casework',
+  },
+  {
     title: 'Triage',
     href: '/triage',
     icon: Inbox,
@@ -50,12 +56,6 @@ const navItems: NavItem[] = [
     section: 'casework',
   },
   // Coming Soon section
-  {
-    title: 'Reporting',
-    href: '/casework/reporting',
-    icon: BarChart3,
-    section: 'coming_soon',
-  },
   {
     title: 'Letters',
     href: '/office/letters',

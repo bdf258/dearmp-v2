@@ -119,7 +119,7 @@ export function TagPicker({
   return (
     <div className={cn('space-y-2', className)}>
       {label && <Label className="text-sm font-medium">{label}</Label>}
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open && !disabled} onOpenChange={(isOpen) => !disabled && setOpen(isOpen)}>
         <PopoverTrigger asChild>
           <div
             className={cn(
