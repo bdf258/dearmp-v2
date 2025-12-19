@@ -72,6 +72,9 @@ import {
   ArrowLeft,
   Check,
   Plus,
+  CheckCircle2,
+  HelpCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -263,7 +266,7 @@ function CampaignInbox({
   onBack: () => void;
 }) {
   const navigate = useNavigate();
-  const { profiles, tags, getTagsForEntity, updateTagAssignments } = useSupabase();
+  const { profiles, tags } = useSupabase();
   const { messages } = useTriageQueue({ campaignId: campaign.id, constituentStatus: currentBucket });
   const { approveTriage, bulkDismissTriage, isProcessing } = useTriageActions();
 
@@ -314,11 +317,6 @@ function CampaignInbox({
       return next;
     });
   }, []);
-
-  // Select all
-  const selectAll = useCallback(() => {
-    setSelectedIds(new Set(messages.map(m => m.id)));
-  }, [messages]);
 
   // Clear selection
   const clearSelection = useCallback(() => {
@@ -428,7 +426,7 @@ function CampaignInbox({
   const isActionInProgress = isProcessing || actionInProgress !== null;
 
   // Get caseworkers list
-  const caseworkers = profiles.filter(p => p.role === 'caseworker' || p.role === 'admin');
+  const caseworkers = profiles.filter(p => p.role === 'staff' || p.role === 'admin');
 
   return (
     <div className="h-full flex flex-col">
@@ -788,7 +786,7 @@ function MessagePreviewWithToolbar({
                 From: {message.senderName} &lt;{message.senderEmail}&gt;
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                {new Date(message.receivedAt).toLocaleString()}
+                {new Date(message.received_at).toLocaleString()}
               </div>
             </div>
             {message.constituentStatus === 'known' && message.senderConstituent && (
