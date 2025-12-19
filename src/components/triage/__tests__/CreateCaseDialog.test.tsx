@@ -2,10 +2,10 @@
  * CreateCaseDialog Component Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CreateCaseDialog } from '../CreateCaseDialog';
+import * as React from 'react';
 
 // Mock the triage hooks
 const mockCreateCaseForMessage = vi.fn();
@@ -13,6 +13,14 @@ vi.mock('@/hooks/triage/useTriage', () => ({
   useTriageActions: () => ({
     createCaseForMessage: mockCreateCaseForMessage,
     isProcessing: false,
+  }),
+  useCaseworkers: () => ({
+    caseworkers: [
+      { id: 'worker1', full_name: 'Alice', role: 'staff', office_id: 'office1' },
+      { id: 'worker2', full_name: 'Bob', role: 'admin', office_id: 'office1' },
+    ],
+    loading: false,
+    error: null,
   }),
 }));
 
@@ -35,6 +43,228 @@ vi.mock('@/lib/SupabaseContext', () => ({
   }),
 }));
 
+// Mock Radix UI Dialog to avoid React scheduling issues in happy-dom
+vi.mock('@radix-ui/react-dialog', async () => {
+  const React = await import('react');
+
+  const DialogContext = React.createContext<{ open?: boolean; onOpenChange?: (open: boolean) => void }>({});
+
+  const DialogRootMock = function DialogRoot({ children, open, onOpenChange }: {
+    children: React.ReactNode;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }) {
+    const contextValue = React.useMemo(() => ({ open, onOpenChange }), [open, onOpenChange]);
+
+    if (!open) return null;
+    return (
+      <DialogContext.Provider value={contextValue}>
+        <div data-testid="dialog-root" data-open={open}>
+          {children}
+        </div>
+      </DialogContext.Provider>
+    );
+  };
+
+  const DialogTriggerMock = React.forwardRef<HTMLButtonElement, { children: React.ReactNode; asChild?: boolean }>(
+    function DialogTrigger({ children, asChild }, ref) {
+      if (asChild && React.isValidElement(children)) {
+        return children;
+      }
+      return <button ref={ref}>{children}</button>;
+    }
+  );
+
+  const DialogPortalMock = function DialogPortal({ children }: { children: React.ReactNode }) {
+    return <>{children}</>;
+  };
+
+  const DialogOverlayMock = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(
+    function DialogOverlay({ children, ...props }, ref) {
+      return <div ref={ref} data-testid="dialog-overlay" {...props}>{children}</div>;
+    }
+  );
+
+  const DialogContentMock = React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(
+    function DialogContent({ children, ...props }, ref) {
+      return <div ref={ref} data-testid="dialog-content" role="dialog" {...props}>{children}</div>;
+    }
+  );
+
+  const DialogCloseMock = React.forwardRef<HTMLButtonElement, React.ComponentPropsWithoutRef<'button'>>(
+    function DialogClose({ children, onClick, ...props }, ref) {
+      const context = React.useContext(DialogContext);
+      return (
+        <button
+          ref={ref}
+          onClick={(e) => {
+            onClick?.(e);
+            context.onOpenChange?.(false);
+          }}
+          {...props}
+        >
+          {children}
+        </button>
+      );
+    }
+  );
+
+  const DialogTitleMock = React.forwardRef<HTMLHeadingElement, React.ComponentPropsWithoutRef<'h2'>>(
+    function DialogTitle({ children, ...props }, ref) {
+      return <h2 ref={ref} {...props}>{children}</h2>;
+    }
+  );
+
+  const DialogDescriptionMock = React.forwardRef<HTMLParagraphElement, React.ComponentPropsWithoutRef<'p'>>(
+    function DialogDescription({ children, ...props }, ref) {
+      return <p ref={ref} {...props}>{children}</p>;
+    }
+  );
+
+  // Assign displayNames
+  (DialogOverlayMock as { displayName?: string }).displayName = 'DialogOverlay';
+  (DialogContentMock as { displayName?: string }).displayName = 'DialogContent';
+  (DialogTitleMock as { displayName?: string }).displayName = 'DialogTitle';
+  (DialogDescriptionMock as { displayName?: string }).displayName = 'DialogDescription';
+  (DialogCloseMock as { displayName?: string }).displayName = 'DialogClose';
+
+  return {
+    Root: DialogRootMock,
+    Trigger: DialogTriggerMock,
+    Portal: DialogPortalMock,
+    Overlay: DialogOverlayMock,
+    Content: DialogContentMock,
+    Close: DialogCloseMock,
+    Title: DialogTitleMock,
+    Description: DialogDescriptionMock,
+  };
+});
+
+// Mock cmdk for CaseworkerSelector
+vi.mock('cmdk', async () => {
+  const React = await import('react');
+
+  const CommandMock = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'> & { shouldFilter?: boolean }>(
+    function Command({ children, shouldFilter, ...props }, ref) {
+      return (
+        <div ref={ref} data-testid="command" {...props}>
+          {children}
+        </div>
+      );
+    }
+  );
+
+  const InputMock = React.forwardRef<HTMLInputElement, React.ComponentPropsWithoutRef<'input'> & { value?: string; onValueChange?: (value: string) => void }>(
+    function CommandInput({ onValueChange, ...props }, ref) {
+      return (
+        <input
+          ref={ref}
+          onChange={(e) => onValueChange?.(e.target.value)}
+          {...props}
+        />
+      );
+    }
+  );
+
+  const ListMock = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(
+    function CommandList({ children, ...props }, ref) {
+      return <div ref={ref} {...props}>{children}</div>;
+    }
+  );
+
+  const EmptyMock = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(
+    function CommandEmpty({ children, ...props }, ref) {
+      return <div ref={ref} {...props}>{children}</div>;
+    }
+  );
+
+  const GroupMock = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'>>(
+    function CommandGroup({ children, ...props }, ref) {
+      return <div ref={ref} {...props}>{children}</div>;
+    }
+  );
+
+  const ItemMock = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'div'> & { onSelect?: () => void; value?: string }>(
+    function CommandItem({ children, onSelect, value, ...props }, ref) {
+      return (
+        <div
+          ref={ref}
+          role="option"
+          data-value={value}
+          onClick={onSelect}
+          {...props}
+        >
+          {children}
+        </div>
+      );
+    }
+  );
+
+  const SeparatorMock = React.forwardRef<HTMLHRElement, React.ComponentPropsWithoutRef<'hr'>>(
+    function CommandSeparator(props, ref) {
+      return <hr ref={ref} {...props} />;
+    }
+  );
+
+  (CommandMock as { displayName?: string }).displayName = 'Command';
+  (InputMock as { displayName?: string }).displayName = 'CommandInput';
+  (ListMock as { displayName?: string }).displayName = 'CommandList';
+  (EmptyMock as { displayName?: string }).displayName = 'CommandEmpty';
+  (GroupMock as { displayName?: string }).displayName = 'CommandGroup';
+  (ItemMock as { displayName?: string }).displayName = 'CommandItem';
+  (SeparatorMock as { displayName?: string }).displayName = 'CommandSeparator';
+
+  Object.assign(CommandMock, {
+    Input: InputMock,
+    List: ListMock,
+    Empty: EmptyMock,
+    Group: GroupMock,
+    Item: ItemMock,
+    Separator: SeparatorMock,
+  });
+
+  return { Command: CommandMock };
+});
+
+// Mock Radix UI Popover for CaseworkerSelector
+vi.mock('@radix-ui/react-popover', async () => {
+  const React = await import('react');
+
+  const PopoverRootMock = function PopoverRoot({ children }: { children: React.ReactNode }) {
+    return <div data-testid="popover-root">{children}</div>;
+  };
+
+  const PopoverTriggerMock = React.forwardRef<HTMLDivElement, { children: React.ReactNode; asChild?: boolean }>(
+    function PopoverTrigger({ children, asChild }, ref) {
+      if (asChild && React.isValidElement(children)) {
+        return children;
+      }
+      return <div ref={ref}>{children}</div>;
+    }
+  );
+
+  const PopoverPortalMock = function PopoverPortal({ children }: { children: React.ReactNode }) {
+    return <>{children}</>;
+  };
+
+  const PopoverContentMock = React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(
+    function PopoverContent({ children, ...props }, ref) {
+      return <div ref={ref} data-testid="popover-content" {...props}>{children}</div>;
+    }
+  );
+
+  return {
+    Root: PopoverRootMock,
+    Trigger: PopoverTriggerMock,
+    Portal: PopoverPortalMock,
+    Content: PopoverContentMock,
+    Anchor: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    Close: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+  };
+});
+
+import { CreateCaseDialog } from '../CreateCaseDialog';
+
 describe('CreateCaseDialog', () => {
   const defaultProps = {
     open: true,
@@ -48,6 +278,10 @@ describe('CreateCaseDialog', () => {
       success: true,
       caseId: 'new-case-456',
     });
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   it('renders dialog with correct title', () => {
@@ -213,8 +447,9 @@ describe('CreateCaseDialog', () => {
 
   it('resets form when dialog reopens', async () => {
     const user = userEvent.setup();
-    const { rerender } = render(
-      <CreateCaseDialog {...defaultProps} defaultTitle="Initial Title" />
+    const onOpenChange = vi.fn();
+    const { rerender, unmount } = render(
+      <CreateCaseDialog {...defaultProps} onOpenChange={onOpenChange} defaultTitle="Initial Title" />
     );
 
     const titleInput = screen.getByLabelText(/Title/i);
@@ -223,9 +458,12 @@ describe('CreateCaseDialog', () => {
 
     expect(titleInput).toHaveValue('Changed Title');
 
-    // Close and reopen
-    rerender(<CreateCaseDialog {...defaultProps} open={false} defaultTitle="Initial Title" />);
-    rerender(<CreateCaseDialog {...defaultProps} open={true} defaultTitle="Initial Title" />);
+    // Unmount and remount to simulate dialog close/reopen
+    // (our mock dialog doesn't trigger onOpenChange on rerender)
+    unmount();
+    render(
+      <CreateCaseDialog {...defaultProps} onOpenChange={onOpenChange} open={true} defaultTitle="Initial Title" />
+    );
 
     expect(screen.getByLabelText(/Title/i)).toHaveValue('Initial Title');
   });

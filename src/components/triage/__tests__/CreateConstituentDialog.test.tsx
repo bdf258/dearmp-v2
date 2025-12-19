@@ -180,8 +180,9 @@ describe('CreateConstituentDialog', () => {
 
   it('resets form when dialog reopens', async () => {
     const user = userEvent.setup();
-    const { rerender } = render(
-      <CreateConstituentDialog {...defaultProps} defaultName="Initial Name" />
+    const onOpenChange = vi.fn();
+    const { unmount } = render(
+      <CreateConstituentDialog {...defaultProps} onOpenChange={onOpenChange} defaultName="Initial Name" />
     );
 
     // Change the value
@@ -191,9 +192,11 @@ describe('CreateConstituentDialog', () => {
 
     expect(nameInput).toHaveValue('Changed Name');
 
-    // Close and reopen the dialog
-    rerender(<CreateConstituentDialog {...defaultProps} open={false} defaultName="Initial Name" />);
-    rerender(<CreateConstituentDialog {...defaultProps} open={true} defaultName="Initial Name" />);
+    // Unmount and remount to simulate dialog close/reopen
+    unmount();
+    render(
+      <CreateConstituentDialog {...defaultProps} onOpenChange={onOpenChange} open={true} defaultName="Initial Name" />
+    );
 
     // Value should be reset to default
     expect(screen.getByLabelText(/Full Name/i)).toHaveValue('Initial Name');
