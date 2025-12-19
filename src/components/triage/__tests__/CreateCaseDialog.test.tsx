@@ -448,7 +448,7 @@ describe('CreateCaseDialog', () => {
   it('resets form when dialog reopens', async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
-    const { rerender, unmount } = render(
+    const { unmount } = render(
       <CreateCaseDialog {...defaultProps} onOpenChange={onOpenChange} defaultTitle="Initial Title" />
     );
 
