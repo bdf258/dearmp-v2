@@ -21,7 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Check, ChevronDown, Plus, CheckCircle2, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, Plus, CheckCircle2, HelpCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface DropdownItem {
@@ -30,6 +30,8 @@ export interface DropdownItem {
   secondary?: string;
   badge?: ReactNode;
 }
+
+export type RecognitionStatus = 'confirmed' | 'ai_matched' | 'none';
 
 interface SearchableDropdownProps {
   label?: string;
@@ -40,7 +42,9 @@ interface SearchableDropdownProps {
   onSelect: (id: string | null) => void;
   onCreateNew?: () => void;
   createNewLabel?: string;
+  /** @deprecated Use recognitionStatus instead */
   isRecognized?: boolean;
+  recognitionStatus?: RecognitionStatus;
   disabled?: boolean;
   isLoading?: boolean;
   searchPlaceholder?: string;
@@ -58,12 +62,16 @@ export function SearchableDropdown({
   onCreateNew,
   createNewLabel = 'Create new',
   isRecognized,
+  recognitionStatus,
   disabled,
   isLoading,
   searchPlaceholder,
   emptyMessage = 'No results found.',
   className,
 }: SearchableDropdownProps) {
+  // Compute effective recognition status (support legacy isRecognized prop)
+  const effectiveStatus: RecognitionStatus = recognitionStatus
+    ?? (isRecognized ? 'confirmed' : 'none');
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -172,8 +180,11 @@ export function SearchableDropdown({
             </Command>
           </PopoverContent>
         </Popover>
-        {isRecognized && selectedId && (
+        {selectedId && effectiveStatus === 'confirmed' && (
           <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+        )}
+        {selectedId && effectiveStatus === 'ai_matched' && (
+          <HelpCircle className="h-5 w-5 text-orange-500 shrink-0" />
         )}
       </div>
     </div>

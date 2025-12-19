@@ -73,7 +73,12 @@ export function useTriageQueue(filters?: TriageQueueFilters) {
 
     // Apply campaign filter
     if (filters?.campaignId) {
+      // When filtering by campaign, only show that campaign's messages
       filtered = filtered.filter(m => m.campaign_id === filters.campaignId);
+    } else {
+      // When no campaign filter, exclude messages that belong to campaigns
+      // Campaign messages should only appear in the campaign triage section
+      filtered = filtered.filter(m => !m.campaign_id);
     }
 
     // Enrich with recipient and constituent data

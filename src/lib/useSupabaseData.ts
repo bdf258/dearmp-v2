@@ -81,7 +81,7 @@ interface UseSupabaseDataReturn {
   updateMessage: (id: string, updates: MessageUpdate) => Promise<Message | null>;
   createCaseParty: (data: Omit<CasePartyInsert, 'office_id'>) => Promise<CaseParty | null>;
   removeCaseParty: (casePartyId: string) => Promise<boolean>;
-  createCampaign: (data: { name: string; description?: string; subject_pattern?: string }) => Promise<Campaign | null>;
+  createCampaign: (data: { name: string; description?: string; subject_pattern?: string; fingerprint_hash?: string }) => Promise<Campaign | null>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string, invitationCode?: string) => Promise<{ success: boolean; message: string }>;
   validateInvitation: (token: string) => Promise<{ valid: boolean; officeName?: string; error?: string }>;
@@ -539,7 +539,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     return true;
   };
 
-  const createCampaign = async (data: { name: string; description?: string; subject_pattern?: string }): Promise<Campaign | null> => {
+  const createCampaign = async (data: { name: string; description?: string; subject_pattern?: string; fingerprint_hash?: string }): Promise<Campaign | null> => {
     const officeId = getMyOfficeId();
     if (!officeId) return null;
 
@@ -548,6 +548,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       name: data.name,
       description: data.description || null,
       subject_pattern: data.subject_pattern || null,
+      fingerprint_hash: data.fingerprint_hash || null,
       status: 'active',
     };
 

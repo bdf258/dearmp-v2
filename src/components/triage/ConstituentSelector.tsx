@@ -7,7 +7,7 @@
 
 import { useMemo } from 'react';
 import { useSupabase } from '@/lib/SupabaseContext';
-import { SearchableDropdown, type DropdownItem } from './SearchableDropdown';
+import { SearchableDropdown, type DropdownItem, type RecognitionStatus } from './SearchableDropdown';
 import { User, Mail, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +15,9 @@ interface ConstituentSelectorProps {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onCreateNew?: () => void;
+  /** @deprecated Use recognitionStatus instead */
   isRecognized?: boolean;
+  recognitionStatus?: RecognitionStatus;
   disabled?: boolean;
   label?: string;
   className?: string;
@@ -26,6 +28,7 @@ export function ConstituentSelector({
   onSelect,
   onCreateNew,
   isRecognized,
+  recognitionStatus,
   disabled,
   label = 'Constituent',
   className,
@@ -59,6 +62,7 @@ export function ConstituentSelector({
       onCreateNew={onCreateNew}
       createNewLabel="Create new constituent"
       isRecognized={isRecognized}
+      recognitionStatus={recognitionStatus}
       disabled={disabled}
       searchPlaceholder="Search by name or email..."
       emptyMessage="No constituents found"

@@ -7,7 +7,7 @@
  */
 
 // Base components
-export { SearchableDropdown, type DropdownItem } from './SearchableDropdown';
+export { SearchableDropdown, type DropdownItem, type RecognitionStatus } from './SearchableDropdown';
 
 // Selectors
 export { ConstituentSelector, ConstituentCard } from './ConstituentSelector';

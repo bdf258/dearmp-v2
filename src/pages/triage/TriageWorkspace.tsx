@@ -379,7 +379,13 @@ export function TriageWorkspace() {
                 selectedId={triageState.constituentId}
                 onSelect={(id) => setTriageState(prev => ({ ...prev, constituentId: id }))}
                 onCreateNew={() => setShowCreateConstituent(true)}
-                isRecognized={message.constituentStatus === 'known'}
+                recognitionStatus={
+                  triageState.constituentId
+                    ? message.triage_status === 'confirmed'
+                      ? 'confirmed'
+                      : 'ai_matched'
+                    : 'none'
+                }
                 label="Constituent"
               />
 
