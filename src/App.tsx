@@ -8,6 +8,7 @@ import { SessionSecurityBanner } from '@/components/SessionSecurityBanner';
 import Dashboard from '@/pages/Dashboard';
 import SettingsPage from '@/pages/SettingsPage';
 import LoginPage from '@/pages/LoginPage';
+import SignUpPage from '@/pages/SignUpPage';
 import TwoFAVerificationPage from '@/pages/TwoFAVerificationPage';
 import LettersPage from '@/pages/office/LettersPage';
 import ThirdPartiesPage from '@/pages/office/ThirdPartiesPage';
@@ -172,13 +173,17 @@ function AuthenticatedLayout() {
 
 function RootLayout() {
   const { user, loading, requiresMfa, checkMfaStatus, signOut } = useSupabase();
+  const [showSignUp, setShowSignUp] = useState(false);
 
   if (loading) {
     return <LoadingScreen />;
   }
 
   if (!user) {
-    return <LoginPage />;
+    if (showSignUp) {
+      return <SignUpPage onNavigateToLogin={() => setShowSignUp(false)} />;
+    }
+    return <LoginPage onNavigateToSignUp={() => setShowSignUp(true)} />;
   }
 
   // If user has MFA enabled but hasn't verified yet in this session
