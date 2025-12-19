@@ -39,23 +39,29 @@ const navItems: NavItem[] = [
   },
   {
     title: 'Triage',
-    href: '/triage',
+    href: '/triage/next',
     icon: Inbox,
     section: 'casework',
+  },
+  // Coming Soon section
+  {
+    title: 'Triage Dashboard',
+    href: '/triage',
+    icon: Inbox,
+    section: 'coming_soon',
   },
   {
     title: 'Campaigns',
     href: '/triage/campaigns',
     icon: MessageSquare,
-    section: 'casework',
+    section: 'coming_soon',
   },
   {
     title: 'Cases',
     href: '/casework/cases',
     icon: FolderOpen,
-    section: 'casework',
+    section: 'coming_soon',
   },
-  // Coming Soon section
   {
     title: 'Letters',
     href: '/office/letters',

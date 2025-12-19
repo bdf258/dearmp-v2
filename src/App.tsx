@@ -36,7 +36,7 @@ import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
 import DashboardPrototype from '@/pages/prototypes/DashboardPrototype';
 import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
-import { TriageDashboard, CampaignDashboard, TriageWorkspace } from '@/pages/triage';
+import { TriageDashboard, CampaignDashboard, TriageWorkspace, TriageRedirect } from '@/pages/triage';
 
 function LoadingScreen() {
   return (
@@ -144,6 +144,7 @@ function AuthenticatedLayout() {
 
             {/* Production Triage Routes - No PageLayout for full-screen layouts */}
             <Route path="/triage" element={<PageLayout><TriageDashboard /></PageLayout>} />
+            <Route path="/triage/next" element={<TriageRedirect />} />
             <Route path="/triage/campaigns" element={<CampaignDashboard />} />
             <Route path="/triage/campaigns/:campaignId" element={<CampaignDashboard />} />
             <Route path="/triage/messages/:messageId" element={<TriageWorkspace />} />

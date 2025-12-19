@@ -390,6 +390,7 @@ export type Database = {
       cases: {
         Row: {
           assigned_to: string | null
+          case_type: Database["public"]["Enums"]["case_type"] | null
           category: string | null
           closed_at: string
           created_at: string
@@ -400,12 +401,14 @@ export type Database = {
           priority: Database["public"]["Enums"]["case_priority"] | null
           reference_number?: number
           retention_policy_date: string | null
+          review_date: string | null
           status: Database["public"]["Enums"]["case_status"] | null
           title: string
           updated_at: string
         }
         Insert: {
           assigned_to?: string | null
+          case_type?: Database["public"]["Enums"]["case_type"] | null
           category?: string | null
           closed_at?: string | null
           created_at?: string | null
@@ -416,12 +419,14 @@ export type Database = {
           priority?: Database["public"]["Enums"]["case_priority"] | null
           reference_number?: number
           retention_policy_date?: string | null
+          review_date?: string | null
           status?: Database["public"]["Enums"]["case_status"] | null
           title: string
           updated_at?: string | null
         }
         Update: {
           assigned_to?: string | null
+          case_type?: Database["public"]["Enums"]["case_type"] | null
           category?: string | null
           closed_at?: string | null
           created_at?: string | null
@@ -432,6 +437,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["case_priority"] | null
           reference_number?: number
           retention_policy_date?: string | null
+          review_date?: string | null
           status?: Database["public"]["Enums"]["case_status"] | null
           title?: string
           updated_at?: string | null
@@ -1511,6 +1517,7 @@ export type Database = {
         | "triage_batch"
       case_priority: "low" | "medium" | "high" | "urgent"
       case_status: "open" | "pending" | "closed" | "archived"
+      case_type: "type_1" | "type_2" | "type_3" | "type_4" | "type_5" | "type_6" | "type_7" | "type_8"
       contact_type: "email" | "phone" | "address" | "social"
       message_channel: "email" | "phone" | "letter" | "meeting" | "social_media"
       message_direction: "inbound" | "outbound"
@@ -1659,6 +1666,7 @@ export const Constants = {
       ],
       case_priority: ["low", "medium", "high", "urgent"],
       case_status: ["open", "pending", "closed", "archived"],
+      case_type: ["type_1", "type_2", "type_3", "type_4", "type_5", "type_6", "type_7", "type_8"],
       contact_type: ["email", "phone", "address", "social"],
       message_channel: ["email", "phone", "letter", "meeting", "social_media"],
       message_direction: ["inbound", "outbound"],
@@ -1672,6 +1680,7 @@ export const Constants = {
 export type UserRole = 'admin' | 'staff' | 'readonly';
 export type CaseStatus = 'open' | 'pending' | 'closed' | 'archived';
 export type CasePriority = 'low' | 'medium' | 'high' | 'urgent';
+export type CaseType = 'type_1' | 'type_2' | 'type_3' | 'type_4' | 'type_5' | 'type_6' | 'type_7' | 'type_8';
 export type MessageDirection = 'inbound' | 'outbound';
 export type MessageChannel = 'email' | 'phone' | 'letter' | 'meeting' | 'social_media';
 export type ContactType = 'email' | 'phone' | 'address' | 'social';

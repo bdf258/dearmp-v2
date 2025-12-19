@@ -14,6 +14,8 @@ import type {
   Constituent,
   Campaign,
   CasePriority,
+  CaseStatus,
+  CaseType,
 } from '@/lib/database.types';
 
 // ============= TYPES =============
@@ -358,14 +360,22 @@ export function useTriageActions() {
   // Create new case and link message
   const createCaseForMessage = useCallback(async (
     messageId: string,
-    caseData: { title: string; description?: string; priority?: CasePriority; assigned_to?: string }
+    caseData: {
+      title: string;
+      description?: string;
+      priority?: CasePriority;
+      assigned_to?: string;
+      status?: CaseStatus;
+      case_type?: CaseType;
+      review_date?: string;
+    }
   ): Promise<{ success: boolean; caseId?: string; error?: string }> => {
     setIsProcessing(true);
     try {
       const userId = getCurrentUserId();
       const newCase = await createCase({
         ...caseData,
-        status: 'open',
+        status: caseData.status || 'open',
         created_by: userId || undefined,
       });
       if (!newCase) throw new Error('Failed to create case');

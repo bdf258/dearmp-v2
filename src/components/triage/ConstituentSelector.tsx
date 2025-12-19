@@ -43,10 +43,15 @@ export function ConstituentSelector({
       const email = primaryEmail?.value || contacts.find(cc => cc.type === 'email')?.value;
       const address = contacts.find(cc => cc.type === 'address')?.value;
 
+      // Build secondary text showing email and address
+      const parts: string[] = [];
+      if (email) parts.push(email);
+      if (address) parts.push(address);
+
       return {
         id: c.id,
         name: c.full_name,
-        secondary: email || address,
+        secondary: parts.join(' • '),
       };
     });
   }, [constituents, constituentContacts]);

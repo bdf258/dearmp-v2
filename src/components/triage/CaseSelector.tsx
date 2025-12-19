@@ -61,20 +61,33 @@ export function CaseSelector({
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-    return sortedCases.map((c) => ({
-      id: c.id,
-      name: c.title,
-      secondary: c.reference_number ? `#${c.reference_number}` : undefined,
-      badge: (
-        <div className="flex gap-1">
-          {c.status && (
-            <Badge variant="outline" className={cn('text-xs py-0', statusColors[c.status])}>
-              {c.status}
-            </Badge>
-          )}
-        </div>
-      ),
-    }));
+    return sortedCases.map((c) => {
+      // Build secondary text with reference number and truncated description
+      const parts: string[] = [];
+      if (c.reference_number) parts.push(`#${c.reference_number}`);
+      if (c.description) {
+        // Truncate description to ~60 chars
+        const truncated = c.description.length > 60
+          ? c.description.slice(0, 60).trim() + '…'
+          : c.description;
+        parts.push(truncated);
+      }
+
+      return {
+        id: c.id,
+        name: c.title,
+        secondary: parts.join(' • ') || undefined,
+        badge: (
+          <div className="flex gap-1">
+            {c.status && (
+              <Badge variant="outline" className={cn('text-xs py-0', statusColors[c.status])}>
+                {c.status}
+              </Badge>
+            )}
+          </div>
+        ),
+      };
+    });
   }, [cases, caseParties, constituentId]);
 
   return (

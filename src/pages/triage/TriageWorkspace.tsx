@@ -30,16 +30,14 @@ import {
   MessageDetailHeader,
   TriageSkeletons,
   ConstituentSelector,
-  ConstituentCard,
   CaseSelector,
-  CaseCard,
   CaseworkerSelector,
   TagPicker,
   PrioritySelector,
-  CreateConstituentDialog,
-  CreateCaseDialog,
   RequestAddressDialog,
   AssignCampaignDialog,
+  CreateConstituentForm,
+  CreateCaseForm,
 } from '@/components/triage';
 import {
   ArrowLeft,
@@ -50,9 +48,9 @@ import {
   HelpCircle,
   Loader2,
   MessageSquare,
-  Sparkles,
-  Flag,
   X,
+  User,
+  Briefcase,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -100,9 +98,10 @@ export function TriageWorkspace() {
   });
 
   // Dialog states
-  const [showCreateConstituent, setShowCreateConstituent] = useState(false);
-  const [showCreateCase, setShowCreateCase] = useState(false);
   const [showRequestAddress, setShowRequestAddress] = useState(false);
+
+  // Accordion state for create forms
+  const [openAccordion, setOpenAccordion] = useState<string | undefined>(undefined);
 
   // Initialize triage state from message
   useEffect(() => {
@@ -170,11 +169,13 @@ export function TriageWorkspace() {
   // Handle constituent created
   const handleConstituentCreated = useCallback((id: string) => {
     setTriageState(prev => ({ ...prev, constituentId: id }));
+    setOpenAccordion(undefined); // Close accordion
   }, []);
 
   // Handle case created
   const handleCaseCreated = useCallback((id: string) => {
     setTriageState(prev => ({ ...prev, caseId: id }));
+    setOpenAccordion(undefined); // Close accordion
   }, []);
 
   // Handle campaign unlink
@@ -330,55 +331,18 @@ export function TriageWorkspace() {
 
       {/* Triage panel */}
       <div className="w-96 border-l flex flex-col bg-muted/30">
-        <div className="p-4 border-b bg-background">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            Triage Actions
-          </h3>
-        </div>
-
         {/* Assign to Campaign button */}
-        <div className="p-4 border-b bg-background">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              className="flex-1 justify-start gap-2"
-              onClick={() => setShowAssignCampaign(true)}
-            >
-              <Flag className="h-4 w-4" />
-              {campaign ? (
-                <span className="truncate">{campaign.name}</span>
-              ) : (
-                'Assign to Campaign'
-              )}
-            </Button>
-            {campaign && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
-                onClick={handleUnlinkCampaign}
-                disabled={isUnlinkingCampaign}
-                title="Remove from campaign"
-              >
-                {isUnlinkingCampaign ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <X className="h-4 w-4" />
-                )}
-              </Button>
-            )}
-          </div>
-        </div>
-
         <ScrollArea className="flex-1">
-          <div className="p-4 space-y-6">
+          <div className="p-4">
             {/* Constituent section */}
             <div className="space-y-3">
               <ConstituentSelector
                 selectedId={triageState.constituentId}
                 onSelect={(id) => setTriageState(prev => ({ ...prev, constituentId: id }))}
-                onCreateNew={() => setShowCreateConstituent(true)}
+                onCreateNew={() => {
+                  setTriageState(prev => ({ ...prev, constituentId: null }));
+                  setOpenAccordion('constituent');
+                }}
                 recognitionStatus={
                   triageState.constituentId
                     ? message.triage_status === 'confirmed'
@@ -389,29 +353,89 @@ export function TriageWorkspace() {
                 label="Constituent"
               />
 
-              {triageState.constituentId && (
-                <ConstituentCard constituentId={triageState.constituentId} />
-              )}
-
-              {!triageState.constituentId && message.constituentStatus === 'has_address' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setShowCreateConstituent(true)}
-                >
-                  <MapPin className="h-4 w-4 mr-2" />
-                  Create from detected address
-                </Button>
+              {/* Create constituent accordion - shown when open and no constituent selected */}
+              {openAccordion === 'constituent' && !triageState.constituentId && (
+                <div className="border rounded-lg bg-muted/30 p-3">
+                  <div className="flex items-center gap-2 mb-3 text-sm font-medium">
+                    <User className="h-4 w-4" />
+                    Create New Constituent
+                  </div>
+                  <CreateConstituentForm
+                    onCreated={handleConstituentCreated}
+                    onCancel={() => setOpenAccordion(undefined)}
+                    defaultEmail={message.senderEmail}
+                    defaultName={message.senderName}
+                    defaultAddress={message.addressFromEmail}
+                  />
+                </div>
               )}
             </div>
 
-            <Separator />
+            <Separator className="mt-6"/>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={campaign ? 'default' : 'outline'}
+                className="justify-center"
+                onClick={() => setShowAssignCampaign(true)}
+              >
+                {campaign ? (
+                  <span className="truncate max-w-[120px]">{campaign.name}</span>
+                ) : (
+                  'Campaign'
+                )}
+              </Button>
+              {campaign && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={handleUnlinkCampaign}
+                  disabled={isUnlinkingCampaign}
+                  title="Remove from campaign"
+                >
+                  {isUnlinkingCampaign ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
+              <div className="flex border rounded-md overflow-hidden ml-auto">
+                <Button
+                  variant={message.is_policy_email && !campaign ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-none border-0"
+                  onClick={async () => {
+                    if (campaign) {
+                      await handleUnlinkCampaign();
+                    }
+                    await updateMessage(message.id, { is_policy_email: true });
+                  }}
+                  disabled={isUnlinkingCampaign}
+                >
+                  Policy
+                </Button>
+                <Button
+                  variant={!message.is_policy_email && !campaign ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-none border-0 border-l"
+                  onClick={async () => {
+                    if (campaign) {
+                      await handleUnlinkCampaign();
+                    }
+                    await updateMessage(message.id, { is_policy_email: false });
+                  }}
+                  disabled={isUnlinkingCampaign}
+                >
+                  Casework
+                </Button>
+              </div>
+            </div>
 
-            {/* Campaign-controlled fields - greyed out when campaign is selected */}
+            {/* Campaign/Policy-controlled fields - greyed out when campaign or policy is selected */}
             <div className={cn(
               'space-y-6 -mx-4 px-4 py-4 rounded-lg transition-colors',
-              campaign && 'bg-gray-100'
+              (campaign || message.is_policy_email) && 'bg-gray-100'
             )}>
               {/* Case section */}
               <div className="space-y-3">
@@ -421,18 +445,31 @@ export function TriageWorkspace() {
                     ...prev,
                     caseId: id,
                   }))}
-                  onCreateNew={() => setShowCreateCase(true)}
+                  onCreateNew={() => {
+                    setTriageState(prev => ({ ...prev, caseId: null }));
+                    setOpenAccordion('case');
+                  }}
                   constituentId={triageState.constituentId}
                   label="Case"
-                  disabled={!!campaign}
+                  disabled={!!campaign || !!message.is_policy_email}
                 />
 
-                {triageState.caseId && (
-                  <CaseCard caseId={triageState.caseId} />
+                {/* Create case form - shown when open and no case selected */}
+                {openAccordion === 'case' && !triageState.caseId && !campaign && !message.is_policy_email && (
+                  <div className="border rounded-lg bg-muted/30 p-3">
+                    <div className="flex items-center gap-2 mb-3 text-sm font-medium">
+                      <Briefcase className="h-4 w-4" />
+                      Create New Case
+                    </div>
+                    <CreateCaseForm
+                      onCreated={handleCaseCreated}
+                      onCancel={() => setOpenAccordion(undefined)}
+                      defaultTitle={message.subject || ''}
+                      messageId={message.id}
+                    />
+                  </div>
                 )}
               </div>
-
-              <Separator />
 
               {/* Assignee */}
               <CaseworkerSelector
@@ -440,27 +477,32 @@ export function TriageWorkspace() {
                 onSelect={(id) => setTriageState(prev => ({ ...prev, assigneeId: id }))}
                 showUnassignedOption
                 label="Assign to"
-                disabled={!!campaign}
+                disabled={!!campaign || !!message.is_policy_email}
               />
 
               {/* Priority */}
               <PrioritySelector
                 value={triageState.priority}
                 onChange={(priority) => setTriageState(prev => ({ ...prev, priority }))}
-                disabled={!!campaign}
+                disabled={!!campaign || !!message.is_policy_email}
               />
 
               {/* Tags */}
               <TagPicker
                 selectedTagIds={triageState.tagIds}
                 onChange={(tagIds) => setTriageState(prev => ({ ...prev, tagIds }))}
-                disabled={!!campaign}
+                disabled={!!campaign || !!message.is_policy_email}
               />
 
-              {/* Campaign hint */}
+              {/* Campaign/Policy hint */}
               {campaign && (
                 <p className="text-xs text-muted-foreground italic">
                   Case, assignee, priority, and tags are managed at the campaign level.
+                </p>
+              )}
+              {message.is_policy_email && !campaign && (
+                <p className="text-xs text-muted-foreground italic">
+                  Policy emails don't require case assignment.
                 </p>
               )}
             </div>
@@ -472,7 +514,7 @@ export function TriageWorkspace() {
           <Button
             className="w-full"
             onClick={handleApprove}
-            disabled={isProcessing || (!campaign && !triageState.caseId)}
+            disabled={isProcessing || (!campaign && !message.is_policy_email && !triageState.caseId)}
           >
             {isProcessing ? (
               <>
@@ -482,7 +524,7 @@ export function TriageWorkspace() {
             ) : (
               <>
                 <Check className="h-4 w-4 mr-2" />
-                {campaign ? 'Approve' : 'Approve & Link to Case'}
+                {campaign ? 'Approve' : message.is_policy_email ? 'Approve as Policy' : 'Approve & Link to Case'}
               </>
             )}
           </Button>
@@ -501,23 +543,6 @@ export function TriageWorkspace() {
       </div>
 
       {/* Dialogs */}
-      <CreateConstituentDialog
-        open={showCreateConstituent}
-        onOpenChange={setShowCreateConstituent}
-        onCreated={handleConstituentCreated}
-        defaultEmail={message.senderEmail}
-        defaultName={message.senderName}
-        defaultAddress={message.addressFromEmail}
-      />
-
-      <CreateCaseDialog
-        open={showCreateCase}
-        onOpenChange={setShowCreateCase}
-        onCreated={handleCaseCreated}
-        defaultTitle={message.subject || ''}
-        messageId={message.id}
-      />
-
       <RequestAddressDialog
         open={showRequestAddress}
         onOpenChange={setShowRequestAddress}

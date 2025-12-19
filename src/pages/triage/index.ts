@@ -10,3 +10,4 @@
 export { TriageDashboard } from './TriageDashboard';
 export { CampaignDashboard } from './CampaignDashboard';
 export { TriageWorkspace } from './TriageWorkspace';
+export { TriageRedirect } from './TriageRedirect';

@@ -385,6 +385,8 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       category: caseData.category,
       assigned_to: caseData.assigned_to,
       created_by: caseData.created_by,
+      case_type: caseData.case_type,
+      review_date: caseData.review_date,
     };
 
     const { data, error: insertError } = await supabase

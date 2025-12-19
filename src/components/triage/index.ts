@@ -50,6 +50,10 @@ export { CreateCaseDialog } from './CreateCaseDialog';
 export { RequestAddressDialog } from './RequestAddressDialog';
 export { AssignCampaignDialog } from './AssignCampaignDialog';
 
+// Inline forms (for accordion use)
+export { CreateConstituentForm } from './CreateConstituentForm';
+export { CreateCaseForm } from './CreateCaseForm';
+
 // Message display
 export { MessageCard, CompactMessageCard, MessageDetailHeader } from './MessageCard';
 

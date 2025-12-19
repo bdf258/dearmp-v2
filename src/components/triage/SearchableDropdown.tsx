@@ -98,14 +98,21 @@ export function SearchableDropdown({
               role="combobox"
               aria-expanded={open}
               disabled={disabled || isLoading}
-              className="flex-1 justify-between h-10 min-w-0"
+              className="flex-1 justify-between h-auto min-h-10 py-2 min-w-0"
             >
-              <span className="flex items-center gap-2 truncate min-w-0">
+              <span className="flex items-center gap-2 min-w-0 flex-1">
                 {icon && <span className="shrink-0">{icon}</span>}
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : selectedItem ? (
-                  <span className="truncate">{selectedItem.name}</span>
+                  <span className="flex flex-col items-start min-w-0 flex-1">
+                    <span className="truncate w-full text-left">{selectedItem.name}</span>
+                    {selectedItem.secondary && (
+                      <span className="text-xs text-muted-foreground truncate w-full text-left">
+                        {selectedItem.secondary}
+                      </span>
+                    )}
+                  </span>
                 ) : (
                   <span className="text-muted-foreground truncate">{placeholder}</span>
                 )}
