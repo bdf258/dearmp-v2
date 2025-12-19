@@ -5,6 +5,7 @@ import { TriageProgressProvider } from '@/lib/TriageProgressContext';
 import { Header } from '@/components/Header';
 import { SidebarNav } from '@/components/SidebarNav';
 import { SessionSecurityBanner } from '@/components/SessionSecurityBanner';
+import { PageLayout } from '@/components/PageLayout';
 import Dashboard from '@/pages/Dashboard';
 import SettingsPage from '@/pages/SettingsPage';
 import LoginPage from '@/pages/LoginPage';
@@ -115,55 +116,55 @@ function AuthenticatedLayout() {
         )}
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/dashboard" element={<PageLayout><Dashboard /></PageLayout>} />
+            <Route path="/settings" element={<PageLayout><SettingsPage /></PageLayout>} />
 
             {/* Policy Routes */}
-            <Route path="/policy/triage" element={<BatchTriagePage />} />
-            <Route path="/policy/campaigns" element={<CampaignsPage />} />
-            <Route path="/policy/emails" element={<PolicyEmailsPage />} />
-            <Route path="/policy/email-group/:groupId" element={<PolicyEmailGroupDetailPage />} />
-            <Route path="/policy/campaign/:campaignId" element={<PolicyEmailGroupDetailPage />} />
-            <Route path="/policy/office-style" element={<OfficeStylePage />} />
+            <Route path="/policy/triage" element={<PageLayout><BatchTriagePage /></PageLayout>} />
+            <Route path="/policy/campaigns" element={<PageLayout><CampaignsPage /></PageLayout>} />
+            <Route path="/policy/emails" element={<PageLayout><PolicyEmailsPage /></PageLayout>} />
+            <Route path="/policy/email-group/:groupId" element={<PageLayout><PolicyEmailGroupDetailPage /></PageLayout>} />
+            <Route path="/policy/campaign/:campaignId" element={<PageLayout><PolicyEmailGroupDetailPage /></PageLayout>} />
+            <Route path="/policy/office-style" element={<PageLayout><OfficeStylePage /></PageLayout>} />
 
             {/* Office Routes */}
-            <Route path="/office/letters" element={<LettersPage />} />
-            <Route path="/office/third-parties" element={<ThirdPartiesPage />} />
-            <Route path="/office/constituents" element={<ConstituentsPage />} />
-            <Route path="/casework/triage" element={<BatchTriagePage />} />
-            <Route path="/casework/cases" element={<CasesPage />} />
-            <Route path="/casework/cases/:caseId" element={<CaseDetailPage />} />
-            <Route path="/casework/new-case" element={<NewCasePage />} />
-            <Route path="/casework/inbound-rules" element={<InboundRulesPage />} />
-            <Route path="/casework/reporting" element={<ReportingPage />} />
-            <Route path="/mp-approval" element={<MPApprovalPage />} />
+            <Route path="/office/letters" element={<PageLayout><LettersPage /></PageLayout>} />
+            <Route path="/office/third-parties" element={<PageLayout><ThirdPartiesPage /></PageLayout>} />
+            <Route path="/office/constituents" element={<PageLayout><ConstituentsPage /></PageLayout>} />
+            <Route path="/casework/triage" element={<PageLayout><BatchTriagePage /></PageLayout>} />
+            <Route path="/casework/cases" element={<PageLayout><CasesPage /></PageLayout>} />
+            <Route path="/casework/cases/:caseId" element={<PageLayout><CaseDetailPage /></PageLayout>} />
+            <Route path="/casework/new-case" element={<PageLayout><NewCasePage /></PageLayout>} />
+            <Route path="/casework/inbound-rules" element={<PageLayout><InboundRulesPage /></PageLayout>} />
+            <Route path="/casework/reporting" element={<PageLayout><ReportingPage /></PageLayout>} />
+            <Route path="/mp-approval" element={<PageLayout><MPApprovalPage /></PageLayout>} />
 
-            {/* Production Triage Routes */}
-            <Route path="/triage" element={<TriageDashboard />} />
+            {/* Production Triage Routes - No PageLayout for full-screen layouts */}
+            <Route path="/triage" element={<PageLayout><TriageDashboard /></PageLayout>} />
             <Route path="/triage/campaigns" element={<CampaignDashboard />} />
             <Route path="/triage/campaigns/:campaignId" element={<CampaignDashboard />} />
             <Route path="/triage/messages/:messageId" element={<TriageWorkspace />} />
 
             {/* Prototypes Index */}
-            <Route path="/prototypes" element={<PrototypesPage />} />
+            <Route path="/prototypes" element={<PageLayout><PrototypesPage /></PageLayout>} />
 
             {/* Triage Prototypes (not linked in navigation) */}
-            <Route path="/triage-prototype-1" element={<TriagePrototype1 />} />
-            <Route path="/triage-prototype-2" element={<TriagePrototype2 />} />
-            <Route path="/triage-prototype-3" element={<TriagePrototype3 />} />
-            <Route path="/triage-prototype-4" element={<TriagePrototype4 />} />
-            <Route path="/triage-prototype-5" element={<TriagePrototype5 />} />
+            <Route path="/triage-prototype-1" element={<PageLayout><TriagePrototype1 /></PageLayout>} />
+            <Route path="/triage-prototype-2" element={<PageLayout><TriagePrototype2 /></PageLayout>} />
+            <Route path="/triage-prototype-3" element={<PageLayout><TriagePrototype3 /></PageLayout>} />
+            <Route path="/triage-prototype-4" element={<PageLayout><TriagePrototype4 /></PageLayout>} />
+            <Route path="/triage-prototype-5" element={<PageLayout><TriagePrototype5 /></PageLayout>} />
             {/* Prototype Routes - Not linked in navigation */}
-            <Route path="/prototypes/case/tabs" element={<CasePrototypeTabs />} />
-            <Route path="/prototypes/case/columns" element={<CasePrototypeColumns />} />
-            <Route path="/prototypes/case/cards" element={<CasePrototypeCards />} />
-            <Route path="/prototypes/dashboard" element={<DashboardPrototype />} />
+            <Route path="/prototypes/case/tabs" element={<PageLayout><CasePrototypeTabs /></PageLayout>} />
+            <Route path="/prototypes/case/columns" element={<PageLayout><CasePrototypeColumns /></PageLayout>} />
+            <Route path="/prototypes/case/cards" element={<PageLayout><CasePrototypeCards /></PageLayout>} />
+            <Route path="/prototypes/dashboard" element={<PageLayout><DashboardPrototype /></PageLayout>} />
 
             {/* 404 Catch-all Route */}
-            <Route path="*" element={<NotFoundPage />} />
+            <Route path="*" element={<PageLayout><NotFoundPage /></PageLayout>} />
           </Routes>
         </main>
       </div>
