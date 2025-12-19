@@ -38,6 +38,14 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -49,10 +57,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
   TriageSkeletons,
-  TagPicker,
-  ConstituentSelector,
-  ConstituentCard,
-  type RecognitionStatus,
 } from '@/components/triage';
 import {
   Mail,
@@ -67,6 +71,8 @@ import {
   Flag,
   ArrowLeft,
   Check,
+  Plus,
+  Tag,
   UserCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -259,7 +265,7 @@ function CampaignInbox({
   onBack: () => void;
 }) {
   const navigate = useNavigate();
-  const { profiles } = useSupabase();
+  const { profiles, tags } = useSupabase();
   const { messages } = useTriageQueue({ campaignId: campaign.id, constituentStatus: currentBucket });
   const { approveTriage, bulkDismissTriage, isProcessing } = useTriageActions();
 
@@ -275,6 +281,7 @@ function CampaignInbox({
   // Menubar state - Assignee & Tags for bulk operations
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagsPopoverOpen, setTagsPopoverOpen] = useState(false);
 
   // Get counts for tabs
   const { allMessages } = useTriageQueue({ campaignId: campaign.id });
@@ -526,12 +533,94 @@ function CampaignInbox({
             </Select>
           </div>
 
-          {/* Tags Picker - shared component with change states */}
-          <TagPicker
-            variant="menubar"
-            selectedTagIds={selectedTagIds}
-            onChange={setSelectedTagIds}
-          />
+          {/* Tags Popover - icon on small screens, full on larger */}
+          <Popover open={tagsPopoverOpen} onOpenChange={setTagsPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon" className="h-8 w-8 sm:hidden shrink-0 relative">
+                <Tag className="h-4 w-4" />
+                {selectedTagIds.length > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                    {selectedTagIds.length}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 min-w-[120px] justify-start hidden sm:flex">
+                {selectedTagIds.length > 0 ? (
+                  <div className="flex items-center gap-1 overflow-hidden">
+                    {selectedTagIds.slice(0, 2).map((tagId) => {
+                      const tag = tags.find(t => t.id === tagId);
+                      return tag ? (
+                        <Badge
+                          key={tag.id}
+                          variant="outline"
+                          className="text-xs h-5"
+                          style={{
+                            borderColor: tag.color,
+                            backgroundColor: `${tag.color}20`,
+                            color: tag.color,
+                          }}
+                        >
+                          {tag.name}
+                        </Badge>
+                      ) : null;
+                    })}
+                    {selectedTagIds.length > 2 && (
+                      <span className="text-xs text-muted-foreground">+{selectedTagIds.length - 2}</span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    <Plus className="h-3 w-3" />
+                    Add tags
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[220px] p-0" align="end">
+              <Command shouldFilter={false}>
+                <CommandInput placeholder="Search tags..." />
+                <CommandList>
+                  <CommandEmpty>No tags found.</CommandEmpty>
+                  <CommandGroup>
+                    {tags.map((tag) => {
+                      const isSelected = selectedTagIds.includes(tag.id);
+                      return (
+                        <CommandItem
+                          key={tag.id}
+                          value={tag.id}
+                          onSelect={() => {
+                            if (isSelected) {
+                              setSelectedTagIds(selectedTagIds.filter((id) => id !== tag.id));
+                            } else {
+                              setSelectedTagIds([...selectedTagIds, tag.id]);
+                            }
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2 flex-1">
+                            <Badge
+                              variant="outline"
+                              className="text-xs"
+                              style={{
+                                borderColor: tag.color,
+                                backgroundColor: `${tag.color}20`,
+                                color: tag.color,
+                              }}
+                            >
+                              {tag.name}
+                            </Badge>
+                          </div>
+                          {isSelected && <Check className="h-4 w-4" />}
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
@@ -692,23 +781,6 @@ function MessagePreviewWithToolbar({
   // Get message body
   const { body: messageBody, isLoading: bodyLoading } = useMessageBody(message.id);
 
-  // Local constituent selection state (defaults to AI-matched constituent)
-  const [selectedConstituentId, setSelectedConstituentId] = useState<string | null>(
-    message.senderConstituent?.id || null
-  );
-
-  // Reset selection when message changes
-  useEffect(() => {
-    setSelectedConstituentId(message.senderConstituent?.id || null);
-  }, [message.id, message.senderConstituent?.id]);
-
-  // Compute recognition status for the constituent selector
-  const recognitionStatus: RecognitionStatus = selectedConstituentId
-    ? message.triage_status === 'confirmed'
-      ? 'confirmed'
-      : 'ai_matched'
-    : 'none';
-
   return (
     <>
       {/* Floating toolbar */}
@@ -745,35 +817,30 @@ function MessagePreviewWithToolbar({
 
       <ScrollArea className="flex-1 pt-12">
         <div className="p-4 space-y-4">
-          <div>
-            <h3 className="font-semibold text-lg">{message.subject || '(No subject)'}</h3>
-            <div className="text-sm text-muted-foreground mt-1">
-              From: {message.senderName} &lt;{message.senderEmail}&gt;
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="font-semibold text-lg">{message.subject || '(No subject)'}</h3>
+              <div className="text-sm text-muted-foreground mt-1">
+                From: {message.senderName} &lt;{message.senderEmail}&gt;
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {new Date(message.received_at).toLocaleString()}
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground mt-0.5">
-              {new Date(message.received_at).toLocaleString()}
-            </div>
-          </div>
-
-          {/* Constituent selector with recognition status icon */}
-          <div className="space-y-3 border-t pt-4">
-            <ConstituentSelector
-              selectedId={selectedConstituentId}
-              onSelect={setSelectedConstituentId}
-              recognitionStatus={recognitionStatus}
-              label="Constituent"
-            />
-            {selectedConstituentId && (
-              <ConstituentCard constituentId={selectedConstituentId} />
+            {message.constituentStatus === 'known' && message.senderConstituent && (
+              <Badge variant="outline" className="bg-white border-gray-300 text-gray-700 shrink-0 gap-1">
+                <User className="h-3 w-3" />
+                {message.senderConstituent.full_name}
+              </Badge>
             )}
             {message.constituentStatus === 'has_address' && (
-              <Badge variant="outline" className="bg-gray-100 border-dashed border-gray-400 text-gray-700 gap-1">
+              <Badge variant="outline" className="bg-gray-500 border-dashed border-gray-600 text-white shrink-0 gap-1">
                 <MapPin className="h-3 w-3" />
-                Create constituent from detected address
+                Create constituent
               </Badge>
             )}
             {message.constituentStatus === 'no_address' && (
-              <Badge variant="outline" className="bg-gray-100 border-dashed border-gray-400 text-gray-700 gap-1">
+              <Badge variant="outline" className="bg-gray-500 border-dashed border-gray-600 text-white shrink-0 gap-1">
                 <MapPinOff className="h-3 w-3" />
                 Request address
               </Badge>
