@@ -73,12 +73,22 @@ export default function SignUpPage({ onNavigateToLogin }: SignUpPageProps) {
       return;
     }
 
+    if (!invitationCode.trim()) {
+      setLocalError('Invitation code is required');
+      return;
+    }
+
+    if (invitationStatus.valid === false) {
+      setLocalError('Please enter a valid invitation code');
+      return;
+    }
+
     try {
       const result = await signUp(
         email,
         password,
         fullName,
-        invitationCode.trim() || undefined
+        invitationCode.trim()
       );
 
       if (result.success) {
@@ -173,7 +183,7 @@ export default function SignUpPage({ onNavigateToLogin }: SignUpPageProps) {
 
             <div className="space-y-2">
               <Label htmlFor="invitationCode">
-                Invitation Code <span className="text-muted-foreground">(optional)</span>
+                Invitation Code <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="invitationCode"
@@ -181,6 +191,7 @@ export default function SignUpPage({ onNavigateToLogin }: SignUpPageProps) {
                 placeholder="Enter your invitation code"
                 value={invitationCode}
                 onChange={(e) => setInvitationCode(e.target.value)}
+                required
               />
               {invitationStatus.checking && (
                 <p className="text-sm text-muted-foreground flex items-center gap-1">
@@ -201,7 +212,7 @@ export default function SignUpPage({ onNavigateToLogin }: SignUpPageProps) {
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
-                If you have an invitation code from your office administrator, enter it to be automatically added to your office.
+                Enter the invitation code provided by your office administrator to create an account.
               </p>
             </div>
 
@@ -212,7 +223,11 @@ export default function SignUpPage({ onNavigateToLogin }: SignUpPageProps) {
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || !invitationCode.trim() || invitationStatus.checking || invitationStatus.valid === false}
+            >
               {loading ? 'Creating account...' : 'Create account'}
             </Button>
 
