@@ -11,10 +11,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { BrowserRouter } from 'react-router-dom';
-import type { ReactNode } from 'react';
 
 // Test fixture data
 const FIXTURES = {
@@ -111,7 +107,10 @@ const mockRpcResults = {
   dismiss_triage: { success: true, dismissed_count: 1 },
 };
 
-// Create mock Supabase
+// Generic type for mock RPC results to handle various response shapes
+type MockRpcResult = Record<string, unknown>;
+
+// Create mock Supabase with proper typing
 const createMockSupabase = () => ({
   auth: {
     getSession: vi.fn(() => Promise.resolve({
@@ -122,28 +121,36 @@ const createMockSupabase = () => ({
       data: { subscription: { unsubscribe: vi.fn() } },
     })),
   },
-  from: vi.fn((table: string) => ({
-    select: vi.fn(() => ({
-      eq: vi.fn(() => ({
+  from: vi.fn((_table: string) => ({
+    select: vi.fn((_columns?: string) => ({
+      eq: vi.fn((_col: string, _val: unknown) => ({
         single: vi.fn(() => Promise.resolve({ data: null, error: null })),
-        order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        order: vi.fn((_orderCol: string) => Promise.resolve({ data: [], error: null })),
+        eq: vi.fn((_col2: string, _val2: unknown) => ({
+          eq: vi.fn((_col3: string, _val3: unknown) => Promise.resolve({ data: [], error: null })),
+        })),
+        ilike: vi.fn(() => Promise.resolve({ data: [], error: null })),
       })),
-      order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+      order: vi.fn((_orderCol: string) => Promise.resolve({ data: [], error: null })),
     })),
-    insert: vi.fn(() => ({
+    insert: vi.fn((_data?: unknown) => ({
       select: vi.fn(() => ({
         single: vi.fn(() => Promise.resolve({ data: { id: 'new-id' }, error: null })),
       })),
     })),
-    update: vi.fn(() => ({
-      eq: vi.fn(() => Promise.resolve({ error: null })),
+    update: vi.fn((_data?: unknown) => ({
+      eq: vi.fn((_col: string, _val: unknown) => Promise.resolve({ error: null })),
     })),
     delete: vi.fn(() => ({
-      eq: vi.fn(() => Promise.resolve({ error: null })),
+      eq: vi.fn((_col: string, _val: unknown) => ({
+        eq: vi.fn((_col2: string, _val2: unknown) => ({
+          eq: vi.fn((_col3: string, _val3: unknown) => Promise.resolve({ error: null })),
+        })),
+      })),
     })),
   })),
-  rpc: vi.fn((fnName: string, params?: Record<string, unknown>) => {
-    const result = mockRpcResults[fnName as keyof typeof mockRpcResults];
+  rpc: vi.fn((_fnName: string, _params?: Record<string, unknown>): Promise<{ data: MockRpcResult | null; error: { message: string; code: string } | null }> => {
+    const result = mockRpcResults[_fnName as keyof typeof mockRpcResults] as MockRpcResult;
     return Promise.resolve({ data: result, error: null });
   }),
   storage: {
@@ -162,11 +169,6 @@ let mockSupabase = createMockSupabase();
 vi.mock('@/lib/supabase', () => ({
   supabase: mockSupabase,
 }));
-
-// Wrapper component for tests
-function TestWrapper({ children }: { children: ReactNode }) {
-  return <BrowserRouter>{children}</BrowserRouter>;
-}
 
 describe('Triage Queue Integration', () => {
   beforeEach(() => {
@@ -191,7 +193,7 @@ describe('Triage Queue Integration', () => {
     });
 
     it('sorts messages by received_at descending by default', async () => {
-      const result = await mockSupabase.rpc('get_triage_queue', {
+      await mockSupabase.rpc('get_triage_queue', {
         p_order_by: 'received_at',
         p_order_dir: 'desc',
       });
@@ -219,19 +221,17 @@ describe('Triage Queue Integration', () => {
       vi.mocked(mockSupabase.rpc).mockResolvedValueOnce({
         data: null,
         error: { message: 'Database connection failed', code: '500' },
-      });
+      } as { data: null; error: { message: string; code: string } });
 
       const result = await mockSupabase.rpc('get_triage_queue');
       expect(result.error).toBeDefined();
-      expect(result.error?.message).toBe('Database connection failed');
+      expect((result.error as { message: string })?.message).toBe('Database connection failed');
     });
   });
 
   describe('Constituent Search', () => {
     it('searches constituents by name', async () => {
-      const searchTerm = 'John';
-
-      // Simulate search query
+      // Simulate search query for 'John'
       const mockSearchResult = [FIXTURES.constituents.known];
 
       vi.mocked(mockSupabase.from).mockImplementationOnce(() => ({
@@ -307,7 +307,7 @@ describe('Triage Queue Integration', () => {
       }));
 
       const result = await mockSupabase.from('messages').insert(outboundMessage).select().single();
-      expect(result.data?.direction).toBe('outbound');
+      expect((result.data as unknown as { direction: string })?.direction).toBe('outbound');
     });
   });
 
@@ -352,7 +352,7 @@ describe('Triage Queue Integration', () => {
       }));
 
       const result = await mockSupabase.from('cases').insert(newCase).select().single();
-      expect(result.data?.reference_number).toBeDefined();
+      expect((result.data as unknown as { reference_number: number })?.reference_number).toBeDefined();
     });
 
     it('links message to case', async () => {
@@ -414,7 +414,11 @@ describe('Triage Queue Integration', () => {
     it('adds tag to case', async () => {
       vi.mocked(mockSupabase.from).mockImplementationOnce(() => ({
         select: vi.fn(),
-        insert: vi.fn(() => Promise.resolve({ error: null })),
+        insert: vi.fn(() => ({
+          select: vi.fn(() => ({
+            single: vi.fn(() => Promise.resolve({ data: { id: 'tag-assignment-1' }, error: null })),
+          })),
+        })),
         update: vi.fn(),
         delete: vi.fn(),
       }));
@@ -424,7 +428,7 @@ describe('Triage Queue Integration', () => {
         entity_type: 'case',
         entity_id: 'case-1',
         office_id: 'office-1',
-      });
+      }).select().single();
 
       expect(result.error).toBeNull();
     });
@@ -454,15 +458,17 @@ describe('Triage Queue Integration', () => {
     });
 
     it('tags reflect in tag_assignments table', async () => {
+      const mockTagData = [{
+        tag_id: FIXTURES.tags.housing.id,
+        entity_type: 'case',
+        entity_id: 'case-1',
+      }];
+
       vi.mocked(mockSupabase.from).mockImplementationOnce(() => ({
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
             eq: vi.fn(() => Promise.resolve({
-              data: [{
-                tag_id: FIXTURES.tags.housing.id,
-                entity_type: 'case',
-                entity_id: 'case-1',
-              }],
+              data: mockTagData,
               error: null,
             })),
           })),
@@ -478,7 +484,7 @@ describe('Triage Queue Integration', () => {
         .eq('entity_type', 'case')
         .eq('entity_id', 'case-1');
 
-      expect(result.data).toHaveLength(1);
+      expect((result as unknown as { data: typeof mockTagData }).data).toHaveLength(1);
     });
 
     it('respects tag filters in queue', async () => {
@@ -506,7 +512,7 @@ describe('Triage Queue Integration', () => {
     it('bulk dismisses multiple messages', async () => {
       const messageIds = ['msg-pending-1', 'msg-pending-2'];
 
-      const result = await mockSupabase.rpc('dismiss_triage', {
+      await mockSupabase.rpc('dismiss_triage', {
         p_message_ids: messageIds,
         p_reason: 'spam',
       });
@@ -571,7 +577,8 @@ describe('Triage Audit Logging', () => {
         .eq('entity_id', 'msg-1')
         .order('created_at');
 
-      expect(result.data?.[0]?.action).toBeDefined();
+      const data = (result as { data: Array<{ action: string }> }).data;
+      expect(data?.[0]?.action).toBeDefined();
     });
   });
 });
@@ -593,7 +600,7 @@ describe('Triage RPC Functions', () => {
     });
 
     it('confirms with case link', async () => {
-      const result = await mockSupabase.rpc('confirm_triage', {
+      await mockSupabase.rpc('confirm_triage', {
         p_message_ids: ['msg-1'],
         p_case_id: 'case-1',
       });

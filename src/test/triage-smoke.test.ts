@@ -9,16 +9,23 @@
 
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 
+// Generic type for mock results to handle various response shapes
+type MockData = Record<string, unknown> | unknown[] | null;
+type MockRpcResponse = { data: MockData; error: { message: string; code: string } | null };
+
 // Mock Supabase for smoke tests (in production, use real client)
 const createSmokeTestClient = () => ({
-  rpc: vi.fn(),
-  from: vi.fn(() => ({
-    select: vi.fn(() => ({
-      eq: vi.fn(() => ({
+  rpc: vi.fn((_fnName: string, _params?: Record<string, unknown>): Promise<MockRpcResponse> => Promise.resolve({
+    data: { success: true },
+    error: null,
+  })),
+  from: vi.fn((_table: string) => ({
+    select: vi.fn((_columns?: string) => ({
+      eq: vi.fn((_col: string, _val: unknown) => ({
         single: vi.fn(),
-        limit: vi.fn(),
+        limit: vi.fn((_n: number) => Promise.resolve({ data: [], error: null })),
       })),
-      limit: vi.fn(),
+      limit: vi.fn((_n: number) => Promise.resolve({ data: [], error: null })),
     })),
   })),
   auth: {
@@ -128,8 +135,9 @@ describe('Triage Smoke Tests', () => {
 
       expect(result.error).toBeNull();
       expect(Array.isArray(result.data)).toBe(true);
-      if (result.data && result.data.length > 0) {
-        const item = result.data[0];
+      const data = result.data as unknown[];
+      if (data && data.length > 0) {
+        const item = data[0] as Record<string, unknown>;
         expect(item).toHaveProperty('id');
         expect(item).toHaveProperty('office_id');
         expect(item).toHaveProperty('triage_status');
@@ -154,9 +162,10 @@ describe('Triage Smoke Tests', () => {
       const result = await client.rpc('get_triage_stats', {});
 
       expect(result.error).toBeNull();
-      expect(result.data).toHaveProperty('pending_count');
-      expect(result.data).toHaveProperty('triaged_count');
-      expect(typeof result.data?.pending_count).toBe('number');
+      const data = result.data as Record<string, unknown>;
+      expect(data).toHaveProperty('pending_count');
+      expect(data).toHaveProperty('triaged_count');
+      expect(typeof data?.pending_count).toBe('number');
     });
   });
 
@@ -173,7 +182,7 @@ describe('Triage Smoke Tests', () => {
       });
 
       expect(result.error).toBeNull();
-      expect(result.data?.success).toBe(true);
+      expect((result.data as Record<string, unknown>)?.success).toBe(true);
     });
 
     it('dismiss_triage accepts valid parameters', async () => {
@@ -188,7 +197,7 @@ describe('Triage Smoke Tests', () => {
       });
 
       expect(result.error).toBeNull();
-      expect(result.data?.success).toBe(true);
+      expect((result.data as Record<string, unknown>)?.success).toBe(true);
     });
   });
 

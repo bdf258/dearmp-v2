@@ -164,9 +164,6 @@ describe('Triage RLS Security', () => {
 });
 
 describe('Triage RPC Security', () => {
-  // Mock RPC calls with office isolation
-  const mockRPCWithOfficeCheck = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -230,7 +227,9 @@ describe('Triage RPC Security', () => {
       const result = await simulateRPC('get_triage_queue', {}, SECURITY_FIXTURES.users.staff1);
 
       // All returned messages should be from office-1
-      expect(result.data.every((m: { office_id: string }) => m.office_id === 'office-1')).toBe(true);
+      expect(result.data).toBeDefined();
+      const messages = result.data as Array<{ office_id: string }>;
+      expect(messages.every((m) => m.office_id === 'office-1')).toBe(true);
     });
   });
 

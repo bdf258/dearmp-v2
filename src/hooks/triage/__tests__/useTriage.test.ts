@@ -10,7 +10,6 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 
 // Mock data - must be defined before vi.mock calls
 const mockOfficeId = 'office-123';
-const mockUserId = 'user-456';
 
 // Mock Supabase client - hoisted to module scope
 vi.mock('@/lib/supabase', () => ({
@@ -41,116 +40,7 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 
-const mockMessages = [
-  {
-    id: 'msg-1',
-    office_id: mockOfficeId,
-    direction: 'inbound',
-    case_id: null,
-    campaign_id: 'camp-1',
-    subject: 'Housing Issue',
-    snippet: 'I need help with my housing...',
-    received_at: '2024-01-15T10:00:00Z',
-    triage_status: 'pending',
-    body_search_text: '123 High Street London',
-  },
-  {
-    id: 'msg-2',
-    office_id: mockOfficeId,
-    direction: 'inbound',
-    case_id: null,
-    campaign_id: 'camp-1',
-    subject: 'Benefits Query',
-    snippet: 'I have a question about...',
-    received_at: '2024-01-15T09:00:00Z',
-    triage_status: 'triaged',
-    body_search_text: '',
-  },
-  {
-    id: 'msg-3',
-    office_id: mockOfficeId,
-    direction: 'inbound',
-    case_id: 'case-123', // Already assigned - should not be in triage
-    campaign_id: null,
-    subject: 'Follow up',
-    snippet: 'Following up on...',
-    received_at: '2024-01-14T10:00:00Z',
-    triage_status: 'confirmed',
-  },
-];
-
-const mockRecipients = [
-  {
-    id: 'rec-1',
-    message_id: 'msg-1',
-    recipient_type: 'from',
-    email_address: 'constituent@example.com',
-    name: 'John Constituent',
-    constituent_id: null,
-  },
-  {
-    id: 'rec-2',
-    message_id: 'msg-2',
-    recipient_type: 'from',
-    email_address: 'known@example.com',
-    name: 'Jane Known',
-    constituent_id: 'const-1',
-  },
-];
-
-const mockConstituents = [
-  {
-    id: 'const-1',
-    office_id: mockOfficeId,
-    full_name: 'Jane Known',
-  },
-];
-
-const mockConstituentContacts = [
-  {
-    id: 'contact-1',
-    constituent_id: 'const-1',
-    type: 'email',
-    value: 'known@example.com',
-    is_primary: true,
-  },
-];
-
-const mockCampaigns = [
-  {
-    id: 'camp-1',
-    office_id: mockOfficeId,
-    name: 'Housing Campaign',
-  },
-];
-
-const mockCases = [
-  {
-    id: 'case-1',
-    office_id: mockOfficeId,
-    title: 'Existing Case',
-    reference_number: 1001,
-    status: 'open',
-    assigned_to: null,
-  },
-];
-
-const mockProfiles = [
-  {
-    id: 'worker-1',
-    office_id: mockOfficeId,
-    display_name: 'Alice Staff',
-    role: 'staff',
-  },
-  {
-    id: 'worker-2',
-    office_id: mockOfficeId,
-    display_name: 'Bob Admin',
-    role: 'admin',
-  },
-];
-
-// Mock context hooks - uses the mock data defined above
+// Mock context hooks
 vi.mock('@/lib/SupabaseContext', async () => {
   const mockMessages = [
     {
@@ -543,7 +433,7 @@ describe('useTriageActions', () => {
   it('creates new case for message', async () => {
     const { result } = renderHook(() => useTriageActions());
 
-    let actionResult;
+    let actionResult: { success: boolean; caseId?: string } | undefined;
     await act(async () => {
       actionResult = await result.current.createCaseForMessage('msg-1', {
         title: 'New Housing Case',
@@ -558,7 +448,7 @@ describe('useTriageActions', () => {
   it('creates constituent with contacts', async () => {
     const { result } = renderHook(() => useTriageActions());
 
-    let actionResult;
+    let actionResult: { success: boolean; constituentId?: string } | undefined;
     await act(async () => {
       actionResult = await result.current.createConstituentWithContacts({
         full_name: 'New Person',
@@ -616,7 +506,7 @@ describe('useTriageActions', () => {
   it('bulk dismisses multiple messages', async () => {
     const { result } = renderHook(() => useTriageActions());
 
-    let actionResult;
+    let actionResult: { success: boolean; successCount?: number } | undefined;
     await act(async () => {
       actionResult = await result.current.bulkDismissTriage(
         ['msg-1', 'msg-2'],

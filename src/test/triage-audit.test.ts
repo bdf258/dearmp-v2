@@ -4,7 +4,7 @@
  * Verifies that all triage operations are properly audited.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // Audit action types that should be logged for triage
 const TRIAGE_AUDIT_ACTIONS = {
