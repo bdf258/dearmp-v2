@@ -72,9 +72,8 @@ import {
   ArrowLeft,
   Check,
   Plus,
-  CheckCircle2,
-  HelpCircle,
-  AlertCircle,
+  Tag,
+  UserCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -230,17 +229,17 @@ function CampaignCard({
         </div>
       </CardHeader>
       <CardContent className="p-3 pt-0">
-        <div className="flex gap-3 text-xs">
-          <span className="flex items-center gap-1 text-green-600">
-            <CheckCircle2 className="h-3 w-3" />
+        <div className="flex gap-3 text-xs text-gray-800">
+          <span className="flex items-center gap-1">
+            <User className="h-3 w-3" />
             {campaign.knownCount}
           </span>
-          <span className="flex items-center gap-1 text-yellow-600">
-            <HelpCircle className="h-3 w-3" />
+          <span className="flex items-center gap-1">
+            <MapPin className="h-3 w-3" />
             {campaign.hasAddressCount}
           </span>
-          <span className="flex items-center gap-1 text-red-600">
-            <AlertCircle className="h-3 w-3" />
+          <span className="flex items-center gap-1">
+            <MapPinOff className="h-3 w-3" />
             {campaign.noAddressCount}
           </span>
         </div>
@@ -431,24 +430,27 @@ function CampaignInbox({
   return (
     <div className="h-full flex flex-col">
       {/* Header - styled like DashboardPrototype */}
-      <div className="shrink-0 flex items-center justify-between p-4 border-b">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onBack}>
+      <div className="shrink-0 flex items-center justify-between p-4 border-b gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="sm" onClick={onBack} className="shrink-0">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
-          <div className="h-4 w-px bg-border" />
-          <Flag className="h-5 w-5 text-blue-600" />
-          <h1 className="text-xl font-semibold">{campaign.name}</h1>
-          <Badge variant="secondary">{pendingCount} pending</Badge>
+          <div className="h-4 w-px bg-border shrink-0" />
+          <Flag className="h-5 w-5 text-blue-600 shrink-0" />
+          <h1 className="text-xl font-semibold truncate">{campaign.name}</h1>
+          <Badge variant="secondary" className="shrink-0">
+            <span>{pendingCount}</span>
+            <span className="hidden sm:inline ml-1">pending</span>
+          </Badge>
         </div>
 
         {/* Menubar: Assignee & Tags */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           {/* Bulk selection actions */}
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2 mr-4">
-              <span className="text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 mr-2 sm:mr-4">
+              <span className="text-sm text-muted-foreground hidden sm:inline">
                 {selectedIds.size} selected
               </span>
               {currentBucket === 'known' && (
@@ -484,12 +486,34 @@ function CampaignInbox({
             </div>
           )}
 
-          {/* Assignee Dropdown */}
-          <div className="flex items-center gap-2">
+          {/* Assignee Dropdown - icon on small screens, full on larger */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon" className="h-8 w-8 sm:hidden shrink-0">
+                <UserCircle className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-2" align="end">
+              <Label className="text-sm text-muted-foreground mb-2 block">Assignee</Label>
+              <Select value={selectedAssigneeId} onValueChange={setSelectedAssigneeId}>
+                <SelectTrigger className="w-full h-8">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {caseworkers.map((cw) => (
+                    <SelectItem key={cw.id} value={cw.id}>
+                      {cw.full_name || 'Unknown'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </PopoverContent>
+          </Popover>
+          <div className="hidden sm:flex items-center gap-2">
             <Label className="text-sm text-muted-foreground">Assignee:</Label>
             <Select value={selectedAssigneeId} onValueChange={setSelectedAssigneeId}>
               <SelectTrigger className="w-[140px] h-8">
-                <SelectValue placeholder="Select assignee" />
+                <SelectValue placeholder="Select..." />
               </SelectTrigger>
               <SelectContent>
                 {caseworkers.map((cw) => (
@@ -501,87 +525,94 @@ function CampaignInbox({
             </Select>
           </div>
 
-          {/* Tags Popover */}
-          <div className="flex items-center gap-2">
-            <Label className="text-sm text-muted-foreground">Tags:</Label>
-            <Popover open={tagsPopoverOpen} onOpenChange={setTagsPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 min-w-[120px] justify-start">
-                  {selectedTagIds.length > 0 ? (
-                    <div className="flex items-center gap-1 overflow-hidden">
-                      {selectedTagIds.slice(0, 2).map((tagId) => {
-                        const tag = tags.find(t => t.id === tagId);
-                        return tag ? (
-                          <Badge
-                            key={tag.id}
-                            variant="outline"
-                            className="text-xs h-5"
-                            style={{
-                              borderColor: tag.color,
-                              backgroundColor: `${tag.color}20`,
-                              color: tag.color,
-                            }}
-                          >
-                            {tag.name}
-                          </Badge>
-                        ) : null;
-                      })}
-                      {selectedTagIds.length > 2 && (
-                        <span className="text-xs text-muted-foreground">+{selectedTagIds.length - 2}</span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Plus className="h-3 w-3" />
-                      Add tags
-                    </span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[220px] p-0" align="end">
-                <Command shouldFilter={false}>
-                  <CommandInput placeholder="Search tags..." />
-                  <CommandList>
-                    <CommandEmpty>No tags found.</CommandEmpty>
-                    <CommandGroup>
-                      {tags.map((tag) => {
-                        const isSelected = selectedTagIds.includes(tag.id);
-                        return (
-                          <CommandItem
-                            key={tag.id}
-                            value={tag.id}
-                            onSelect={() => {
-                              if (isSelected) {
-                                setSelectedTagIds(selectedTagIds.filter((id) => id !== tag.id));
-                              } else {
-                                setSelectedTagIds([...selectedTagIds, tag.id]);
-                              }
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2 flex-1">
-                              <Badge
-                                variant="outline"
-                                className="text-xs"
-                                style={{
-                                  borderColor: tag.color,
-                                  backgroundColor: `${tag.color}20`,
-                                  color: tag.color,
-                                }}
-                              >
-                                {tag.name}
-                              </Badge>
-                            </div>
-                            {isSelected && <Check className="h-4 w-4" />}
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
+          {/* Tags Popover - icon on small screens, full on larger */}
+          <Popover open={tagsPopoverOpen} onOpenChange={setTagsPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon" className="h-8 w-8 sm:hidden shrink-0 relative">
+                <Tag className="h-4 w-4" />
+                {selectedTagIds.length > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 w-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                    {selectedTagIds.length}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 min-w-[120px] justify-start hidden sm:flex">
+                {selectedTagIds.length > 0 ? (
+                  <div className="flex items-center gap-1 overflow-hidden">
+                    {selectedTagIds.slice(0, 2).map((tagId) => {
+                      const tag = tags.find(t => t.id === tagId);
+                      return tag ? (
+                        <Badge
+                          key={tag.id}
+                          variant="outline"
+                          className="text-xs h-5"
+                          style={{
+                            borderColor: tag.color,
+                            backgroundColor: `${tag.color}20`,
+                            color: tag.color,
+                          }}
+                        >
+                          {tag.name}
+                        </Badge>
+                      ) : null;
+                    })}
+                    {selectedTagIds.length > 2 && (
+                      <span className="text-xs text-muted-foreground">+{selectedTagIds.length - 2}</span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    <Plus className="h-3 w-3" />
+                    Add tags
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[220px] p-0" align="end">
+              <Command shouldFilter={false}>
+                <CommandInput placeholder="Search tags..." />
+                <CommandList>
+                  <CommandEmpty>No tags found.</CommandEmpty>
+                  <CommandGroup>
+                    {tags.map((tag) => {
+                      const isSelected = selectedTagIds.includes(tag.id);
+                      return (
+                        <CommandItem
+                          key={tag.id}
+                          value={tag.id}
+                          onSelect={() => {
+                            if (isSelected) {
+                              setSelectedTagIds(selectedTagIds.filter((id) => id !== tag.id));
+                            } else {
+                              setSelectedTagIds([...selectedTagIds, tag.id]);
+                            }
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2 flex-1">
+                            <Badge
+                              variant="outline"
+                              className="text-xs"
+                              style={{
+                                borderColor: tag.color,
+                                backgroundColor: `${tag.color}20`,
+                                color: tag.color,
+                              }}
+                            >
+                              {tag.name}
+                            </Badge>
+                          </div>
+                          {isSelected && <Check className="h-4 w-4" />}
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
@@ -676,7 +707,6 @@ function CampaignInbox({
                 onConfirm={() => handleConfirmMessage(detailMessage.id)}
                 onReject={() => handleRejectMessage(detailMessage.id)}
                 onOpenTriage={() => handleOpenTriage(detailMessage.id)}
-                isProcessing={isActionInProgress !== null}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -730,13 +760,11 @@ function MessagePreviewWithToolbar({
   onConfirm,
   onReject,
   onOpenTriage,
-  isProcessing,
 }: {
   message: TriageMessage;
   onConfirm: () => void;
   onReject: () => void;
   onOpenTriage: () => void;
-  isProcessing: boolean;
 }) {
   // Get message body
   const { body: messageBody, isLoading: bodyLoading } = useMessageBody(message.id);
@@ -761,7 +789,6 @@ function MessagePreviewWithToolbar({
               size="sm"
               className="h-7 text-xs"
               onClick={onReject}
-              disabled={isProcessing}
             >
               Not a campaign email
             </Button>
@@ -769,7 +796,6 @@ function MessagePreviewWithToolbar({
               size="sm"
               className="h-7 text-xs"
               onClick={onConfirm}
-              disabled={isProcessing}
             >
               Confirmed campaign email
             </Button>

@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS office_invitations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   office_id UUID NOT NULL REFERENCES offices(id) ON DELETE CASCADE,
   email TEXT, -- Optional: restrict invitation to specific email
-  token TEXT NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+  token TEXT NOT NULL UNIQUE DEFAULT replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
   role user_role NOT NULL DEFAULT 'staff',
   created_by UUID REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT now(),
