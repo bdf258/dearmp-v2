@@ -124,7 +124,7 @@ export function CampaignDashboard() {
 
   if (loading) {
     return (
-      <div className="flex h-full -m-6">
+      <div className="flex h-full">
         <div className="w-80 border-r p-4">
           <TriageSkeletons.CampaignList count={4} />
         </div>
