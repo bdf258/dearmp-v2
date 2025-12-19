@@ -4,14 +4,9 @@ import {
   FileText,
   Users,
   Building2,
-  Mail,
-  Flag,
   Inbox,
   FolderOpen,
-  FilePlus,
-  Filter,
   BarChart3,
-  PenTool,
   X,
   PanelLeftClose,
   PanelLeftOpen,
@@ -31,7 +26,7 @@ interface NavItem {
   title: string;
   href: string;
   icon: React.ElementType;
-  section: 'policy' | 'office' | 'casework';
+  section: 'casework' | 'coming_soon';
 }
 
 const navItems: NavItem[] = [
@@ -43,7 +38,7 @@ const navItems: NavItem[] = [
     section: 'casework',
   },
   {
-    title: 'Campaign Triage',
+    title: 'Campaigns',
     href: '/triage/campaigns',
     icon: MessageSquare,
     section: 'casework',
@@ -54,67 +49,30 @@ const navItems: NavItem[] = [
     icon: FolderOpen,
     section: 'casework',
   },
-  {
-    title: 'New Case',
-    href: '/casework/new-case',
-    icon: FilePlus,
-    section: 'casework',
-  },
-  {
-    title: 'Inbound Rules',
-    href: '/casework/inbound-rules',
-    icon: Filter,
-    section: 'casework',
-  },
+  // Coming Soon section
   {
     title: 'Reporting',
     href: '/casework/reporting',
     icon: BarChart3,
-    section: 'casework',
+    section: 'coming_soon',
   },
-  // Policy section
-  {
-    title: 'Triage',
-    href: '/policy/triage',
-    icon: Mail,
-    section: 'policy',
-  },
-  {
-    title: 'Campaigns',
-    href: '/policy/campaigns',
-    icon: Flag,
-    section: 'policy',
-  },
-  {
-    title: 'Policy Emails',
-    href: '/policy/emails',
-    icon: Inbox,
-    section: 'policy',
-  },
-  {
-    title: 'Office Style',
-    href: '/policy/office-style',
-    icon: PenTool,
-    section: 'policy',
-  },
-  // Office section
   {
     title: 'Letters',
     href: '/office/letters',
     icon: FileText,
-    section: 'office',
+    section: 'coming_soon',
   },
   {
     title: 'Third Parties',
     href: '/office/third-parties',
     icon: Building2,
-    section: 'office',
+    section: 'coming_soon',
   },
   {
     title: 'Constituents',
     href: '/office/constituents',
     icon: Users,
-    section: 'office',
+    section: 'coming_soon',
   },
 ];
 
@@ -191,8 +149,7 @@ export function SidebarNav({ isCollapsed, onToggle, isMinimized, onMinimize }: S
 
   // Filter items by section
   const caseworkItems = navItems.filter((item) => item.section === 'casework');
-  const policyItems = navItems.filter((item) => item.section === 'policy');
-  const officeItems = navItems.filter((item) => item.section === 'office');
+  const comingSoonItems = navItems.filter((item) => item.section === 'coming_soon');
 
   return (
     <TooltipProvider>
@@ -264,12 +221,8 @@ export function SidebarNav({ isCollapsed, onToggle, isMinimized, onMinimize }: S
             {renderNavSection('Casework', caseworkItems)}
             <Separator className={cn(isMinimized ? 'my-2' : 'my-4')} />
 
-            {/* Policy Section */}
-            {renderNavSection('Policy', policyItems)}
-            <Separator className={cn(isMinimized ? 'my-2' : 'my-4')} />
-
-            {/* Office Section - title links to dashboard */}
-            {renderNavSection('Office', officeItems, '/dashboard')}
+            {/* Coming Soon Section */}
+            {renderNavSection('Coming Soon', comingSoonItems)}
           </div>
         </div>
       </aside>
