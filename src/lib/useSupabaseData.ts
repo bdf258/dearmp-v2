@@ -85,6 +85,12 @@ interface UseSupabaseDataReturn {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string, invitationCode?: string) => Promise<{ success: boolean; message: string }>;
   validateInvitation: (token: string) => Promise<{ valid: boolean; officeName?: string; error?: string }>;
+
+  // Invitation management (admin only)
+  createInvitation: (options: { email?: string; role?: UserRole; expiresInDays?: number; maxUses?: number }) => Promise<{ token: string; expiresAt: string } | null>;
+  listInvitations: () => Promise<Array<{ id: string; token: string; email: string | null; role: UserRole; created_at: string; expires_at: string; use_count: number; max_uses: number | null; used_at: string | null }>>;
+  revokeInvitation: (invitationId: string) => Promise<boolean>;
+
   signOut: () => Promise<void>;
 
   // Settings actions
@@ -717,6 +723,113 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     await supabase.auth.signOut();
   };
 
+  // Invitation management functions (admin only)
+  type Invitation = {
+    id: string;
+    token: string;
+    email: string | null;
+    role: UserRole;
+    created_at: string;
+    expires_at: string;
+    use_count: number;
+    max_uses: number | null;
+    used_at: string | null;
+  };
+
+  const createInvitation = async (options: {
+    email?: string;
+    role?: UserRole;
+    expiresInDays?: number;
+    maxUses?: number;
+  }): Promise<{ token: string; expiresAt: string } | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    try {
+      // Use the database function to create the invitation
+      const { data, error: rpcError } = await (supabase.rpc as unknown as (
+        fn: string,
+        params: Record<string, unknown>
+      ) => Promise<{ data: { token: string; expires_at: string } | null; error: Error | null }>)('create_office_invitation', {
+        p_office_id: officeId,
+        p_email: options.email || null,
+        p_role: options.role || 'staff',
+        p_expires_in_days: options.expiresInDays || 7,
+        p_max_uses: options.maxUses || 1,
+      });
+
+      if (rpcError || !data) {
+        console.error('Error creating invitation:', rpcError);
+        return null;
+      }
+
+      return { token: data.token, expiresAt: data.expires_at };
+    } catch (err) {
+      console.error('Error creating invitation:', err);
+      return null;
+    }
+  };
+
+  const listInvitations = async (): Promise<Invitation[]> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return [];
+
+    try {
+      // Query the office_invitations table directly
+      // Type assertion needed until database types are regenerated
+      const { data, error: fetchError } = await (supabase as unknown as {
+        from: (table: string) => {
+          select: (columns: string) => {
+            eq: (column: string, value: string) => {
+              order: (column: string, options: { ascending: boolean }) => Promise<{ data: Invitation[] | null; error: Error | null }>;
+            };
+          };
+        };
+      }).from('office_invitations')
+        .select('id, token, email, role, created_at, expires_at, use_count, max_uses, used_at')
+        .eq('office_id', officeId)
+        .order('created_at', { ascending: false });
+
+      if (fetchError || !data) {
+        console.error('Error fetching invitations:', fetchError);
+        return [];
+      }
+
+      return data;
+    } catch (err) {
+      console.error('Error fetching invitations:', err);
+      return [];
+    }
+  };
+
+  const revokeInvitation = async (invitationId: string): Promise<boolean> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return false;
+
+    try {
+      // Delete the invitation (RLS will ensure it belongs to the user's office)
+      const { error: deleteError } = await (supabase as unknown as {
+        from: (table: string) => {
+          delete: () => {
+            eq: (column: string, value: string) => Promise<{ error: Error | null }>;
+          };
+        };
+      }).from('office_invitations')
+        .delete()
+        .eq('id', invitationId);
+
+      if (deleteError) {
+        console.error('Error revoking invitation:', deleteError);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Error revoking invitation:', err);
+      return false;
+    }
+  };
+
   // Settings actions
   const updateOffice = async (updates: { name?: string }): Promise<Office | null> => {
     const officeId = getMyOfficeId();
@@ -1133,6 +1246,9 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     signIn,
     signUp,
     validateInvitation,
+    createInvitation,
+    listInvitations,
+    revokeInvitation,
     signOut,
 
     // Settings actions
