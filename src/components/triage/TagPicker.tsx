@@ -213,25 +213,55 @@ export function TagPicker({
   );
 }
 
+// Shadcn-compatible color variants for tags
+// Maps hex colors to Tailwind class combinations
+const TAG_COLOR_VARIANTS: Record<string, { bg: string; text: string; border: string }> = {
+  // Red variants
+  '#ef4444': { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' },
+  '#f43f5e': { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-300' },
+  // Orange variants
+  '#f97316': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300' },
+  '#f59e0b': { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' },
+  // Green variants
+  '#84cc16': { bg: 'bg-lime-100', text: 'text-lime-700', border: 'border-lime-300' },
+  '#22c55e': { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' },
+  // Teal/Cyan variants
+  '#14b8a6': { bg: 'bg-teal-100', text: 'text-teal-700', border: 'border-teal-300' },
+  '#06b6d4': { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-300' },
+  // Blue variants
+  '#3b82f6': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
+  '#6366f1': { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-300' },
+  // Purple variants
+  '#8b5cf6': { bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-300' },
+  '#a855f7': { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300' },
+  // Pink variants
+  '#d946ef': { bg: 'bg-fuchsia-100', text: 'text-fuchsia-700', border: 'border-fuchsia-300' },
+  '#ec4899': { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-300' },
+};
+
+// Default fallback colors
+const DEFAULT_TAG_COLORS = { bg: 'bg-secondary', text: 'text-secondary-foreground', border: 'border-border' };
+
+// Get color classes for a tag
+function getTagColorClasses(color: string | null | undefined): { bg: string; text: string; border: string } {
+  if (!color) return DEFAULT_TAG_COLORS;
+  return TAG_COLOR_VARIANTS[color.toLowerCase()] || DEFAULT_TAG_COLORS;
+}
+
 // Tag badge component with state styling
 function TagBadge({ tag, state }: { tag: Tag; state: TagState }) {
-  // Parse color to create background and text colors
-  const bgColor = tag.color ? `${tag.color}20` : undefined;
-  const textColor = tag.color || undefined;
-  const borderColor = tag.color || undefined;
+  const colors = getTagColorClasses(tag.color);
 
   return (
     <Badge
-      variant={state === 'new' ? 'outline' : 'default'}
-      style={{
-        backgroundColor: state === 'removed' ? undefined : bgColor,
-        color: textColor,
-        borderColor: borderColor,
-      }}
+      variant="outline"
       className={cn(
-        'text-xs',
-        state === 'new' && 'bg-transparent border-dashed',
-        state === 'removed' && 'line-through opacity-50'
+        'text-xs border',
+        colors.bg,
+        colors.text,
+        colors.border,
+        state === 'new' && 'border-dashed',
+        state === 'removed' && 'line-through opacity-50 bg-muted text-muted-foreground border-muted'
       )}
     >
       {tag.name}

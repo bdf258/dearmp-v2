@@ -16,6 +16,34 @@ export { CaseworkerSelector, CaseworkerAvatar, CaseworkerPill } from './Casework
 export { PrioritySelector, PriorityBadge } from './PrioritySelector';
 export { TagPicker, TagList } from './TagPicker';
 
+// Status pills (triage state indicators)
+export {
+  ConstituentPill,
+  CasePill,
+  CaseworkerStatusPill,
+  PillStatusRow,
+  type ConstituentPillData,
+  type CasePillData,
+  type CaseworkerPillData,
+  type TriageApprovalStatus,
+} from './StatusPills';
+
+// Campaign components
+export {
+  CampaignCard,
+  CampaignList,
+  CampaignStatsSummary,
+  type CampaignCardData,
+} from './CampaignCard';
+
+// Case email components (for triage queue)
+export {
+  CaseEmailCard,
+  CaseEmailList,
+  CompactEmailRow,
+  type CaseEmailData,
+} from './CaseEmailCard';
+
 // Dialogs
 export { CreateConstituentDialog } from './CreateConstituentDialog';
 export { CreateCaseDialog } from './CreateCaseDialog';

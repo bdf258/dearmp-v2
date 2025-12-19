@@ -42,21 +42,22 @@ export function CaseSelector({
 }: CaseSelectorProps) {
   const { cases, caseParties } = useSupabase();
 
-  // Build dropdown items with case badges
+  // Build dropdown items with case badges - filtered to constituent's cases only
   const items: DropdownItem[] = useMemo(() => {
-    // Get cases for this constituent first
+    // Get case IDs for this constituent
     const constituentCaseIds = constituentId
       ? caseParties
           .filter(cp => cp.constituent_id === constituentId)
           .map(cp => cp.case_id)
       : [];
 
-    // Sort: constituent's cases first, then by date
-    const sortedCases = [...cases].sort((a, b) => {
-      const aForConstituent = constituentCaseIds.includes(a.id);
-      const bForConstituent = constituentCaseIds.includes(b.id);
-      if (aForConstituent && !bForConstituent) return -1;
-      if (!aForConstituent && bForConstituent) return 1;
+    // Filter to only show constituent's cases (or all cases if no constituent selected)
+    const filteredCases = constituentId
+      ? cases.filter(c => constituentCaseIds.includes(c.id))
+      : cases;
+
+    // Sort by date (most recent first)
+    const sortedCases = [...filteredCases].sort((a, b) => {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
@@ -69,11 +70,6 @@ export function CaseSelector({
           {c.status && (
             <Badge variant="outline" className={cn('text-xs py-0', statusColors[c.status])}>
               {c.status}
-            </Badge>
-          )}
-          {constituentCaseIds.includes(c.id) && (
-            <Badge variant="outline" className="text-xs py-0 bg-blue-100 text-blue-700">
-              linked
             </Badge>
           )}
         </div>

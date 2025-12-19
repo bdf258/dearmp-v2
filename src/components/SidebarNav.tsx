@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
   // Casework section
   {
     title: 'Triage',
-    href: '/casework/triage',
+    href: '/triage',
     icon: Inbox,
     section: 'casework',
   },

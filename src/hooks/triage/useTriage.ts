@@ -683,3 +683,302 @@ export function useMessageBody(messageId: string | null) {
 
   return { body, isLoading, error, refetch: fetchBody };
 }
+
+// ============= CAMPAIGN EMAIL TYPES =============
+
+export type CampaignEmailStatus = 'pending' | 'confirmed' | 'rejected';
+
+export interface CampaignEmail {
+  id: string;
+  subject: string;
+  snippet: string;
+  body?: string;
+  senderEmail: string;
+  senderName: string;
+  receivedAt: string;
+  constituentStatus: ConstituentStatus;
+  constituentName?: string;
+  constituentId?: string;
+  addressFromEmail?: string;
+  status: CampaignEmailStatus;
+}
+
+export interface CampaignEmailsData {
+  id: string;
+  name: string;
+  emails: CampaignEmail[];
+  totalCount: number;
+  knownCount: number;
+  hasAddressCount: number;
+  noAddressCount: number;
+  pendingCount: number;
+}
+
+// ============= CAMPAIGN EMAILS HOOK =============
+
+/**
+ * useCampaignEmails
+ *
+ * Provides campaign-specific email data for bulk triage operations.
+ * Returns emails grouped by constituent status with selection management.
+ */
+export function useCampaignEmails(campaignId: string | null) {
+  const {
+    messages,
+    messageRecipients,
+    constituents,
+    constituentContacts,
+    campaigns,
+    getMyOfficeId,
+    refreshData,
+  } = useSupabase();
+
+  const [emailStatuses, setEmailStatuses] = useState<Record<string, CampaignEmailStatus>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Get campaign
+  const campaign = useMemo(() => {
+    if (!campaignId) return null;
+    return campaigns.find(c => c.id === campaignId) || null;
+  }, [campaignId, campaigns]);
+
+  // Get campaign emails with constituent info
+  const campaignData = useMemo((): CampaignEmailsData | null => {
+    const officeId = getMyOfficeId();
+    if (!campaign || !officeId) return null;
+
+    // Get all inbound messages for this campaign
+    const campaignMessages = messages.filter(m =>
+      m.campaign_id === campaign.id &&
+      m.direction === 'inbound'
+    );
+
+    let knownCount = 0;
+    let hasAddressCount = 0;
+    let noAddressCount = 0;
+
+    const emails: CampaignEmail[] = campaignMessages.map(message => {
+      const recipients = messageRecipients.filter(r => r.message_id === message.id);
+      const fromRecipient = recipients.find(r => r.recipient_type === 'from');
+      const senderEmail = fromRecipient?.email_address || '';
+      const senderName = fromRecipient?.name || senderEmail;
+
+      // Find constituent
+      const senderConstituent = fromRecipient?.constituent_id
+        ? constituents.find(c => c.id === fromRecipient.constituent_id) || null
+        : constituents.find(c => {
+            const contacts = constituentContacts.filter(cc => cc.constituent_id === c.id);
+            return contacts.some(cc =>
+              cc.type === 'email' && cc.value.toLowerCase() === senderEmail.toLowerCase()
+            );
+          }) || null;
+
+      // Determine constituent status
+      let constituentStatus: ConstituentStatus = 'no_address';
+      let addressFromEmail: string | undefined;
+      let constituentName: string | undefined;
+      let constituentId: string | undefined;
+
+      if (senderConstituent) {
+        constituentStatus = 'known';
+        constituentName = senderConstituent.full_name;
+        constituentId = senderConstituent.id;
+        knownCount++;
+      } else {
+        // Check for address in message body
+        const addressPattern = /\b\d+\s+[\w\s]+(?:street|road|lane|avenue|drive|close|way|place)\b/i;
+        const bodyText = message.body_search_text || message.snippet || '';
+        const addressMatch = bodyText.match(addressPattern);
+        if (addressMatch) {
+          constituentStatus = 'has_address';
+          addressFromEmail = addressMatch[0];
+          hasAddressCount++;
+        } else {
+          noAddressCount++;
+        }
+      }
+
+      // Get status from local state or default to pending
+      const status = emailStatuses[message.id] ||
+        (message.triage_status === 'confirmed' ? 'confirmed' :
+         message.triage_status === 'dismissed' ? 'rejected' : 'pending');
+
+      return {
+        id: message.id,
+        subject: message.subject || '(No subject)',
+        snippet: message.snippet || '',
+        senderEmail,
+        senderName,
+        receivedAt: message.received_at,
+        constituentStatus,
+        constituentName,
+        constituentId,
+        addressFromEmail,
+        status,
+      };
+    });
+
+    const pendingCount = emails.filter(e => e.status === 'pending').length;
+
+    return {
+      id: campaign.id,
+      name: campaign.name,
+      emails,
+      totalCount: emails.length,
+      knownCount,
+      hasAddressCount,
+      noAddressCount,
+      pendingCount,
+    };
+  }, [
+    campaign,
+    messages,
+    messageRecipients,
+    constituents,
+    constituentContacts,
+    emailStatuses,
+    getMyOfficeId,
+  ]);
+
+  // Filter emails by constituent status
+  const getEmailsByStatus = useCallback((status: ConstituentStatus) => {
+    if (!campaignData) return [];
+    return campaignData.emails.filter(e => e.constituentStatus === status);
+  }, [campaignData]);
+
+  // Selection management
+  const toggleSelection = useCallback((emailId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(emailId)) {
+        next.delete(emailId);
+      } else {
+        next.add(emailId);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback((emailIds: string[]) => {
+    setSelectedIds(new Set(emailIds));
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  // Confirm email as valid campaign email
+  const confirmEmail = useCallback(async (emailId: string) => {
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase.rpc('confirm_triage', {
+        p_message_ids: [emailId],
+        p_case_id: null,
+        p_assignee_id: null,
+        p_tag_ids: null,
+      });
+
+      if (error) throw error;
+
+      setEmailStatuses(prev => ({ ...prev, [emailId]: 'confirmed' }));
+      await refreshData();
+    } catch (err) {
+      console.error('Failed to confirm email:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [refreshData]);
+
+  // Reject email as not a valid campaign email
+  const rejectEmail = useCallback(async (emailId: string, reason?: string) => {
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase.rpc('dismiss_triage', {
+        p_message_ids: [emailId],
+        p_reason: reason || 'Not a campaign email',
+      });
+
+      if (error) throw error;
+
+      setEmailStatuses(prev => ({ ...prev, [emailId]: 'rejected' }));
+      await refreshData();
+    } catch (err) {
+      console.error('Failed to reject email:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [refreshData]);
+
+  // Bulk confirm selected emails
+  const bulkConfirm = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsProcessing(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const { error } = await supabase.rpc('confirm_triage', {
+        p_message_ids: ids,
+        p_case_id: null,
+        p_assignee_id: null,
+        p_tag_ids: null,
+      });
+
+      if (error) throw error;
+
+      setEmailStatuses(prev => {
+        const next = { ...prev };
+        ids.forEach(id => { next[id] = 'confirmed'; });
+        return next;
+      });
+      clearSelection();
+      await refreshData();
+    } catch (err) {
+      console.error('Failed to bulk confirm:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedIds, clearSelection, refreshData]);
+
+  // Bulk reject selected emails
+  const bulkReject = useCallback(async (reason?: string) => {
+    if (selectedIds.size === 0) return;
+
+    setIsProcessing(true);
+    try {
+      const ids = Array.from(selectedIds);
+      const { error } = await supabase.rpc('dismiss_triage', {
+        p_message_ids: ids,
+        p_reason: reason || 'Not a campaign email',
+      });
+
+      if (error) throw error;
+
+      setEmailStatuses(prev => {
+        const next = { ...prev };
+        ids.forEach(id => { next[id] = 'rejected'; });
+        return next;
+      });
+      clearSelection();
+      await refreshData();
+    } catch (err) {
+      console.error('Failed to bulk reject:', err);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedIds, clearSelection, refreshData]);
+
+  return {
+    campaign: campaignData,
+    selectedIds,
+    isProcessing,
+    getEmailsByStatus,
+    toggleSelection,
+    selectAll,
+    clearSelection,
+    confirmEmail,
+    rejectEmail,
+    bulkConfirm,
+    bulkReject,
+  };
+}

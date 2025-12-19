@@ -21,7 +21,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Alert,
   AlertDescription,
@@ -45,10 +44,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  Send,
   MapPin,
   AlertCircle,
-  CheckCircle2,
   HelpCircle,
   Loader2,
   MessageSquare,
@@ -86,16 +83,12 @@ export function TriageWorkspace() {
     assigneeId: string | null;
     priority: CasePriority;
     tagIds: string[];
-    isNewCase: boolean;
-    newCaseTitle: string;
   }>({
     constituentId: null,
     caseId: null,
     assigneeId: null,
     priority: 'medium',
     tagIds: [],
-    isNewCase: false,
-    newCaseTitle: '',
   });
 
   // Dialog states
@@ -115,8 +108,6 @@ export function TriageWorkspace() {
         assigneeId: null,
         priority: 'medium',
         tagIds: messageTags.map(t => t.tag_id),
-        isNewCase: !message.case_id,
-        newCaseTitle: message.subject || '',
       });
     }
   }, [message?.id, message?.senderConstituent?.id, message?.case_id, getTagsForEntity]);
@@ -148,8 +139,7 @@ export function TriageWorkspace() {
     if (!message) return;
 
     const result = await approveTriage(message.id, {
-      caseId: triageState.isNewCase ? undefined : triageState.caseId || undefined,
-      newCaseTitle: triageState.isNewCase ? triageState.newCaseTitle : undefined,
+      caseId: triageState.caseId || undefined,
       constituentId: triageState.constituentId || undefined,
       assigneeId: triageState.assigneeId || undefined,
       priority: triageState.priority,
@@ -176,7 +166,7 @@ export function TriageWorkspace() {
 
   // Handle case created
   const handleCaseCreated = useCallback((id: string) => {
-    setTriageState(prev => ({ ...prev, caseId: id, isNewCase: false }));
+    setTriageState(prev => ({ ...prev, caseId: id }));
   }, []);
 
   // Loading state
@@ -353,37 +343,17 @@ export function TriageWorkspace() {
             {/* Case section */}
             <div className="space-y-3">
               <CaseSelector
-                selectedId={triageState.isNewCase ? null : triageState.caseId}
+                selectedId={triageState.caseId}
                 onSelect={(id) => setTriageState(prev => ({
                   ...prev,
                   caseId: id,
-                  isNewCase: false,
                 }))}
                 onCreateNew={() => setShowCreateCase(true)}
                 constituentId={triageState.constituentId}
                 label="Case"
               />
 
-              {triageState.isNewCase && (
-                <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                  <div className="flex items-center gap-2 text-sm font-medium text-primary mb-2">
-                    <CheckCircle2 className="h-4 w-4" />
-                    New case will be created
-                  </div>
-                  <Textarea
-                    placeholder="Case title..."
-                    value={triageState.newCaseTitle}
-                    onChange={(e) => setTriageState(prev => ({
-                      ...prev,
-                      newCaseTitle: e.target.value,
-                    }))}
-                    className="text-sm"
-                    rows={2}
-                  />
-                </div>
-              )}
-
-              {!triageState.isNewCase && triageState.caseId && (
+              {triageState.caseId && (
                 <CaseCard caseId={triageState.caseId} />
               )}
             </div>
@@ -417,7 +387,7 @@ export function TriageWorkspace() {
           <Button
             className="w-full"
             onClick={handleApprove}
-            disabled={isProcessing || (!triageState.caseId && !triageState.isNewCase)}
+            disabled={isProcessing || !triageState.caseId}
           >
             {isProcessing ? (
               <>
@@ -442,11 +412,6 @@ export function TriageWorkspace() {
               Request Address
             </Button>
           )}
-
-          <Button variant="outline" className="w-full">
-            <Send className="h-4 w-4 mr-2" />
-            Reply
-          </Button>
         </div>
       </div>
 
