@@ -14,6 +14,7 @@ import {
   useCampaignsWithTriageCounts,
   useTriageQueue,
   useTriageActions,
+  useMessageBody,
   type ConstituentStatus,
   type TriageMessage,
 } from '@/hooks/triage/useTriage';
@@ -23,6 +24,27 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,29 +56,31 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  CompactMessageCard,
-  MessageDetailHeader,
   TriageSkeletons,
 } from '@/components/triage';
 import {
   Mail,
-  CheckCircle2,
-  HelpCircle,
-  AlertCircle,
   CheckCheck,
   XCircle,
   X,
   Loader2,
   ExternalLink,
+  User,
+  MapPin,
+  MapPinOff,
+  Flag,
+  ArrowLeft,
+  Check,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-// Bucket tab configuration
+// Bucket tab configuration - using icons matching DashboardPrototype
 const bucketTabs: { id: ConstituentStatus; label: string; icon: React.ReactNode }[] = [
-  { id: 'known', label: 'Known', icon: <CheckCircle2 className="h-4 w-4" /> },
-  { id: 'has_address', label: 'Has Address', icon: <HelpCircle className="h-4 w-4" /> },
-  { id: 'no_address', label: 'No Address', icon: <AlertCircle className="h-4 w-4" /> },
+  { id: 'known', label: 'Known', icon: <User className="h-4 w-4" /> },
+  { id: 'has_address', label: 'Address included', icon: <MapPin className="h-4 w-4" /> },
+  { id: 'no_address', label: 'No address', icon: <MapPinOff className="h-4 w-4" /> },
 ];
 
 export function CampaignDashboard() {
@@ -79,6 +103,11 @@ export function CampaignDashboard() {
   // Handle campaign selection
   const handleCampaignSelect = useCallback((id: string) => {
     navigate(`/triage/campaigns/${id}?bucket=known`);
+  }, [navigate]);
+
+  // Handle back to campaign list
+  const handleBackToCampaignList = useCallback(() => {
+    navigate('/triage/campaigns');
   }, [navigate]);
 
   // Handle bucket change - preserve message selection if in same bucket
@@ -151,6 +180,7 @@ export function CampaignDashboard() {
             onBucketChange={handleBucketChange}
             selectedMessageId={selectedMessageId}
             onMessageSelect={handleMessageSelect}
+            onBack={handleBackToCampaignList}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center">
@@ -216,28 +246,36 @@ function CampaignCard({
   );
 }
 
-// Campaign inbox with buckets
+// Campaign inbox with buckets - styled like DashboardPrototype
 function CampaignInbox({
   campaign,
   currentBucket,
   onBucketChange,
   selectedMessageId,
   onMessageSelect,
+  onBack,
 }: {
   campaign: ReturnType<typeof useCampaignsWithTriageCounts>['campaigns'][0];
   currentBucket: ConstituentStatus;
   onBucketChange: (bucket: string) => void;
   selectedMessageId: string | null;
   onMessageSelect: (messageId: string | null) => void;
+  onBack: () => void;
 }) {
   const navigate = useNavigate();
+  const { profiles, tags, getTagsForEntity, updateTagAssignments } = useSupabase();
   const { messages } = useTriageQueue({ campaignId: campaign.id, constituentStatus: currentBucket });
   const { approveTriage, bulkDismissTriage, isProcessing } = useTriageActions();
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
-  const [actionInProgress, setActionInProgress] = useState<'approve' | 'reject' | null>(null);
+  const [actionInProgress, setActionInProgress] = useState<'approve' | 'reject' | 'confirm' | 'not_campaign' | null>(null);
+
+  // Menubar state - Assignee & Tags for bulk operations
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('');
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagsPopoverOpen, setTagsPopoverOpen] = useState(false);
 
   // Get counts for tabs
   const { allMessages } = useTriageQueue({ campaignId: campaign.id });
@@ -246,6 +284,8 @@ function CampaignInbox({
     has_address: allMessages.filter(m => m.constituentStatus === 'has_address').length,
     no_address: allMessages.filter(m => m.constituentStatus === 'no_address').length,
   }), [allMessages]);
+
+  const pendingCount = campaign.totalCount;
 
   // Detail message from URL or selection
   const detailMessage = useMemo(() => {
@@ -335,6 +375,51 @@ function CampaignInbox({
     setActionInProgress(null);
   }, [selectedIds, bulkDismissTriage, clearSelection]);
 
+  // Handle single message confirm (campaign email confirmed)
+  const handleConfirmMessage = useCallback(async (messageId: string) => {
+    setActionInProgress('confirm');
+    const message = messages.find(m => m.id === messageId);
+    if (message?.senderConstituent) {
+      const result = await approveTriage(messageId, {
+        constituentId: message.senderConstituent.id,
+      });
+      if (result.success) {
+        toast.success('Message confirmed');
+        // Move to next message
+        const currentIndex = messages.findIndex(m => m.id === messageId);
+        const nextMessage = messages[currentIndex + 1] || messages[currentIndex - 1];
+        if (nextMessage) {
+          onMessageSelect(nextMessage.id);
+        } else {
+          onMessageSelect(null);
+        }
+      } else {
+        toast.error('Failed to confirm message');
+      }
+    }
+    setActionInProgress(null);
+  }, [messages, approveTriage, onMessageSelect]);
+
+  // Handle single message reject (not a campaign email)
+  const handleRejectMessage = useCallback(async (messageId: string) => {
+    setActionInProgress('not_campaign');
+    const result = await bulkDismissTriage([messageId], 'Not a campaign email');
+    if (result.success) {
+      toast.success('Message marked as not a campaign email');
+      // Move to next message
+      const currentIndex = messages.findIndex(m => m.id === messageId);
+      const nextMessage = messages[currentIndex + 1] || messages[currentIndex - 1];
+      if (nextMessage) {
+        onMessageSelect(nextMessage.id);
+      } else {
+        onMessageSelect(null);
+      }
+    } else {
+      toast.error('Failed to update message');
+    }
+    setActionInProgress(null);
+  }, [messages, bulkDismissTriage, onMessageSelect]);
+
   // Navigate to single triage
   const handleOpenTriage = useCallback((messageId: string) => {
     navigate(`/triage/messages/${messageId}?from=${encodeURIComponent(window.location.pathname + window.location.search)}`);
@@ -342,19 +427,29 @@ function CampaignInbox({
 
   const isActionInProgress = isProcessing || actionInProgress !== null;
 
+  // Get caseworkers list
+  const caseworkers = profiles.filter(p => p.role === 'caseworker' || p.role === 'admin');
+
   return (
-    <>
-      {/* Header */}
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">{campaign.name}</h2>
-            <p className="text-sm text-muted-foreground">
-              {campaign.totalCount} messages to triage
-            </p>
-          </div>
+    <div className="h-full flex flex-col">
+      {/* Header - styled like DashboardPrototype */}
+      <div className="shrink-0 flex items-center justify-between p-4 border-b">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <div className="h-4 w-px bg-border" />
+          <Flag className="h-5 w-5 text-blue-600" />
+          <h1 className="text-xl font-semibold">{campaign.name}</h1>
+          <Badge variant="secondary">{pendingCount} pending</Badge>
+        </div>
+
+        {/* Menubar: Assignee & Tags */}
+        <div className="flex items-center gap-4">
+          {/* Bulk selection actions */}
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mr-4">
               <span className="text-sm text-muted-foreground">
                 {selectedIds.size} selected
               </span>
@@ -390,84 +485,206 @@ function CampaignInbox({
               </Button>
             </div>
           )}
+
+          {/* Assignee Dropdown */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-muted-foreground">Assignee:</Label>
+            <Select value={selectedAssigneeId} onValueChange={setSelectedAssigneeId}>
+              <SelectTrigger className="w-[140px] h-8">
+                <SelectValue placeholder="Select assignee" />
+              </SelectTrigger>
+              <SelectContent>
+                {caseworkers.map((cw) => (
+                  <SelectItem key={cw.id} value={cw.id}>
+                    {cw.full_name || 'Unknown'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Tags Popover */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm text-muted-foreground">Tags:</Label>
+            <Popover open={tagsPopoverOpen} onOpenChange={setTagsPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 min-w-[120px] justify-start">
+                  {selectedTagIds.length > 0 ? (
+                    <div className="flex items-center gap-1 overflow-hidden">
+                      {selectedTagIds.slice(0, 2).map((tagId) => {
+                        const tag = tags.find(t => t.id === tagId);
+                        return tag ? (
+                          <Badge
+                            key={tag.id}
+                            variant="outline"
+                            className="text-xs h-5"
+                            style={{
+                              borderColor: tag.color,
+                              backgroundColor: `${tag.color}20`,
+                              color: tag.color,
+                            }}
+                          >
+                            {tag.name}
+                          </Badge>
+                        ) : null;
+                      })}
+                      {selectedTagIds.length > 2 && (
+                        <span className="text-xs text-muted-foreground">+{selectedTagIds.length - 2}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Plus className="h-3 w-3" />
+                      Add tags
+                    </span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[220px] p-0" align="end">
+                <Command shouldFilter={false}>
+                  <CommandInput placeholder="Search tags..." />
+                  <CommandList>
+                    <CommandEmpty>No tags found.</CommandEmpty>
+                    <CommandGroup>
+                      {tags.map((tag) => {
+                        const isSelected = selectedTagIds.includes(tag.id);
+                        return (
+                          <CommandItem
+                            key={tag.id}
+                            value={tag.id}
+                            onSelect={() => {
+                              if (isSelected) {
+                                setSelectedTagIds(selectedTagIds.filter((id) => id !== tag.id));
+                              } else {
+                                setSelectedTagIds([...selectedTagIds, tag.id]);
+                              }
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 flex-1">
+                              <Badge
+                                variant="outline"
+                                className="text-xs"
+                                style={{
+                                  borderColor: tag.color,
+                                  backgroundColor: `${tag.color}20`,
+                                  color: tag.color,
+                                }}
+                              >
+                                {tag.name}
+                              </Badge>
+                            </div>
+                            {isSelected && <Check className="h-4 w-4" />}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </div>
 
-      {/* Bucket tabs */}
-      <Tabs value={currentBucket} onValueChange={onBucketChange} className="flex-1 flex flex-col">
-        <div className="border-b px-4">
-          <TabsList className="bg-transparent h-12 p-0 gap-4">
-            {bucketTabs.map((tab) => (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-12 px-1"
-              >
-                <span className="flex items-center gap-2">
-                  {tab.icon}
-                  {tab.label}
-                  <Badge variant="secondary" className="ml-1">
-                    {counts[tab.id]}
-                  </Badge>
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
+      {/* Tabs - styled like DashboardPrototype */}
+      <Tabs
+        value={currentBucket}
+        onValueChange={(v) => {
+          onBucketChange(v);
+          onMessageSelect(null);
+        }}
+        className="flex-1 flex flex-col overflow-hidden"
+      >
+        <TabsList className="grid w-full grid-cols-3 shrink-0">
+          {bucketTabs.map((tab) => (
+            <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+              {tab.icon}
+              {tab.label}
+              <Badge variant="outline" className="ml-1">{counts[tab.id]}</Badge>
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-        <div className="flex-1 flex min-h-0">
-          {/* Message list */}
-          <div className="w-96 border-r flex flex-col">
-            {/* Select all bar */}
-            <div className="px-3 py-2 border-b flex items-center gap-2">
-              <Checkbox
-                checked={selectedIds.size === messages.length && messages.length > 0}
-                onCheckedChange={(checked) => {
-                  if (checked) selectAll();
-                  else clearSelection();
-                }}
-                disabled={messages.length === 0}
-              />
-              <span className="text-sm text-muted-foreground">
-                {messages.length} messages
-              </span>
-            </div>
-
+        <div className="flex-1 flex overflow-hidden mt-4 gap-0">
+          {/* Left sidebar - email list (1/3 width like DashboardPrototype) */}
+          <div className="w-1/3 flex flex-col overflow-hidden border-y border-l bg-muted/30">
             <ScrollArea className="flex-1">
-              {messages.length === 0 ? (
-                <div className="p-8 text-center">
-                  <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">No messages in this bucket</p>
-                </div>
-              ) : (
-                messages.map((message) => (
-                  <CompactMessageCard
-                    key={message.id}
-                    message={message}
-                    isSelected={selectedIds.has(message.id)}
-                    onSelect={() => toggleSelection(message.id)}
-                    onClick={() => onMessageSelect(message.id)}
-                    isActive={message.id === selectedMessageId}
-                  />
-                ))
-              )}
+              <div className="divide-y">
+                {messages.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground text-sm">
+                    No emails in this category
+                  </div>
+                ) : (
+                  messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={cn(
+                        'px-3 py-2 cursor-pointer transition-colors flex items-center gap-2',
+                        selectedMessageId === message.id
+                          ? 'bg-blue-100'
+                          : 'hover:bg-muted'
+                      )}
+                      onClick={() => onMessageSelect(message.id)}
+                    >
+                      <Checkbox
+                        checked={selectedIds.has(message.id)}
+                        onCheckedChange={() => toggleSelection(message.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{message.senderEmail}</div>
+                        <div className="text-xs text-muted-foreground truncate">{message.senderName}</div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleConfirmMessage(message.id);
+                          }}
+                          disabled={isActionInProgress}
+                        >
+                          <Check className="h-3.5 w-3.5 text-green-600" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRejectMessage(message.id);
+                          }}
+                          disabled={isActionInProgress}
+                        >
+                          <X className="h-3.5 w-3.5 text-red-500" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </ScrollArea>
           </div>
 
-          {/* Detail/preview pane */}
-          <div className="flex-1 min-w-0">
+          {/* Right pane - email detail (2/3 width like DashboardPrototype) */}
+          <div className="w-2/3 flex flex-col overflow-hidden border bg-background relative">
             {detailMessage ? (
-              <MessagePreview
+              <MessagePreviewWithToolbar
                 message={detailMessage}
+                onConfirm={() => handleConfirmMessage(detailMessage.id)}
+                onReject={() => handleRejectMessage(detailMessage.id)}
                 onOpenTriage={() => handleOpenTriage(detailMessage.id)}
+                isProcessing={isActionInProgress !== null}
               />
             ) : (
-              <div className="h-full flex items-center justify-center">
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
                 <div className="text-center">
-                  <Mail className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    Select a message to preview
-                  </p>
+                  <Mail className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Select an email to view</p>
                 </div>
               </div>
             )}
@@ -505,41 +722,118 @@ function CampaignInbox({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }
 
-// Message preview in campaign dashboard
-function MessagePreview({
+// Message preview with floating toolbar - styled like DashboardPrototype
+function MessagePreviewWithToolbar({
   message,
+  onConfirm,
+  onReject,
   onOpenTriage,
+  isProcessing,
 }: {
   message: TriageMessage;
+  onConfirm: () => void;
+  onReject: () => void;
   onOpenTriage: () => void;
+  isProcessing: boolean;
 }) {
+  // Get message body
+  const { body: messageBody, isLoading: bodyLoading } = useMessageBody(message.id);
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="p-4 border-b">
-        <MessageDetailHeader message={message} />
+    <>
+      {/* Floating toolbar */}
+      <div className="absolute top-0 left-0 right-0 bg-background/95 backdrop-blur border-b z-10 px-4 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={onOpenTriage}
+          >
+            <ExternalLink className="h-3 w-3 mr-1" />
+            Open in Triage
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={onReject}
+              disabled={isProcessing}
+            >
+              Not a campaign email
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              onClick={onConfirm}
+              disabled={isProcessing}
+            >
+              Confirmed campaign email
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-4">
-          <div className="prose prose-sm max-w-none">
-            <pre className="whitespace-pre-wrap font-sans text-sm">
-              {message.snippet || 'No preview available'}
-            </pre>
+      <ScrollArea className="flex-1 pt-12">
+        <div className="p-4 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="font-semibold text-lg">{message.subject || '(No subject)'}</h3>
+              <div className="text-sm text-muted-foreground mt-1">
+                From: {message.senderName} &lt;{message.senderEmail}&gt;
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {new Date(message.receivedAt).toLocaleString()}
+              </div>
+            </div>
+            {message.constituentStatus === 'known' && message.senderConstituent && (
+              <Badge variant="outline" className="bg-white border-gray-300 text-gray-700 shrink-0 gap-1">
+                <User className="h-3 w-3" />
+                {message.senderConstituent.full_name}
+              </Badge>
+            )}
+            {message.constituentStatus === 'has_address' && (
+              <Badge variant="outline" className="bg-gray-500 border-dashed border-gray-600 text-white shrink-0 gap-1">
+                <MapPin className="h-3 w-3" />
+                Create constituent
+              </Badge>
+            )}
+            {message.constituentStatus === 'no_address' && (
+              <Badge variant="outline" className="bg-gray-500 border-dashed border-gray-600 text-white shrink-0 gap-1">
+                <MapPinOff className="h-3 w-3" />
+                Request address
+              </Badge>
+            )}
+          </div>
+
+          {message.constituentStatus === 'has_address' && message.addressFromEmail && (
+            <div className="text-sm text-gray-600 bg-gray-100 px-3 py-2 rounded border border-gray-200">
+              <MapPin className="inline h-4 w-4 mr-1" />
+              Address found: {message.addressFromEmail}
+            </div>
+          )}
+
+          <div className="border-t pt-4">
+            {bodyLoading ? (
+              <div className="space-y-2">
+                <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
+                <div className="h-4 bg-muted animate-pulse rounded w-1/2" />
+                <div className="h-4 bg-muted animate-pulse rounded w-2/3" />
+              </div>
+            ) : (
+              <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                {messageBody || message.snippet || 'No content available'}
+              </p>
+            )}
           </div>
         </div>
       </ScrollArea>
-
-      <div className="p-4 border-t">
-        <Button onClick={onOpenTriage}>
-          Open in Triage
-          <ExternalLink className="h-4 w-4 ml-2" />
-        </Button>
-      </div>
-    </div>
+    </>
   );
 }
 
