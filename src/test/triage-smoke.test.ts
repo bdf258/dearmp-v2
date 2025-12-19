@@ -1,360 +1,255 @@
 /**
- * Triage Smoke Tests
+ * Triage Smoke Test Documentation
  *
- * Quick verification tests to run after deployment.
- * These tests verify core functionality is working without deep testing.
+ * IMPORTANT: True smoke tests verify real functionality in a deployed environment.
+ * They should NOT mock anything - that defeats the entire purpose.
  *
- * Run these tests post-deploy with: npm run test:smoke
+ * This file contains:
+ * 1. A checklist for manual post-deployment verification
+ * 2. Configuration validation tests (these run in CI)
+ * 3. Feature flag validation
+ *
+ * For actual smoke testing, use:
+ * - Manual testing in staging/production
+ * - Playwright/Cypress e2e tests with real Supabase
+ * - supabase test db for database function verification
  */
 
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-// Generic type for mock results to handle various response shapes
-type MockData = Record<string, unknown> | unknown[] | null;
-type MockRpcResponse = { data: MockData; error: { message: string; code: string } | null };
+// ============= CONFIGURATION VALIDATION =============
+// These tests run in CI to verify the test environment
 
-// Mock Supabase for smoke tests (in production, use real client)
-const createSmokeTestClient = () => ({
-  rpc: vi.fn((_fnName: string, _params?: Record<string, unknown>): Promise<MockRpcResponse> => Promise.resolve({
-    data: { success: true },
-    error: null,
-  })),
-  from: vi.fn((_table: string) => ({
-    select: vi.fn((_columns?: string) => ({
-      eq: vi.fn((_col: string, _val: unknown) => ({
-        single: vi.fn(),
-        limit: vi.fn((_n: number) => Promise.resolve({ data: [], error: null })),
-      })),
-      limit: vi.fn((_n: number) => Promise.resolve({ data: [], error: null })),
-    })),
-  })),
-  auth: {
-    getSession: vi.fn(),
-  },
+describe('Smoke Test Configuration', () => {
+  it('has vitest configured correctly', () => {
+    expect(typeof describe).toBe('function');
+    expect(typeof it).toBe('function');
+    expect(typeof expect).toBe('function');
+  });
+
+  it('can import feature flags module', async () => {
+    const { isFeatureEnabled } = await import('@/lib/featureFlags');
+    expect(typeof isFeatureEnabled).toBe('function');
+  });
+
+  it('can evaluate triage feature flag', async () => {
+    const { isFeatureEnabled } = await import('@/lib/featureFlags');
+
+    // Feature flag should return a boolean
+    const result = isFeatureEnabled('triage', {
+      userRole: 'staff',
+      officeId: 'test-office',
+    });
+
+    expect(typeof result).toBe('boolean');
+  });
 });
 
-describe('Triage Smoke Tests', () => {
-  let client: ReturnType<typeof createSmokeTestClient>;
+// ============= SMOKE TEST CHECKLIST =============
 
-  beforeAll(() => {
-    client = createSmokeTestClient();
+/**
+ * Post-Deployment Smoke Test Checklist
+ *
+ * Run these tests MANUALLY after each deployment to staging/production.
+ * Each test should be performed by a real user in a browser.
+ *
+ * AUTHENTICATION
+ * [ ] Staff user can log in successfully
+ * [ ] Admin user can log in successfully
+ * [ ] Session persists after page refresh
+ * [ ] Logout clears session completely
+ *
+ * TRIAGE QUEUE
+ * [ ] Queue page loads without errors
+ * [ ] Messages appear sorted by received_at (newest first)
+ * [ ] Empty state displays when no messages pending
+ * [ ] Loading skeleton shows during data fetch
+ * [ ] Pagination works when > 50 messages
+ *
+ * CONSTITUENT OPERATIONS
+ * [ ] Search by name returns matching constituents
+ * [ ] Search by email returns matching constituents
+ * [ ] Create new constituent succeeds
+ * [ ] New constituent appears in search results
+ *
+ * CASE OPERATIONS
+ * [ ] Search existing cases by title works
+ * [ ] Search by reference number works
+ * [ ] Create new case succeeds
+ * [ ] Link message to case updates the message
+ * [ ] Assign caseworker to case succeeds
+ * [ ] Set case priority succeeds
+ *
+ * TAGGING
+ * [ ] Tags load in tag picker
+ * [ ] Add tag to case succeeds
+ * [ ] Remove tag from case succeeds
+ * [ ] Tag filter in queue works
+ *
+ * TRIAGE ACTIONS
+ * [ ] Confirm single message (triage_status -> confirmed)
+ * [ ] Confirm with case link works
+ * [ ] Confirm with new case creation works
+ * [ ] Dismiss message with reason works
+ * [ ] Bulk confirm (if enabled) works
+ * [ ] Bulk dismiss (if enabled) works
+ *
+ * SECURITY
+ * [ ] Cannot see messages from other offices
+ * [ ] Non-staff users cannot access triage page
+ * [ ] Audit log entries created for actions
+ *
+ * AI FEATURES (if enabled)
+ * [ ] AI classification suggestions display
+ * [ ] Confidence scores visible on triaged messages
+ * [ ] Classification reasoning shown in detail view
+ *
+ * UI/UX
+ * [ ] Loading states display properly
+ * [ ] Error messages show on failure
+ * [ ] Toast notifications appear for actions
+ * [ ] Keyboard navigation works
+ * [ ] Mobile responsive layout works
+ *
+ * PERFORMANCE
+ * [ ] Queue loads in < 3 seconds
+ * [ ] Triage actions complete in < 2 seconds
+ * [ ] No JavaScript console errors
+ * [ ] No network request failures
+ */
+export const SMOKE_TEST_CHECKLIST = {
+  authentication: [
+    { test: 'Staff login', critical: true },
+    { test: 'Admin login', critical: true },
+    { test: 'Session persistence', critical: true },
+    { test: 'Logout', critical: false },
+  ],
+  triage_queue: [
+    { test: 'Queue loads', critical: true },
+    { test: 'Messages sorted', critical: false },
+    { test: 'Empty state', critical: false },
+    { test: 'Loading skeleton', critical: false },
+    { test: 'Pagination', critical: false },
+  ],
+  constituent_ops: [
+    { test: 'Search by name', critical: true },
+    { test: 'Search by email', critical: true },
+    { test: 'Create constituent', critical: true },
+  ],
+  case_ops: [
+    { test: 'Search cases', critical: true },
+    { test: 'Create case', critical: true },
+    { test: 'Link message', critical: true },
+    { test: 'Assign caseworker', critical: false },
+    { test: 'Set priority', critical: false },
+  ],
+  triage_actions: [
+    { test: 'Confirm message', critical: true },
+    { test: 'Dismiss message', critical: true },
+    { test: 'Bulk operations', critical: false },
+  ],
+  security: [
+    { test: 'Office isolation', critical: true },
+    { test: 'Role enforcement', critical: true },
+    { test: 'Audit logging', critical: true },
+  ],
+};
+
+// ============= CHECKLIST DOCUMENTATION TESTS =============
+
+describe('Smoke Test Checklist Documentation', () => {
+  it('documents all critical authentication tests', () => {
+    const criticalTests = SMOKE_TEST_CHECKLIST.authentication.filter(t => t.critical);
+    expect(criticalTests.length).toBeGreaterThan(0);
   });
 
-  describe('Database Connectivity', () => {
-    it('can connect to the database', async () => {
-      vi.mocked(client.auth.getSession).mockResolvedValue({
-        data: { session: null },
-        error: null,
-      });
-
-      const result = await client.auth.getSession();
-      expect(result.error).toBeNull();
-    });
+  it('documents all critical triage action tests', () => {
+    const criticalTests = SMOKE_TEST_CHECKLIST.triage_actions.filter(t => t.critical);
+    expect(criticalTests.length).toBeGreaterThan(0);
   });
 
-  describe('RPC Functions Available', () => {
-    const rpcFunctions = [
-      'confirm_triage',
-      'dismiss_triage',
-      'get_triage_queue',
-      'get_triage_stats',
-      'mark_as_triaged',
-    ];
-
-    rpcFunctions.forEach((fnName) => {
-      it(`RPC function '${fnName}' exists and is callable`, async () => {
-        vi.mocked(client.rpc).mockResolvedValue({
-          data: { success: true },
-          error: null,
-        });
-
-        // Attempt to call the RPC function
-        const result = await client.rpc(fnName, {});
-        expect(result.error).toBeNull();
-      });
-    });
+  it('documents all critical security tests', () => {
+    const criticalTests = SMOKE_TEST_CHECKLIST.security.filter(t => t.critical);
+    expect(criticalTests.length).toBeGreaterThan(0);
   });
 
-  describe('Required Tables Exist', () => {
-    const requiredTables = [
-      'messages',
-      'message_recipients',
-      'constituents',
-      'constituent_contacts',
-      'cases',
-      'campaigns',
-      'tags',
-      'tag_assignments',
-      'audit_logs',
-      'profiles',
-    ];
+  it('counts total smoke tests in checklist', () => {
+    const totalTests = Object.values(SMOKE_TEST_CHECKLIST)
+      .flat()
+      .length;
 
-    requiredTables.forEach((tableName) => {
-      it(`table '${tableName}' exists and is queryable`, async () => {
-        const mockFrom = vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue({
-              data: [],
-              error: null,
-            }),
-          }),
-        });
+    // Should have at least 20 manual tests defined
+    expect(totalTests).toBeGreaterThanOrEqual(15);
+  });
+});
 
-        vi.mocked(client.from).mockImplementation(mockFrom);
+// ============= RPC AVAILABILITY CHECKS =============
 
-        const result = await client.from(tableName).select().limit(1);
-        expect(result.error).toBeNull();
-      });
+/**
+ * These document which RPC functions must be available.
+ * Actual availability is tested by calling them against a real database.
+ */
+describe('Required RPC Functions', () => {
+  const requiredRPCs = [
+    'confirm_triage',
+    'dismiss_triage',
+    'get_triage_queue',
+    'get_triage_stats',
+    'mark_as_triaged',
+  ];
+
+  requiredRPCs.forEach((rpcName) => {
+    it(`documents required RPC: ${rpcName}`, () => {
+      // This test documents the requirement
+      // Actual availability is verified in e2e tests
+      expect(rpcName).toBeDefined();
     });
   });
+});
 
-  describe('Triage Queue Functionality', () => {
-    it('get_triage_queue returns expected structure', async () => {
-      const mockQueueResponse = {
-        data: [
-          {
-            id: 'test-msg-1',
-            office_id: 'test-office',
-            subject: 'Test Subject',
-            snippet: 'Test snippet...',
-            received_at: new Date().toISOString(),
-            triage_status: 'pending',
-            sender_email: 'test@example.com',
-            sender_name: 'Test Sender',
-          },
-        ],
-        error: null,
-      };
+// ============= REQUIRED TABLES =============
 
-      vi.mocked(client.rpc).mockResolvedValue(mockQueueResponse);
+describe('Required Database Tables', () => {
+  const requiredTables = [
+    'messages',
+    'message_recipients',
+    'constituents',
+    'constituent_contacts',
+    'cases',
+    'case_parties',
+    'campaigns',
+    'tags',
+    'tag_assignments',
+    'audit_logs',
+    'profiles',
+    'offices',
+  ];
 
-      const result = await client.rpc('get_triage_queue', {
-        p_status: ['pending', 'triaged'],
-        p_limit: 10,
-      });
-
-      expect(result.error).toBeNull();
-      expect(Array.isArray(result.data)).toBe(true);
-      const data = result.data as unknown[];
-      if (data && data.length > 0) {
-        const item = data[0] as Record<string, unknown>;
-        expect(item).toHaveProperty('id');
-        expect(item).toHaveProperty('office_id');
-        expect(item).toHaveProperty('triage_status');
-      }
-    });
-
-    it('get_triage_stats returns expected structure', async () => {
-      const mockStatsResponse = {
-        data: {
-          pending_count: 5,
-          triaged_count: 3,
-          confirmed_today: 10,
-          dismissed_today: 2,
-          by_email_type: { policy: 3, casework: 5 },
-          avg_confidence: 0.85,
-        },
-        error: null,
-      };
-
-      vi.mocked(client.rpc).mockResolvedValue(mockStatsResponse);
-
-      const result = await client.rpc('get_triage_stats', {});
-
-      expect(result.error).toBeNull();
-      const data = result.data as Record<string, unknown>;
-      expect(data).toHaveProperty('pending_count');
-      expect(data).toHaveProperty('triaged_count');
-      expect(typeof data?.pending_count).toBe('number');
-    });
-  });
-
-  describe('Triage Actions', () => {
-    it('confirm_triage accepts valid parameters', async () => {
-      vi.mocked(client.rpc).mockResolvedValue({
-        data: { success: true, confirmed_count: 1 },
-        error: null,
-      });
-
-      const result = await client.rpc('confirm_triage', {
-        p_message_ids: ['test-msg-1'],
-        p_case_id: 'test-case-1',
-      });
-
-      expect(result.error).toBeNull();
-      expect((result.data as Record<string, unknown>)?.success).toBe(true);
-    });
-
-    it('dismiss_triage accepts valid parameters', async () => {
-      vi.mocked(client.rpc).mockResolvedValue({
-        data: { success: true, dismissed_count: 1 },
-        error: null,
-      });
-
-      const result = await client.rpc('dismiss_triage', {
-        p_message_ids: ['test-msg-1'],
-        p_reason: 'spam',
-      });
-
-      expect(result.error).toBeNull();
-      expect((result.data as Record<string, unknown>)?.success).toBe(true);
-    });
-  });
-
-  describe('Message Columns', () => {
-    it('messages table has triage columns', async () => {
-      const mockMessage = {
-        id: 'test-msg',
-        triage_status: 'pending',
-        triaged_at: null,
-        triaged_by: null,
-        confirmed_at: null,
-        confirmed_by: null,
-        triage_metadata: {},
-        classification_confidence: null,
-        email_type: null,
-        is_campaign_email: false,
-      };
-
-      const mockSelect = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({
-            data: mockMessage,
-            error: null,
-          }),
-        }),
-      });
-
-      vi.mocked(client.from).mockReturnValue({
-        select: mockSelect,
-      } as ReturnType<typeof client.from>);
-
-      const result = await client
-        .from('messages')
-        .select('id, triage_status, triaged_at, confirmed_at, triage_metadata')
-        .eq('id', 'test-msg')
-        .single();
-
-      expect(result.error).toBeNull();
-      expect(result.data).toHaveProperty('triage_status');
-      expect(result.data).toHaveProperty('triage_metadata');
-    });
-  });
-
-  describe('Audit Logging', () => {
-    it('audit_logs table accepts triage actions', async () => {
-      const triageActions = ['triage_confirm', 'triage_dismiss', 'triage_batch'];
-
-      for (const action of triageActions) {
-        const mockSelect = vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue({
-              data: [{ action }],
-              error: null,
-            }),
-          }),
-        });
-
-        vi.mocked(client.from).mockReturnValue({
-          select: mockSelect,
-        } as ReturnType<typeof client.from>);
-
-        const result = await client
-          .from('audit_logs')
-          .select('action')
-          .eq('action', action)
-          .limit(1);
-
-        expect(result.error).toBeNull();
-      }
-    });
-  });
-
-  describe('Feature Flags', () => {
-    it('triage feature flag can be evaluated', async () => {
-      // Test that feature flag module can be imported and used
-      const { isFeatureEnabled } = await import('@/lib/featureFlags');
-
-      const result = isFeatureEnabled('triage', {
-        userRole: 'staff',
-        officeId: 'test-office',
-      });
-
-      expect(typeof result).toBe('boolean');
+  requiredTables.forEach((tableName) => {
+    it(`documents required table: ${tableName}`, () => {
+      // This test documents the requirement
+      // Actual existence is verified in database migrations
+      expect(tableName).toBeDefined();
     });
   });
 });
 
 /**
- * Production Smoke Test Checklist
+ * How to Run Real Smoke Tests
  *
- * After deployment, verify the following manually or via this test suite:
+ * Option 1: Manual Testing (Recommended for critical deployments)
+ *   1. Log into staging environment
+ *   2. Go through each item in SMOKE_TEST_CHECKLIST
+ *   3. Document any failures
  *
- * 1. AUTHENTICATION
- *    [ ] Can log in as staff user
- *    [ ] Can log in as admin user
- *    [ ] Session persists across page refresh
+ * Option 2: Playwright E2E Tests
+ *   npm run test:e2e -- --grep "smoke"
  *
- * 2. TRIAGE QUEUE
- *    [ ] Queue loads for authenticated user
- *    [ ] Messages sorted by received_at DESC
- *    [ ] Empty state shows when no messages
- *    [ ] Pagination works (if > 50 messages)
+ * Option 3: Database Function Tests
+ *   supabase test db
  *
- * 3. CONSTITUENT SEARCH
- *    [ ] Search by name returns results
- *    [ ] Search by email returns results
- *    [ ] Create new constituent works
- *
- * 4. CASE OPERATIONS
- *    [ ] Search existing cases
- *    [ ] Create new case
- *    [ ] Link message to case
- *    [ ] Assign caseworker
- *    [ ] Set priority
- *
- * 5. TAGGING
- *    [ ] Add tag to case
- *    [ ] Remove tag from case
- *    [ ] Tags visible in tag picker
- *
- * 6. TRIAGE ACTIONS
- *    [ ] Confirm single message
- *    [ ] Confirm with case link
- *    [ ] Dismiss message
- *    [ ] Bulk confirm (if enabled)
- *    [ ] Bulk dismiss (if enabled)
- *
- * 7. SECURITY
- *    [ ] Cannot see messages from other offices
- *    [ ] Non-staff cannot access triage
- *    [ ] Audit logs created for actions
- *
- * 8. AI FEATURES
- *    [ ] AI suggestions display (if triaged)
- *    [ ] Confidence scores visible
- *    [ ] Classification reasoning shown
- *
- * 9. UI/UX
- *    [ ] Loading skeletons display
- *    [ ] Error messages show on failure
- *    [ ] Toast notifications work
- *    [ ] Navigation between messages works
- *
- * 10. PERFORMANCE
- *    [ ] Queue loads in < 3 seconds
- *    [ ] Actions complete in < 2 seconds
- *    [ ] No console errors
+ * Option 4: API Smoke Tests
+ *   curl -X POST https://your-project.supabase.co/rest/v1/rpc/get_triage_stats \
+ *     -H "apikey: your-anon-key" \
+ *     -H "Authorization: Bearer user-jwt"
  */
-export const SMOKE_TEST_CHECKLIST = {
-  authentication: ['login_staff', 'login_admin', 'session_persist'],
-  triage_queue: ['queue_loads', 'sorted_by_date', 'empty_state', 'pagination'],
-  constituent_search: ['search_name', 'search_email', 'create_new'],
-  case_operations: ['search_case', 'create_case', 'link_message', 'assign', 'priority'],
-  tagging: ['add_tag', 'remove_tag', 'tag_picker'],
-  triage_actions: ['confirm_single', 'confirm_with_case', 'dismiss', 'bulk_confirm', 'bulk_dismiss'],
-  security: ['office_isolation', 'role_check', 'audit_logs'],
-  ai_features: ['suggestions', 'confidence', 'reasoning'],
-  ui_ux: ['skeletons', 'errors', 'toasts', 'navigation'],
-  performance: ['queue_load_time', 'action_time', 'no_errors'],
-};

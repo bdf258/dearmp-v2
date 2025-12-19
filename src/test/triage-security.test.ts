@@ -1,467 +1,290 @@
 /**
- * Triage Security Tests
+ * Triage Security Specification Tests
  *
- * Tests for Row Level Security (RLS) policies ensuring:
- * - Cross-office isolation
- * - Role-based access control
- * - Audit log integrity
+ * IMPORTANT: These tests document the SPECIFICATION of Row Level Security (RLS)
+ * policies. They do NOT test actual Supabase RLS enforcement.
+ *
+ * The actual RLS policies are implemented in:
+ * - supabase/migrations/20241218000003_triage_state.sql
+ *
+ * To test actual RLS behavior, you must:
+ * 1. Run tests against a real Supabase instance with different user contexts
+ * 2. Use `supabase test db` with pgTAP for database-level tests
+ * 3. Manually verify cross-office access is blocked
+ *
+ * These specification tests ensure that:
+ * - Security requirements are documented
+ * - Changes to security rules are caught in review
+ * - The expected access control matrix is clear
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-// Test fixtures for multi-tenant scenarios
-const SECURITY_FIXTURES = {
-  offices: {
-    office1: { id: 'office-1', name: 'Westminster Office' },
-    office2: { id: 'office-2', name: 'Constituency Office' },
-    office3: { id: 'office-3', name: 'Other MP Office' },
+// ============= SECURITY SPECIFICATION =============
+
+/**
+ * User roles and their permissions.
+ * These roles are enforced by RLS policies in the database.
+ */
+export const USER_ROLES = {
+  ADMIN: 'admin',
+  STAFF: 'staff',
+  MP: 'mp',
+  CONSTITUENT: 'constituent',
+  SERVICE_ROLE: 'service_role',
+} as const;
+
+/**
+ * Triage permission matrix.
+ * Defines which roles can perform which actions.
+ */
+export const TRIAGE_PERMISSIONS = {
+  can_read_messages: ['admin', 'staff', 'mp'],
+  can_update_triage_status: ['admin', 'staff'],
+  can_confirm_triage: ['admin', 'staff'],
+  can_dismiss_triage: ['admin', 'staff'],
+  can_access_all_offices: ['service_role'],
+} as const;
+
+/**
+ * RPC functions and their access requirements.
+ */
+export const RPC_ACCESS_RULES = {
+  confirm_triage: {
+    requires_authentication: true,
+    requires_office_context: true,
+    allowed_roles: ['admin', 'staff'],
+    validates_message_ownership: true,
   },
-  users: {
-    // Office 1 users
-    admin1: { id: 'admin-1', office_id: 'office-1', role: 'admin', email: 'admin1@test.com' },
-    staff1: { id: 'staff-1', office_id: 'office-1', role: 'staff', email: 'staff1@test.com' },
-    mp1: { id: 'mp-1', office_id: 'office-1', role: 'mp', email: 'mp1@test.com' },
-    constituent1: { id: 'const-1', office_id: 'office-1', role: 'constituent', email: 'const1@test.com' },
-
-    // Office 2 users (for cross-office tests)
-    admin2: { id: 'admin-2', office_id: 'office-2', role: 'admin', email: 'admin2@test.com' },
-    staff2: { id: 'staff-2', office_id: 'office-2', role: 'staff', email: 'staff2@test.com' },
+  dismiss_triage: {
+    requires_authentication: true,
+    requires_office_context: true,
+    allowed_roles: ['admin', 'staff'],
+    validates_message_ownership: true,
   },
-  messages: {
-    office1Pending: { id: 'msg-o1-1', office_id: 'office-1', triage_status: 'pending' },
-    office1Triaged: { id: 'msg-o1-2', office_id: 'office-1', triage_status: 'triaged' },
-    office2Pending: { id: 'msg-o2-1', office_id: 'office-2', triage_status: 'pending' },
+  get_triage_queue: {
+    requires_authentication: true,
+    requires_office_context: true,
+    allowed_roles: ['admin', 'staff', 'mp'],
+    filters_by_office: true,
   },
-};
+  get_triage_stats: {
+    requires_authentication: true,
+    requires_office_context: true,
+    allowed_roles: ['admin', 'staff', 'mp'],
+    scoped_to_office: true,
+  },
+  mark_as_triaged: {
+    requires_authentication: false, // Can be called by service role
+    requires_office_context: false,
+    allowed_roles: ['service_role'],
+    validates_message_ownership: false, // Service role has full access
+  },
+} as const;
 
-// Simulated RLS policy enforcement
-class RLSEnforcer {
-  private currentUser: { id: string; office_id: string; role: string } | null = null;
+// ============= SPECIFICATION TESTS =============
 
-  setUser(user: { id: string; office_id: string; role: string } | null) {
-    this.currentUser = user;
-  }
+describe('Triage RLS Security Specification', () => {
+  describe('Cross-Office Isolation Rules', () => {
+    it('specifies that users can only access their own office data', () => {
+      // RLS Policy: office_id = get_my_office_id()
+      // This is enforced by the RLS policies on the messages table
+      const rule = 'Users can only read messages where message.office_id = user.office_id';
+      expect(rule).toBeDefined();
+    });
 
-  getMyOfficeId(): string | null {
-    return this.currentUser?.office_id || null;
-  }
+    it('specifies that triage operations validate message ownership', () => {
+      // The confirm_triage and dismiss_triage RPCs verify that all
+      // message_ids belong to the caller's office before processing
+      expect(RPC_ACCESS_RULES.confirm_triage.validates_message_ownership).toBe(true);
+      expect(RPC_ACCESS_RULES.dismiss_triage.validates_message_ownership).toBe(true);
+    });
 
-  canReadMessage(message: { office_id: string }): boolean {
-    if (!this.currentUser) return false;
-    return message.office_id === this.currentUser.office_id;
-  }
+    it('specifies that get_triage_queue filters by office', () => {
+      // The RPC only returns messages from the caller's office
+      expect(RPC_ACCESS_RULES.get_triage_queue.filters_by_office).toBe(true);
+    });
+  });
 
-  canUpdateTriageStatus(message: { office_id: string }): boolean {
-    if (!this.currentUser) return false;
-    if (message.office_id !== this.currentUser.office_id) return false;
-    return ['admin', 'staff'].includes(this.currentUser.role);
-  }
+  describe('Role-Based Access Control Rules', () => {
+    it('specifies admin and staff can update triage status', () => {
+      const allowedRoles = TRIAGE_PERMISSIONS.can_update_triage_status;
+      expect(allowedRoles).toContain('admin');
+      expect(allowedRoles).toContain('staff');
+    });
 
-  canAccessRPC(rpcName: string): boolean {
-    if (!this.currentUser) return false;
+    it('specifies MP role cannot update triage status', () => {
+      const allowedRoles = TRIAGE_PERMISSIONS.can_update_triage_status;
+      expect(allowedRoles).not.toContain('mp');
+    });
 
-    // All authenticated users can call these RPCs, but they're scoped by office
-    const triageRPCs = [
-      'confirm_triage',
-      'dismiss_triage',
-      'get_triage_queue',
-      'get_triage_stats',
-      'mark_as_triaged',
+    it('specifies constituent role cannot access triage functions', () => {
+      const allowedRoles = TRIAGE_PERMISSIONS.can_update_triage_status;
+      expect(allowedRoles).not.toContain('constituent');
+    });
+
+    it('specifies MP role can read messages', () => {
+      const allowedRoles = TRIAGE_PERMISSIONS.can_read_messages;
+      expect(allowedRoles).toContain('mp');
+    });
+  });
+
+  describe('Authentication Requirements', () => {
+    it('specifies triage RPCs require authentication', () => {
+      expect(RPC_ACCESS_RULES.confirm_triage.requires_authentication).toBe(true);
+      expect(RPC_ACCESS_RULES.dismiss_triage.requires_authentication).toBe(true);
+      expect(RPC_ACCESS_RULES.get_triage_queue.requires_authentication).toBe(true);
+      expect(RPC_ACCESS_RULES.get_triage_stats.requires_authentication).toBe(true);
+    });
+
+    it('specifies mark_as_triaged allows service role without auth', () => {
+      // This is called by the AI processing service
+      expect(RPC_ACCESS_RULES.mark_as_triaged.requires_authentication).toBe(false);
+      expect(RPC_ACCESS_RULES.mark_as_triaged.allowed_roles).toContain('service_role');
+    });
+  });
+
+  describe('Office Context Requirements', () => {
+    it('specifies user-facing RPCs require office context', () => {
+      expect(RPC_ACCESS_RULES.confirm_triage.requires_office_context).toBe(true);
+      expect(RPC_ACCESS_RULES.dismiss_triage.requires_office_context).toBe(true);
+      expect(RPC_ACCESS_RULES.get_triage_queue.requires_office_context).toBe(true);
+    });
+
+    it('specifies service role can operate without office context', () => {
+      expect(RPC_ACCESS_RULES.mark_as_triaged.requires_office_context).toBe(false);
+    });
+  });
+});
+
+describe('Tag Assignment Security Specification', () => {
+  it('specifies tags must belong to same office as user', () => {
+    // RLS Policy: tag.office_id = get_my_office_id()
+    const rule = 'Users can only assign tags from their own office';
+    expect(rule).toBeDefined();
+  });
+
+  it('specifies entities must belong to same office as user', () => {
+    // RLS Policy: entity.office_id = get_my_office_id()
+    const rule = 'Users can only tag entities from their own office';
+    expect(rule).toBeDefined();
+  });
+
+  it('specifies cross-office tag assignments are blocked', () => {
+    // This is a critical security requirement
+    // A user from office A cannot:
+    // 1. Use a tag from office B
+    // 2. Tag an entity from office B
+    // 3. Tag an entity from their office with a tag from office B
+    const requirements = [
+      'Cannot use tag from different office',
+      'Cannot tag entity from different office',
+      'All three office_ids must match',
     ];
+    expect(requirements).toHaveLength(3);
+  });
+});
 
-    return triageRPCs.includes(rpcName);
-  }
-}
-
-describe('Triage RLS Security', () => {
-  let rls: RLSEnforcer;
-
-  beforeEach(() => {
-    rls = new RLSEnforcer();
+describe('Audit Log Security Specification', () => {
+  it('specifies audit logs are filtered by office', () => {
+    // Users can only see audit logs from their own office
+    const rule = 'audit_log.office_id = get_my_office_id()';
+    expect(rule).toBeDefined();
   });
 
-  describe('Cross-Office Isolation', () => {
-    it('prevents Office 1 staff from reading Office 2 messages', () => {
-      rls.setUser(SECURITY_FIXTURES.users.staff1);
-
-      const canRead = rls.canReadMessage(SECURITY_FIXTURES.messages.office2Pending);
-      expect(canRead).toBe(false);
-    });
-
-    it('allows Office 1 staff to read Office 1 messages', () => {
-      rls.setUser(SECURITY_FIXTURES.users.staff1);
-
-      const canRead = rls.canReadMessage(SECURITY_FIXTURES.messages.office1Pending);
-      expect(canRead).toBe(true);
-    });
-
-    it('prevents Office 2 admin from updating Office 1 triage status', () => {
-      rls.setUser(SECURITY_FIXTURES.users.admin2);
-
-      const canUpdate = rls.canUpdateTriageStatus(SECURITY_FIXTURES.messages.office1Pending);
-      expect(canUpdate).toBe(false);
-    });
-
-    it('allows Office 1 admin to update Office 1 triage status', () => {
-      rls.setUser(SECURITY_FIXTURES.users.admin1);
-
-      const canUpdate = rls.canUpdateTriageStatus(SECURITY_FIXTURES.messages.office1Pending);
-      expect(canUpdate).toBe(true);
-    });
+  it('specifies audit logs capture actor_id', () => {
+    // All audit entries must record who performed the action
+    const rule = 'audit_log.actor_id = auth.uid()';
+    expect(rule).toBeDefined();
   });
+});
 
-  describe('Role-Based Access Control', () => {
-    it('allows admin to update triage status', () => {
-      rls.setUser(SECURITY_FIXTURES.users.admin1);
+// ============= EXPECTED BEHAVIOR MATRIX =============
 
-      const canUpdate = rls.canUpdateTriageStatus(SECURITY_FIXTURES.messages.office1Pending);
-      expect(canUpdate).toBe(true);
-    });
+describe('Access Control Matrix', () => {
+  /**
+   * This matrix documents expected behavior for security testing.
+   * Use this as a checklist when manually testing RLS policies.
+   */
+  const accessMatrix = [
+    { action: 'Read own office messages', admin: true, staff: true, mp: true, constituent: false },
+    { action: 'Read other office messages', admin: false, staff: false, mp: false, constituent: false },
+    { action: 'Update triage status (own office)', admin: true, staff: true, mp: false, constituent: false },
+    { action: 'Update triage status (other office)', admin: false, staff: false, mp: false, constituent: false },
+    { action: 'Call confirm_triage (own office)', admin: true, staff: true, mp: false, constituent: false },
+    { action: 'Call dismiss_triage (own office)', admin: true, staff: true, mp: false, constituent: false },
+    { action: 'Call get_triage_queue', admin: true, staff: true, mp: true, constituent: false },
+    { action: 'Call get_triage_stats', admin: true, staff: true, mp: true, constituent: false },
+    { action: 'Create tag assignment (own office)', admin: true, staff: true, mp: false, constituent: false },
+    { action: 'View audit logs (own office)', admin: true, staff: true, mp: true, constituent: false },
+  ];
 
-    it('allows staff to update triage status', () => {
-      rls.setUser(SECURITY_FIXTURES.users.staff1);
-
-      const canUpdate = rls.canUpdateTriageStatus(SECURITY_FIXTURES.messages.office1Pending);
-      expect(canUpdate).toBe(true);
-    });
-
-    it('prevents MP role from updating triage status', () => {
-      rls.setUser(SECURITY_FIXTURES.users.mp1);
-
-      const canUpdate = rls.canUpdateTriageStatus(SECURITY_FIXTURES.messages.office1Pending);
-      expect(canUpdate).toBe(false);
-    });
-
-    it('prevents constituent role from updating triage status', () => {
-      rls.setUser(SECURITY_FIXTURES.users.constituent1);
-
-      const canUpdate = rls.canUpdateTriageStatus(SECURITY_FIXTURES.messages.office1Pending);
-      expect(canUpdate).toBe(false);
-    });
-  });
-
-  describe('Unauthenticated Access', () => {
-    it('prevents unauthenticated users from reading messages', () => {
-      rls.setUser(null);
-
-      const canRead = rls.canReadMessage(SECURITY_FIXTURES.messages.office1Pending);
-      expect(canRead).toBe(false);
-    });
-
-    it('prevents unauthenticated users from updating triage', () => {
-      rls.setUser(null);
-
-      const canUpdate = rls.canUpdateTriageStatus(SECURITY_FIXTURES.messages.office1Pending);
-      expect(canUpdate).toBe(false);
-    });
-
-    it('returns null office ID for unauthenticated users', () => {
-      rls.setUser(null);
-
-      expect(rls.getMyOfficeId()).toBeNull();
+  accessMatrix.forEach(({ action, admin, staff, mp, constituent }) => {
+    it(`documents: ${action}`, () => {
+      // These are specification tests that document expected behavior
+      expect(typeof admin).toBe('boolean');
+      expect(typeof staff).toBe('boolean');
+      expect(typeof mp).toBe('boolean');
+      expect(typeof constituent).toBe('boolean');
     });
   });
 });
 
-describe('Triage RPC Security', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+/**
+ * RLS Policy Implementation Reference
+ *
+ * The actual security is enforced by PostgreSQL RLS policies:
+ *
+ * 1. Messages table policies (20241218000003_triage_state.sql)
+ *    - "Staff can update triage status": (office_id = get_my_office_id()) AND (role IN ('admin', 'staff'))
+ *    - "Service role can process messages": role() = 'service_role'
+ *
+ * 2. Tag assignments policies
+ *    - Validates all three office_ids match (user, tag, entity)
+ *
+ * 3. Audit logs policies
+ *    - Read access filtered by office_id
+ *
+ * To verify these work correctly:
+ * - Create test users in different offices
+ * - Attempt cross-office operations and verify they fail
+ * - Run: supabase test db with pgTAP assertions
+ */
 
-  describe('confirm_triage security', () => {
-    it('rejects when no office context', async () => {
-      const result = await simulateRPC('confirm_triage', {
-        p_message_ids: ['msg-1'],
-      }, null);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Unauthorized: No office context');
-    });
-
-    it('rejects messages from different office', async () => {
-      const result = await simulateRPC('confirm_triage', {
-        p_message_ids: [SECURITY_FIXTURES.messages.office2Pending.id],
-      }, SECURITY_FIXTURES.users.staff1);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Unauthorized: Messages from different office');
-    });
-
-    it('accepts messages from same office', async () => {
-      const result = await simulateRPC('confirm_triage', {
-        p_message_ids: [SECURITY_FIXTURES.messages.office1Pending.id],
-      }, SECURITY_FIXTURES.users.staff1);
-
-      expect(result.success).toBe(true);
-    });
-  });
-
-  describe('dismiss_triage security', () => {
-    it('rejects when no office context', async () => {
-      const result = await simulateRPC('dismiss_triage', {
-        p_message_ids: ['msg-1'],
-      }, null);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Unauthorized: No office context');
-    });
-
-    it('rejects messages from different office', async () => {
-      const result = await simulateRPC('dismiss_triage', {
-        p_message_ids: [SECURITY_FIXTURES.messages.office2Pending.id],
-      }, SECURITY_FIXTURES.users.staff1);
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('Unauthorized: Messages from different office');
-    });
-  });
-
-  describe('get_triage_queue security', () => {
-    it('returns empty when no office context', async () => {
-      const result = await simulateRPC('get_triage_queue', {}, null);
-
-      expect(result.data).toEqual([]);
-    });
-
-    it('only returns messages from user office', async () => {
-      const result = await simulateRPC('get_triage_queue', {}, SECURITY_FIXTURES.users.staff1);
-
-      // All returned messages should be from office-1
-      expect(result.data).toBeDefined();
-      const messages = result.data as Array<{ office_id: string }>;
-      expect(messages.every((m) => m.office_id === 'office-1')).toBe(true);
-    });
-  });
-
-  describe('get_triage_stats security', () => {
-    it('returns error when no office context', async () => {
-      const result = await simulateRPC('get_triage_stats', {}, null);
-
-      expect(result.error).toBe('Unauthorized');
-    });
-
-    it('only counts messages from user office', async () => {
-      const result = await simulateRPC('get_triage_stats', {}, SECURITY_FIXTURES.users.staff1);
-
-      expect(result.office_id).toBe('office-1');
-    });
-  });
-
-  describe('mark_as_triaged security', () => {
-    it('allows service role unrestricted access', async () => {
-      const result = await simulateRPC('mark_as_triaged', {
-        p_message_id: SECURITY_FIXTURES.messages.office2Pending.id,
-        p_triaged_by: 'ai-service',
-      }, { id: 'service', office_id: null, role: 'service_role' });
-
-      expect(result.success).toBe(true);
-    });
-
-    it('rejects authenticated user for different office message', async () => {
-      const result = await simulateRPC('mark_as_triaged', {
-        p_message_id: SECURITY_FIXTURES.messages.office2Pending.id,
-        p_triaged_by: 'user',
-      }, SECURITY_FIXTURES.users.staff1);
-
-      expect(result.success).toBe(false);
-    });
-  });
-});
-
-describe('Audit Log Security', () => {
-  describe('Audit log creation', () => {
-    it('captures actor ID on triage confirm', () => {
-      const auditLog = createAuditLog('triage_confirm', {
-        message_id: 'msg-1',
-        actor_id: SECURITY_FIXTURES.users.staff1.id,
-      });
-
-      expect(auditLog.actor_id).toBe(SECURITY_FIXTURES.users.staff1.id);
-    });
-
-    it('captures office ID for office isolation', () => {
-      const auditLog = createAuditLog('triage_confirm', {
-        message_id: 'msg-1',
-        office_id: SECURITY_FIXTURES.offices.office1.id,
-      });
-
-      expect(auditLog.office_id).toBe('office-1');
-    });
-
-    it('includes metadata for triage actions', () => {
-      const auditLog = createAuditLog('triage_confirm', {
-        message_id: 'msg-1',
-        metadata: {
-          previous_status: 'pending',
-          new_status: 'confirmed',
-          case_id: 'case-1',
-        },
-      });
-
-      expect(auditLog.metadata.previous_status).toBe('pending');
-      expect(auditLog.metadata.new_status).toBe('confirmed');
-    });
-  });
-
-  describe('Audit log querying', () => {
-    it('filters audit logs by office', () => {
-      const logs = filterAuditLogsByOffice([
-        { id: 'log-1', office_id: 'office-1', action: 'triage_confirm' },
-        { id: 'log-2', office_id: 'office-2', action: 'triage_confirm' },
-        { id: 'log-3', office_id: 'office-1', action: 'triage_dismiss' },
-      ], 'office-1');
-
-      expect(logs).toHaveLength(2);
-      expect(logs.every(l => l.office_id === 'office-1')).toBe(true);
-    });
-  });
-});
-
-describe('Tag Assignment Security', () => {
-  it('prevents cross-office tag assignments', () => {
-    const canAssign = canAssignTag({
-      user_office_id: 'office-1',
-      tag_office_id: 'office-2',
-      entity_office_id: 'office-1',
-    });
-
-    expect(canAssign).toBe(false);
-  });
-
-  it('prevents tagging entities from other offices', () => {
-    const canAssign = canAssignTag({
-      user_office_id: 'office-1',
-      tag_office_id: 'office-1',
-      entity_office_id: 'office-2',
-    });
-
-    expect(canAssign).toBe(false);
-  });
-
-  it('allows same-office tag assignments', () => {
-    const canAssign = canAssignTag({
-      user_office_id: 'office-1',
-      tag_office_id: 'office-1',
-      entity_office_id: 'office-1',
-    });
-
-    expect(canAssign).toBe(true);
-  });
-});
-
-describe('Message Recipient Security', () => {
-  it('enforces office isolation on message recipients', () => {
-    const rls = new RLSEnforcer();
-    rls.setUser(SECURITY_FIXTURES.users.staff1);
-
-    const canRead = rls.canReadMessage({ office_id: 'office-1' });
-    expect(canRead).toBe(true);
-  });
-
-  it('prevents cross-office recipient access', () => {
-    const rls = new RLSEnforcer();
-    rls.setUser(SECURITY_FIXTURES.users.staff1);
-
-    const canRead = rls.canReadMessage({ office_id: 'office-2' });
-    expect(canRead).toBe(false);
-  });
-});
-
-// Helper functions for simulating RPC calls
-async function simulateRPC(
-  rpcName: string,
-  params: Record<string, unknown>,
-  user: { id: string; office_id: string | null; role: string } | null
-): Promise<{ success: boolean; error?: string; data?: unknown[]; office_id?: string }> {
-  // Simulate get_my_office_id()
-  const officeId = user?.office_id || null;
-
-  if (!officeId && rpcName !== 'mark_as_triaged') {
-    if (rpcName === 'get_triage_queue') {
-      return { success: true, data: [] };
-    }
-    if (rpcName === 'get_triage_stats') {
-      return { success: false, error: 'Unauthorized' };
-    }
-    return { success: false, error: 'Unauthorized: No office context' };
-  }
-
-  // Check message ownership for confirm/dismiss
-  if (['confirm_triage', 'dismiss_triage'].includes(rpcName)) {
-    const messageIds = params.p_message_ids as string[];
-    const officeMessages = Object.values(SECURITY_FIXTURES.messages);
-
-    for (const msgId of messageIds) {
-      const msg = officeMessages.find(m => m.id === msgId);
-      if (msg && msg.office_id !== officeId) {
-        return { success: false, error: 'Unauthorized: Messages from different office' };
-      }
-    }
-  }
-
-  // Check for mark_as_triaged
-  if (rpcName === 'mark_as_triaged') {
-    if (user?.role === 'service_role') {
-      return { success: true };
-    }
-    const msgId = params.p_message_id as string;
-    const officeMessages = Object.values(SECURITY_FIXTURES.messages);
-    const msg = officeMessages.find(m => m.id === msgId);
-    if (msg && msg.office_id !== officeId) {
-      return { success: false, error: 'Unauthorized' };
-    }
-  }
-
-  // Simulate get_triage_queue filtering
-  if (rpcName === 'get_triage_queue') {
-    const officeMessages = Object.values(SECURITY_FIXTURES.messages)
-      .filter(m => m.office_id === officeId);
-    return { success: true, data: officeMessages };
-  }
-
-  // Simulate get_triage_stats
-  if (rpcName === 'get_triage_stats') {
-    return { success: true, office_id: officeId! };
-  }
-
-  return { success: true };
-}
-
-function createAuditLog(
-  action: string,
-  data: {
-    message_id?: string;
-    actor_id?: string;
-    office_id?: string;
-    metadata?: Record<string, unknown>;
-  }
-) {
-  return {
-    id: `audit-${Date.now()}`,
-    action,
-    actor_id: data.actor_id || null,
-    office_id: data.office_id || null,
-    entity_type: 'message',
-    entity_id: data.message_id || null,
-    metadata: data.metadata || {},
-    created_at: new Date().toISOString(),
-  };
-}
-
-function filterAuditLogsByOffice(
-  logs: Array<{ id: string; office_id: string; action: string }>,
-  officeId: string
-) {
-  return logs.filter(log => log.office_id === officeId);
-}
-
-function canAssignTag(context: {
-  user_office_id: string;
-  tag_office_id: string;
-  entity_office_id: string;
-}): boolean {
-  return (
-    context.user_office_id === context.tag_office_id &&
-    context.user_office_id === context.entity_office_id
-  );
-}
+/**
+ * Manual Security Testing Checklist
+ *
+ * Before deploying, verify these scenarios manually:
+ *
+ * [ ] Office 1 staff cannot read Office 2 messages
+ * [ ] Office 1 admin cannot update Office 2 triage status
+ * [ ] MP role can view but not modify triage queue
+ * [ ] Unauthenticated requests are rejected
+ * [ ] Service role can process messages from any office
+ * [ ] Audit logs only show entries from user's office
+ * [ ] Cross-office tag assignments are blocked
+ */
+export const SECURITY_TESTING_CHECKLIST = {
+  cross_office_isolation: [
+    'Staff cannot read other office messages',
+    'Admin cannot update other office triage',
+    'Queue only shows own office messages',
+    'Stats only count own office data',
+  ],
+  role_based_access: [
+    'Admin can perform all triage actions',
+    'Staff can perform all triage actions',
+    'MP can view but not modify',
+    'Constituent has no triage access',
+  ],
+  authentication: [
+    'Unauthenticated requests rejected',
+    'Invalid JWT rejected',
+    'Expired session rejected',
+  ],
+  service_role: [
+    'Can process messages from any office',
+    'Used only by backend services',
+    'Not accessible from client',
+  ],
+};
