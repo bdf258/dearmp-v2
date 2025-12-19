@@ -52,8 +52,10 @@ import {
   MessageSquare,
   Sparkles,
   Flag,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import type { CasePriority } from '@/lib/database.types';
 
 export function TriageWorkspace() {
@@ -63,10 +65,11 @@ export function TriageWorkspace() {
 
   const { messages: allMessages, isLoading: dataLoading } = useTriageQueue();
   const { approveTriage, isProcessing } = useTriageActions();
-  const { campaigns, getTagsForEntity } = useSupabase();
+  const { campaigns, getTagsForEntity, updateMessage } = useSupabase();
 
   // Campaign assignment state
   const [showAssignCampaign, setShowAssignCampaign] = useState(false);
+  const [isUnlinkingCampaign, setIsUnlinkingCampaign] = useState(false);
 
   // Find the message
   const message = useMemo(() => {
@@ -174,6 +177,25 @@ export function TriageWorkspace() {
     setTriageState(prev => ({ ...prev, caseId: id }));
   }, []);
 
+  // Handle campaign unlink
+  const handleUnlinkCampaign = useCallback(async () => {
+    if (!message) return;
+
+    setIsUnlinkingCampaign(true);
+    try {
+      const updated = await updateMessage(message.id, { campaign_id: null });
+      if (updated) {
+        toast.success('Message unlinked from campaign');
+      } else {
+        toast.error('Failed to unlink from campaign');
+      }
+    } catch (error) {
+      console.error('Error unlinking campaign:', error);
+      toast.error('Failed to unlink from campaign');
+    } finally {
+      setIsUnlinkingCampaign(false);
+    }
+  }, [message, updateMessage]);
 
   // Loading state
   if (dataLoading) {
@@ -213,7 +235,7 @@ export function TriageWorkspace() {
     : null;
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full -m-6">
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header with navigation */}
@@ -248,7 +270,7 @@ export function TriageWorkspace() {
 
         {/* Message content */}
         <ScrollArea className="flex-1">
-          <div className="p-6 max-w-3xl mx-auto">
+          <div className="p-6 mx-auto">
             {/* Campaign badge */}
             {campaign && (
               <Badge variant="secondary" className="mb-4">
@@ -317,18 +339,36 @@ export function TriageWorkspace() {
 
         {/* Assign to Campaign button */}
         <div className="p-4 border-b bg-background">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() => setShowAssignCampaign(true)}
-          >
-            <Flag className="h-4 w-4" />
-            {campaign ? (
-              <span className="truncate">{campaign.name}</span>
-            ) : (
-              'Assign to Campaign'
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 justify-start gap-2"
+              onClick={() => setShowAssignCampaign(true)}
+            >
+              <Flag className="h-4 w-4" />
+              {campaign ? (
+                <span className="truncate">{campaign.name}</span>
+              ) : (
+                'Assign to Campaign'
+              )}
+            </Button>
+            {campaign && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
+                onClick={handleUnlinkCampaign}
+                disabled={isUnlinkingCampaign}
+                title="Remove from campaign"
+              >
+                {isUnlinkingCampaign ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="h-4 w-4" />
+                )}
+              </Button>
             )}
-          </Button>
+          </div>
         </div>
 
         <ScrollArea className="flex-1">
@@ -362,45 +402,62 @@ export function TriageWorkspace() {
 
             <Separator />
 
-            {/* Case section */}
-            <div className="space-y-3">
-              <CaseSelector
-                selectedId={triageState.caseId}
-                onSelect={(id) => setTriageState(prev => ({
-                  ...prev,
-                  caseId: id,
-                }))}
-                onCreateNew={() => setShowCreateCase(true)}
-                constituentId={triageState.constituentId}
-                label="Case"
+            {/* Campaign-controlled fields - greyed out when campaign is selected */}
+            <div className={cn(
+              'space-y-6 -mx-4 px-4 py-4 rounded-lg transition-colors',
+              campaign && 'bg-gray-100'
+            )}>
+              {/* Case section */}
+              <div className="space-y-3">
+                <CaseSelector
+                  selectedId={triageState.caseId}
+                  onSelect={(id) => setTriageState(prev => ({
+                    ...prev,
+                    caseId: id,
+                  }))}
+                  onCreateNew={() => setShowCreateCase(true)}
+                  constituentId={triageState.constituentId}
+                  label="Case"
+                  disabled={!!campaign}
+                />
+
+                {triageState.caseId && (
+                  <CaseCard caseId={triageState.caseId} />
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Assignee */}
+              <CaseworkerSelector
+                selectedId={triageState.assigneeId}
+                onSelect={(id) => setTriageState(prev => ({ ...prev, assigneeId: id }))}
+                showUnassignedOption
+                label="Assign to"
+                disabled={!!campaign}
               />
 
-              {triageState.caseId && (
-                <CaseCard caseId={triageState.caseId} />
+              {/* Priority */}
+              <PrioritySelector
+                value={triageState.priority}
+                onChange={(priority) => setTriageState(prev => ({ ...prev, priority }))}
+                disabled={!!campaign}
+              />
+
+              {/* Tags */}
+              <TagPicker
+                selectedTagIds={triageState.tagIds}
+                onChange={(tagIds) => setTriageState(prev => ({ ...prev, tagIds }))}
+                disabled={!!campaign}
+              />
+
+              {/* Campaign hint */}
+              {campaign && (
+                <p className="text-xs text-muted-foreground italic">
+                  Case, assignee, priority, and tags are managed at the campaign level.
+                </p>
               )}
             </div>
-
-            <Separator />
-
-            {/* Assignee */}
-            <CaseworkerSelector
-              selectedId={triageState.assigneeId}
-              onSelect={(id) => setTriageState(prev => ({ ...prev, assigneeId: id }))}
-              showUnassignedOption
-              label="Assign to"
-            />
-
-            {/* Priority */}
-            <PrioritySelector
-              value={triageState.priority}
-              onChange={(priority) => setTriageState(prev => ({ ...prev, priority }))}
-            />
-
-            {/* Tags */}
-            <TagPicker
-              selectedTagIds={triageState.tagIds}
-              onChange={(tagIds) => setTriageState(prev => ({ ...prev, tagIds }))}
-            />
           </div>
         </ScrollArea>
 
@@ -409,7 +466,7 @@ export function TriageWorkspace() {
           <Button
             className="w-full"
             onClick={handleApprove}
-            disabled={isProcessing || !triageState.caseId}
+            disabled={isProcessing || (!campaign && !triageState.caseId)}
           >
             {isProcessing ? (
               <>
@@ -419,7 +476,7 @@ export function TriageWorkspace() {
             ) : (
               <>
                 <Check className="h-4 w-4 mr-2" />
-                Approve & Link to Case
+                {campaign ? 'Approve' : 'Approve & Link to Case'}
               </>
             )}
           </Button>

@@ -390,11 +390,39 @@ export function AssignCampaignDialog({
               </DialogTitle>
               <DialogDescription>
                 We found {matchingMessages.length} other email{matchingMessages.length !== 1 ? 's' : ''} with the same subject.
-                Would you like to add them to "{selectedCampaign.name}"?
+                Would you like to add them to this campaign?
               </DialogDescription>
             </DialogHeader>
 
             <div className="py-4">
+              {/* Campaign selector - allows changing selection */}
+              <div className="mb-4">
+                <Label className="text-sm font-medium mb-2 block">Campaign</Label>
+                <Command className="rounded-lg border">
+                  <CommandInput placeholder="Search campaigns..." />
+                  <CommandList className="max-h-32">
+                    <CommandEmpty>No campaigns found.</CommandEmpty>
+                    <CommandGroup>
+                      {activeCampaigns.map((campaign) => (
+                        <CommandItem
+                          key={campaign.id}
+                          value={campaign.name}
+                          onSelect={() => handleSelectCampaign(campaign)}
+                          className="cursor-pointer"
+                          disabled={isProcessing}
+                        >
+                          <Flag className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span className="flex-1 truncate">{campaign.name}</span>
+                          {campaign.id === selectedCampaign.id && (
+                            <Check className="h-4 w-4 text-primary" />
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </div>
+
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Checkbox
