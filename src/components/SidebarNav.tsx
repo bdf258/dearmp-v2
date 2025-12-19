@@ -15,6 +15,7 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  MessageSquare,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -37,8 +38,14 @@ const navItems: NavItem[] = [
   // Casework section
   {
     title: 'Triage',
-    href: '/casework/triage',
+    href: '/triage',
     icon: Inbox,
+    section: 'casework',
+  },
+  {
+    title: 'Campaign Triage',
+    href: '/triage/campaigns',
+    icon: MessageSquare,
     section: 'casework',
   },
   {

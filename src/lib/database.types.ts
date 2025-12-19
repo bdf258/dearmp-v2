@@ -757,13 +757,22 @@ export type Database = {
       }
       messages: {
         Row: {
+          ai_processed_at: string | null
           body_search_text: string | null
           campaign_id: string | null
           case_id: string | null
           channel: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence: number | null
+          classification_reasoning: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           direction: Database["public"]["Enums"]["message_direction"]
+          email_type: string | null
+          fingerprint_hash: string | null
           id: string
           in_reply_to_header: string | null
+          is_campaign_email: boolean | null
+          is_policy_email: boolean | null
           message_id_header: string | null
           office_id: string
           received_at: string
@@ -774,15 +783,28 @@ export type Database = {
           storage_path_text: string | null
           subject: string | null
           thread_id: string | null
+          triage_metadata: Json | null
+          triage_status: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at: string | null
+          triaged_by: string | null
         }
         Insert: {
+          ai_processed_at?: string | null
           body_search_text?: string | null
           campaign_id?: string | null
           case_id?: string | null
           channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           direction: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
           id?: string
           in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
           message_id_header?: string | null
           office_id: string
           received_at?: string | null
@@ -793,15 +815,28 @@ export type Database = {
           storage_path_text?: string | null
           subject?: string | null
           thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
         }
         Update: {
+          ai_processed_at?: string | null
           body_search_text?: string | null
           campaign_id?: string | null
           case_id?: string | null
           channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           direction?: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
           id?: string
           in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
           message_id_header?: string | null
           office_id?: string
           received_at?: string | null
@@ -812,6 +847,10 @@ export type Database = {
           storage_path_text?: string | null
           subject?: string | null
           thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
         }
         Relationships: [
           {
@@ -1369,6 +1408,88 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      confirm_triage: {
+        Args: {
+          p_message_ids: string[]
+          p_case_id?: string | null
+          p_assignee_id?: string | null
+          p_tag_ids?: string[] | null
+        }
+        Returns: {
+          success: boolean
+          confirmed_count: number
+          case_id: string | null
+          error?: string
+        }
+      }
+      dismiss_triage: {
+        Args: {
+          p_message_ids: string[]
+          p_reason?: string | null
+        }
+        Returns: {
+          success: boolean
+          dismissed_count: number
+          error?: string
+        }
+      }
+      get_triage_queue: {
+        Args: {
+          p_status?: string[] | null
+          p_campaign_id?: string | null
+          p_email_type?: string | null
+          p_limit?: number
+          p_offset?: number
+          p_order_by?: string
+          p_order_dir?: string
+        }
+        Returns: {
+          id: string
+          office_id: string
+          subject: string | null
+          snippet: string | null
+          received_at: string
+          triage_status: string | null
+          triaged_at: string | null
+          email_type: string | null
+          is_campaign_email: boolean | null
+          campaign_id: string | null
+          case_id: string | null
+          classification_confidence: number | null
+          triage_metadata: Json | null
+          sender_email: string | null
+          sender_name: string | null
+          sender_constituent_id: string | null
+          sender_constituent_name: string | null
+        }[]
+      }
+      get_triage_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          pending_count: number
+          triaged_count: number
+          confirmed_today: number
+          dismissed_today: number
+          by_email_type: Json | null
+          by_campaign: Json | null
+          avg_confidence: number | null
+        }
+      }
+      mark_as_triaged: {
+        Args: {
+          p_message_id: string
+          p_triaged_by: string
+          p_confidence?: number | null
+          p_email_type?: string | null
+          p_is_campaign?: boolean
+          p_metadata?: Json
+        }
+        Returns: {
+          success: boolean
+          message_id: string
+          error?: string
+        }
+      }
       trust_current_context: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -1385,11 +1506,15 @@ export type Database = {
         | "view"
         | "login"
         | "send_email"
+        | "triage_confirm"
+        | "triage_dismiss"
+        | "triage_batch"
       case_priority: "low" | "medium" | "high" | "urgent"
       case_status: "open" | "pending" | "closed" | "archived"
       contact_type: "email" | "phone" | "address" | "social"
       message_channel: "email" | "phone" | "letter" | "meeting" | "social_media"
       message_direction: "inbound" | "outbound"
+      triage_status: "pending" | "triaged" | "confirmed" | "dismissed"
       user_role: "admin" | "staff" | "readonly"
     }
     CompositeTypes: {
@@ -1528,12 +1653,16 @@ export const Constants = {
         "view",
         "login",
         "send_email",
+        "triage_confirm",
+        "triage_dismiss",
+        "triage_batch",
       ],
       case_priority: ["low", "medium", "high", "urgent"],
       case_status: ["open", "pending", "closed", "archived"],
       contact_type: ["email", "phone", "address", "social"],
       message_channel: ["email", "phone", "letter", "meeting", "social_media"],
       message_direction: ["inbound", "outbound"],
+      triage_status: ["pending", "triaged", "confirmed", "dismissed"],
       user_role: ["admin", "staff", "readonly"],
     },
   },
@@ -1546,8 +1675,9 @@ export type CasePriority = 'low' | 'medium' | 'high' | 'urgent';
 export type MessageDirection = 'inbound' | 'outbound';
 export type MessageChannel = 'email' | 'phone' | 'letter' | 'meeting' | 'social_media';
 export type ContactType = 'email' | 'phone' | 'address' | 'social';
-export type AuditAction = 'create' | 'update' | 'delete' | 'view' | 'login' | 'send_email';
+export type AuditAction = 'create' | 'update' | 'delete' | 'view' | 'login' | 'send_email' | 'triage_confirm' | 'triage_dismiss' | 'triage_batch';
 export type EmailQueueStatus = 'pending' | 'processing' | 'sent' | 'failed';
+export type TriageStatus = 'pending' | 'triaged' | 'confirmed' | 'dismissed';
 
 // Convenience type aliases
 export type Office = Database['public']['Tables']['offices']['Row'];
