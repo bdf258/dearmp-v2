@@ -945,13 +945,22 @@ export type Database = {
       }
       messages: {
         Row: {
+          ai_processed_at: string | null
           body_search_text: string | null
           campaign_id: string | null
           case_id: string | null
           channel: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence: number | null
+          classification_reasoning: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           direction: Database["public"]["Enums"]["message_direction"]
+          email_type: string | null
+          fingerprint_hash: string | null
           id: string
           in_reply_to_header: string | null
+          is_campaign_email: boolean | null
+          is_policy_email: boolean | null
           message_id_header: string | null
           office_id: string
           received_at: string | null
@@ -962,15 +971,28 @@ export type Database = {
           storage_path_text: string | null
           subject: string | null
           thread_id: string | null
+          triage_metadata: Json | null
+          triage_status: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at: string | null
+          triaged_by: string | null
         }
         Insert: {
+          ai_processed_at?: string | null
           body_search_text?: string | null
           campaign_id?: string | null
           case_id?: string | null
           channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           direction: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
           id?: string
           in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
           message_id_header?: string | null
           office_id: string
           received_at?: string | null
@@ -981,15 +1003,28 @@ export type Database = {
           storage_path_text?: string | null
           subject?: string | null
           thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
         }
         Update: {
+          ai_processed_at?: string | null
           body_search_text?: string | null
           campaign_id?: string | null
           case_id?: string | null
           channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           direction?: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
           id?: string
           in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
           message_id_header?: string | null
           office_id?: string
           received_at?: string | null
@@ -1000,6 +1035,10 @@ export type Database = {
           storage_path_text?: string | null
           subject?: string | null
           thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
         }
         Relationships: [
           {
@@ -1027,13 +1066,22 @@ export type Database = {
       }
       messages_default: {
         Row: {
+          ai_processed_at: string | null
           body_search_text: string | null
           campaign_id: string | null
           case_id: string | null
           channel: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence: number | null
+          classification_reasoning: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           direction: Database["public"]["Enums"]["message_direction"]
+          email_type: string | null
+          fingerprint_hash: string | null
           id: string
           in_reply_to_header: string | null
+          is_campaign_email: boolean | null
+          is_policy_email: boolean | null
           message_id_header: string | null
           office_id: string
           received_at: string | null
@@ -1044,15 +1092,28 @@ export type Database = {
           storage_path_text: string | null
           subject: string | null
           thread_id: string | null
+          triage_metadata: Json | null
+          triage_status: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at: string | null
+          triaged_by: string | null
         }
         Insert: {
+          ai_processed_at?: string | null
           body_search_text?: string | null
           campaign_id?: string | null
           case_id?: string | null
           channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           direction: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
           id?: string
           in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
           message_id_header?: string | null
           office_id: string
           received_at?: string | null
@@ -1063,15 +1124,28 @@ export type Database = {
           storage_path_text?: string | null
           subject?: string | null
           thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
         }
         Update: {
+          ai_processed_at?: string | null
           body_search_text?: string | null
           campaign_id?: string | null
           case_id?: string | null
           channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           direction?: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
           id?: string
           in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
           message_id_header?: string | null
           office_id?: string
           received_at?: string | null
@@ -1082,18 +1156,31 @@ export type Database = {
           storage_path_text?: string | null
           subject?: string | null
           thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
         }
         Relationships: []
       }
       messages_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
         Row: {
+          ai_processed_at: string | null
           body_search_text: string | null
           campaign_id: string | null
           case_id: string | null
           channel: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence: number | null
+          classification_reasoning: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
           direction: Database["public"]["Enums"]["message_direction"]
+          email_type: string | null
+          fingerprint_hash: string | null
           id: string
           in_reply_to_header: string | null
+          is_campaign_email: boolean | null
+          is_policy_email: boolean | null
           message_id_header: string | null
           office_id: string
           received_at: string | null
@@ -1104,15 +1191,28 @@ export type Database = {
           storage_path_text: string | null
           subject: string | null
           thread_id: string | null
+          triage_metadata: Json | null
+          triage_status: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at: string | null
+          triaged_by: string | null
         }
         Insert: {
+          ai_processed_at?: string | null
           body_search_text?: string | null
           campaign_id?: string | null
           case_id?: string | null
           channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           direction: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
           id?: string
           in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
           message_id_header?: string | null
           office_id: string
           received_at?: string | null
@@ -1123,15 +1223,28 @@ export type Database = {
           storage_path_text?: string | null
           subject?: string | null
           thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
         }
         Update: {
+          ai_processed_at?: string | null
           body_search_text?: string | null
           campaign_id?: string | null
           case_id?: string | null
           channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
           direction?: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
           id?: string
           in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
           message_id_header?: string | null
           office_id?: string
           received_at?: string | null
@@ -1142,6 +1255,10 @@ export type Database = {
           storage_path_text?: string | null
           subject?: string | null
           thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
         }
         Relationships: []
       }
@@ -1738,9 +1855,22 @@ export type Database = {
         }
         Returns: boolean
       }
+      confirm_triage: {
+        Args: {
+          p_assignee_id?: string
+          p_case_id?: string
+          p_message_ids: string[]
+          p_tag_ids?: string[]
+        }
+        Returns: Json
+      }
       create_office_partition: {
         Args: { p_office_id: string; p_table_name: string }
         Returns: undefined
+      }
+      dismiss_triage: {
+        Args: { p_message_ids: string[]; p_reason?: string }
+        Returns: Json
       }
       generate_campaign_outbox_messages: {
         Args: { p_bulk_response_id: string; p_office_id: string }
@@ -1815,6 +1945,37 @@ export type Database = {
         }
       }
       get_session_aal: { Args: never; Returns: string }
+      get_triage_queue: {
+        Args: {
+          p_campaign_id?: string
+          p_email_type?: string
+          p_limit?: number
+          p_offset?: number
+          p_order_by?: string
+          p_order_dir?: string
+          p_status?: Database["public"]["Enums"]["triage_status"][]
+        }
+        Returns: {
+          campaign_id: string
+          case_id: string
+          classification_confidence: number
+          email_type: string
+          id: string
+          is_campaign_email: boolean
+          office_id: string
+          received_at: string
+          sender_constituent_id: string
+          sender_constituent_name: string
+          sender_email: string
+          sender_name: string
+          snippet: string
+          subject: string
+          triage_metadata: Json
+          triage_status: Database["public"]["Enums"]["triage_status"]
+          triaged_at: string
+        }[]
+      }
+      get_triage_stats: { Args: never; Returns: Json }
       get_trusted_contexts: {
         Args: never
         Returns: {
@@ -1869,6 +2030,17 @@ export type Database = {
         }
         Returns: string
       }
+      mark_as_triaged: {
+        Args: {
+          p_confidence?: number
+          p_email_type?: string
+          p_is_campaign?: boolean
+          p_message_id: string
+          p_metadata?: Json
+          p_triaged_by: string
+        }
+        Returns: Json
+      }
       process_bulk_response_approval: {
         Args: { p_approver_user_id: string; p_bulk_response_id: string }
         Returns: undefined
@@ -1912,11 +2084,15 @@ export type Database = {
         | "case_assign"
         | "case_close"
         | "email_send"
+        | "triage_confirm"
+        | "triage_dismiss"
+        | "triage_batch"
       case_priority: "low" | "medium" | "high" | "urgent"
       case_status: "open" | "pending" | "closed" | "archived"
       contact_type: "email" | "phone" | "address" | "social"
       message_channel: "email" | "phone" | "letter" | "meeting" | "social_media"
       message_direction: "inbound" | "outbound"
+      triage_status: "pending" | "triaged" | "confirmed" | "dismissed"
       user_role: "admin" | "staff" | "readonly"
     }
     CompositeTypes: {
@@ -2069,12 +2245,16 @@ export const Constants = {
         "case_assign",
         "case_close",
         "email_send",
+        "triage_confirm",
+        "triage_dismiss",
+        "triage_batch",
       ],
       case_priority: ["low", "medium", "high", "urgent"],
       case_status: ["open", "pending", "closed", "archived"],
       contact_type: ["email", "phone", "address", "social"],
       message_channel: ["email", "phone", "letter", "meeting", "social_media"],
       message_direction: ["inbound", "outbound"],
+      triage_status: ["pending", "triaged", "confirmed", "dismissed"],
       user_role: ["admin", "staff", "readonly"],
     },
   },

@@ -5,18 +5,14 @@
  * searching constituents/cases, and performing triage actions.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSupabase } from '@/lib/SupabaseContext';
 import { supabase } from '@/lib/supabase';
 import type {
   Message,
   MessageRecipient,
   Constituent,
-  ConstituentContact,
-  Case,
   Campaign,
-  Profile,
-  Tag,
   CasePriority,
 } from '@/lib/database.types';
 
@@ -49,19 +45,30 @@ export interface TriageQueueFilters {
 // ============= TRIAGE QUEUE HOOK =============
 
 export function useTriageQueue(filters?: TriageQueueFilters) {
-  const { messages, messageRecipients, constituents, constituentContacts, campaigns, getMyOfficeId } = useSupabase();
+  const { messages, messageRecipients, constituents, constituentContacts, campaigns, getMyOfficeId, loading } = useSupabase();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Get inbound messages without case assignment (triage queue)
+  // Sync loading state with context
+  useEffect(() => {
+    setIsLoading(loading);
+  }, [loading]);
+
+  // Get inbound messages that need triage (pending or triaged status)
   const triageMessages = useMemo(() => {
     const officeId = getMyOfficeId();
     if (!officeId) return [];
 
-    // Filter to inbound messages that need triage (no case assigned)
+    // Filter to inbound messages that need triage
+    // Messages with triage_status 'pending' or 'triaged' (AI processed but not human confirmed)
+    // Also include messages with no triage_status and no case (backwards compatibility)
     let filtered = messages.filter(m =>
       m.direction === 'inbound' &&
-      m.case_id === null
+      (
+        m.triage_status === 'pending' ||
+        m.triage_status === 'triaged' ||
+        (m.triage_status === null && m.case_id === null)
+      )
     );
 
     // Apply campaign filter
@@ -121,8 +128,10 @@ export function useTriageQueue(filters?: TriageQueueFilters) {
   return {
     messages: filteredMessages,
     allMessages: triageMessages,
+    campaigns,
     isLoading,
     error,
+    setError,
   };
 }
 
@@ -291,7 +300,6 @@ export function useTriageActions() {
     createCase,
     createConstituent,
     createCaseParty,
-    addTagToEntity,
     removeTagFromEntity,
     getMyOfficeId,
     getCurrentUserId,
@@ -382,41 +390,33 @@ export function useTriageActions() {
       if (!constituent) throw new Error('Failed to create constituent');
 
       // Add contacts
-      const contactPromises: Promise<unknown>[] = [];
       if (data.email) {
-        contactPromises.push(
-          supabase.from('constituent_contacts').insert({
-            office_id: officeId,
-            constituent_id: constituent.id,
-            type: 'email' as const,
-            value: data.email,
-            is_primary: true,
-          })
-        );
+        await supabase.from('constituent_contacts').insert({
+          office_id: officeId,
+          constituent_id: constituent.id,
+          type: 'email' as const,
+          value: data.email,
+          is_primary: true,
+        });
       }
       if (data.address) {
-        contactPromises.push(
-          supabase.from('constituent_contacts').insert({
-            office_id: officeId,
-            constituent_id: constituent.id,
-            type: 'address' as const,
-            value: data.address,
-            is_primary: true,
-          })
-        );
+        await supabase.from('constituent_contacts').insert({
+          office_id: officeId,
+          constituent_id: constituent.id,
+          type: 'address' as const,
+          value: data.address,
+          is_primary: true,
+        });
       }
       if (data.phone) {
-        contactPromises.push(
-          supabase.from('constituent_contacts').insert({
-            office_id: officeId,
-            constituent_id: constituent.id,
-            type: 'phone' as const,
-            value: data.phone,
-          })
-        );
+        await supabase.from('constituent_contacts').insert({
+          office_id: officeId,
+          constituent_id: constituent.id,
+          type: 'phone' as const,
+          value: data.phone,
+        });
       }
 
-      await Promise.all(contactPromises);
       await refreshData();
 
       return { success: true, constituentId: constituent.id };
@@ -478,16 +478,15 @@ export function useTriageActions() {
   ): Promise<TriageActionResult> => {
     setIsProcessing(true);
     try {
-      // Mark message as dismissed by setting a triage_status
-      const { error } = await supabase
-        .from('messages')
-        .update({
-          triage_status: 'dismissed',
-          triage_metadata: reason ? { dismissReason: reason } : null,
-        })
-        .eq('id', messageId);
+      // Use the dismiss_triage RPC function for proper audit logging
+      const { data, error } = await supabase.rpc('dismiss_triage', {
+        p_message_ids: [messageId],
+        p_reason: reason || null,
+      });
 
       if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to dismiss');
+
       await refreshData();
       return { success: true };
     } catch (err) {
@@ -497,27 +496,54 @@ export function useTriageActions() {
     }
   }, [refreshData]);
 
-  // Bulk dismiss multiple messages
+  // Bulk dismiss multiple messages - uses RPC for efficiency
   const bulkDismissTriage = useCallback(async (
     messageIds: string[],
     reason?: string
   ): Promise<{ success: boolean; successCount: number; error?: string }> => {
     setIsProcessing(true);
-    let successCount = 0;
     try {
-      for (const messageId of messageIds) {
-        const result = await dismissTriage(messageId, reason);
-        if (result.success) successCount++;
-      }
-      return { success: successCount === messageIds.length, successCount };
+      // Use the dismiss_triage RPC function with multiple message IDs
+      const { data, error } = await supabase.rpc('dismiss_triage', {
+        p_message_ids: messageIds,
+        p_reason: reason || null,
+      });
+
+      if (error) throw error;
+
+      const successCount = data?.dismissed_count || 0;
+      await refreshData();
+
+      return {
+        success: data?.success || false,
+        successCount,
+        error: data?.error,
+      };
     } catch (err) {
-      return { success: false, successCount, error: err instanceof Error ? err.message : 'Unknown error' };
+      return { success: false, successCount: 0, error: err instanceof Error ? err.message : 'Unknown error' };
     } finally {
       setIsProcessing(false);
     }
-  }, [dismissTriage]);
+  }, [refreshData]);
 
-  // Batch approve triage
+  // Remove tag from case
+  const removeTagFromCase = useCallback(async (
+    tagId: string,
+    caseId: string
+  ): Promise<TriageActionResult> => {
+    setIsProcessing(true);
+    try {
+      await removeTagFromEntity(tagId, 'case', caseId);
+      await refreshData();
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [removeTagFromEntity, refreshData]);
+
+  // Batch approve triage - uses RPC for proper status tracking and audit logging
   const approveTriage = useCallback(async (
     messageId: string,
     triageData: {
@@ -542,29 +568,34 @@ export function useTriageActions() {
         });
         if (!caseResult.success) throw new Error(caseResult.error);
         caseId = caseResult.caseId;
-      } else if (caseId) {
-        // Link message to existing case
-        await linkMessageToCase(messageId, caseId);
 
-        // Update case if needed
-        const updates: Partial<Case> = {};
-        if (triageData.assigneeId) updates.assigned_to = triageData.assigneeId;
-        if (triageData.priority) updates.priority = triageData.priority;
-        if (Object.keys(updates).length > 0) {
-          await updateCase(caseId, updates);
+        // Use confirm_triage RPC to update status with proper audit trail
+        const { error: confirmError } = await supabase.rpc('confirm_triage', {
+          p_message_ids: [messageId],
+          p_case_id: caseId,
+          p_assignee_id: triageData.assigneeId || null,
+          p_tag_ids: triageData.tagIds || null,
+        });
+        if (confirmError) throw confirmError;
+      } else if (caseId) {
+        // Use confirm_triage RPC for existing case
+        const { error: confirmError } = await supabase.rpc('confirm_triage', {
+          p_message_ids: [messageId],
+          p_case_id: caseId,
+          p_assignee_id: triageData.assigneeId || null,
+          p_tag_ids: triageData.tagIds || null,
+        });
+        if (confirmError) throw confirmError;
+
+        // Update case priority if specified
+        if (triageData.priority) {
+          await updateCase(caseId, { priority: triageData.priority });
         }
       }
 
       // Link constituent to case if both exist
       if (caseId && triageData.constituentId) {
         await linkConstituentToCase(caseId, triageData.constituentId);
-      }
-
-      // Add tags to case
-      if (caseId && triageData.tagIds?.length) {
-        await Promise.all(
-          triageData.tagIds.map(tagId => addTagToEntity(tagId, 'case', caseId!))
-        );
       }
 
       await refreshData();
@@ -576,10 +607,8 @@ export function useTriageActions() {
     }
   }, [
     createCaseForMessage,
-    linkMessageToCase,
     updateCase,
     linkConstituentToCase,
-    addTagToEntity,
     refreshData,
   ]);
 
@@ -592,6 +621,7 @@ export function useTriageActions() {
     createConstituentWithContacts,
     linkConstituentToCase,
     linkRecipientToConstituent,
+    removeTagFromCase,
     approveTriage,
     dismissTriage,
     bulkDismissTriage,

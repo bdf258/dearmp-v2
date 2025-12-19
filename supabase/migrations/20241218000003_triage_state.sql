@@ -86,10 +86,8 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_messages_received_at
 ON public.messages (received_at DESC);
 
--- Partial index for messages with received_at within triage window (last 30 days)
-CREATE INDEX IF NOT EXISTS idx_messages_received_at_recent
-ON public.messages (received_at DESC)
-WHERE received_at > (now() - interval '30 days');
+-- Note: Partial indexes with time-based predicates using now() are not supported
+-- because now() is not immutable. Use application-level filtering instead.
 
 -- Index on messages.case_id for case-message lookups
 CREATE INDEX IF NOT EXISTS idx_messages_case_id

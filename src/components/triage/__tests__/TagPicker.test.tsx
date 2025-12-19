@@ -2,11 +2,10 @@
  * TagPicker Component Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TagPicker, TagList } from '../TagPicker';
-import { SupabaseProvider } from '@/lib/SupabaseContext';
 
 // Mock the SupabaseContext
 const mockTags = [

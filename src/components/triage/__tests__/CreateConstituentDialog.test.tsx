@@ -142,7 +142,6 @@ describe('CreateConstituentDialog', () => {
   });
 
   it('shows error when name is empty on submit', async () => {
-    const user = userEvent.setup();
     const { toast } = await import('sonner');
     render(
       <CreateConstituentDialog

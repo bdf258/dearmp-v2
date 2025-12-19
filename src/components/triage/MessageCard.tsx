@@ -12,7 +12,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Mail,
-  User,
   Clock,
   MessageSquare,
   AlertCircle,
@@ -20,7 +19,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
+import { format, formatDistanceToNow, isToday, isYesterday, differenceInHours } from 'date-fns';
 import type { TriageMessage, ConstituentStatus } from '@/hooks/triage/useTriage';
 import { CaseRefBadge } from './CaseSelector';
 import { TagList } from './TagPicker';
@@ -53,15 +52,27 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-// Format date for display
+// Format date for display - uses relative time for recent messages
 function formatMessageDate(date: string): string {
   const d = new Date(date);
+  const hoursAgo = differenceInHours(new Date(), d);
+
+  // For very recent messages (< 6 hours), show relative time
+  if (hoursAgo < 6) {
+    return formatDistanceToNow(d, { addSuffix: true });
+  }
+
+  // For today, show the time
   if (isToday(d)) {
     return format(d, 'h:mm a');
   }
+
+  // For yesterday
   if (isYesterday(d)) {
     return 'Yesterday';
   }
+
+  // For older messages, show the date
   return format(d, 'MMM d');
 }
 

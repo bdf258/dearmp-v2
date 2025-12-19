@@ -16,11 +16,9 @@ import {
   useTriageQueue,
   useTriageActions,
   useMessageBody,
-  type TriageMessage,
 } from '@/hooks/triage/useTriage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
@@ -56,7 +54,6 @@ import {
   MessageSquare,
   Sparkles,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { CasePriority } from '@/lib/database.types';
 
@@ -65,9 +62,9 @@ export function TriageWorkspace() {
   const { messageId } = useParams<{ messageId: string }>();
   const [searchParams] = useSearchParams();
 
-  const { messages: allMessages, loading: dataLoading } = useTriageQueue();
-  const { approveTriage, createConstituentWithContacts, isProcessing } = useTriageActions();
-  const { cases, campaigns, getTagsForEntity, constituents } = useSupabase();
+  const { messages: allMessages, isLoading: dataLoading } = useTriageQueue();
+  const { approveTriage, isProcessing } = useTriageActions();
+  const { campaigns, getTagsForEntity } = useSupabase();
 
   // Find the message
   const message = useMemo(() => {
