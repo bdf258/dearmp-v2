@@ -64,6 +64,9 @@ export default function SettingsPage() {
     emailIntegration,
     fetchEmailIntegration,
     deleteEmailIntegration,
+    createInvitation,
+    listInvitations,
+    revokeInvitation,
   } = useSupabase();
 
   // General Settings state
@@ -96,6 +99,27 @@ export default function SettingsPage() {
   // User Management state
   const [updatingRole, setUpdatingRole] = useState<string | null>(null);
 
+  // Invitation Management state
+  type InvitationType = {
+    id: string;
+    token: string;
+    email: string | null;
+    role: 'admin' | 'staff' | 'readonly';
+    created_at: string;
+    expires_at: string;
+    use_count: number;
+    max_uses: number | null;
+    used_at: string | null;
+  };
+  const [invitations, setInvitations] = useState<InvitationType[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
+  const [creatingInvitation, setCreatingInvitation] = useState(false);
+  const [showCreateInvitation, setShowCreateInvitation] = useState(false);
+  const [newInvitationEmail, setNewInvitationEmail] = useState('');
+  const [newInvitationRole, setNewInvitationRole] = useState<'admin' | 'staff' | 'readonly'>('staff');
+  const [newInvitationExpiry, setNewInvitationExpiry] = useState('7');
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
   // Office Settings state
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -123,6 +147,54 @@ export default function SettingsPage() {
 
   // Filter profiles to only show those in the current office
   const officeProfiles = profiles.filter(p => p.office_id === currentOffice?.id);
+
+  const isAdmin = profile?.role === 'admin';
+
+  // Load invitations when admin opens the page
+  useEffect(() => {
+    if (isAdmin && currentOffice?.id) {
+      loadInvitations();
+    }
+  }, [isAdmin, currentOffice?.id]);
+
+  const loadInvitations = async () => {
+    setLoadingInvitations(true);
+    const data = await listInvitations();
+    setInvitations(data as InvitationType[]);
+    setLoadingInvitations(false);
+  };
+
+  const handleCreateInvitation = async () => {
+    setCreatingInvitation(true);
+    const result = await createInvitation({
+      email: newInvitationEmail.trim() || undefined,
+      role: newInvitationRole,
+      expiresInDays: parseInt(newInvitationExpiry, 10),
+      maxUses: 1,
+    });
+
+    if (result) {
+      await loadInvitations();
+      setShowCreateInvitation(false);
+      setNewInvitationEmail('');
+      setNewInvitationRole('staff');
+      setNewInvitationExpiry('7');
+    }
+    setCreatingInvitation(false);
+  };
+
+  const handleRevokeInvitation = async (invitationId: string) => {
+    const success = await revokeInvitation(invitationId);
+    if (success) {
+      setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+    }
+  };
+
+  const copyToClipboard = async (token: string) => {
+    await navigator.clipboard.writeText(token);
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  };
 
   // Handlers
   const handleSaveOfficeName = async () => {
@@ -217,8 +289,6 @@ export default function SettingsPage() {
     setSavingSettings(false);
     setIsEditingSignature(false);
   };
-
-  const isAdmin = profile?.role === 'admin';
 
   return (
     <div className="space-y-6">
@@ -685,6 +755,161 @@ export default function SettingsPage() {
                     <p className="text-sm text-muted-foreground">
                       Only administrators can modify user roles.
                     </p>
+                  )}
+
+                  {/* Invitation Management - Admin Only */}
+                  {isAdmin && (
+                    <>
+                      <Separator className="my-4" />
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-base">Invitations</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Create invitation codes to add new team members
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => setShowCreateInvitation(!showCreateInvitation)}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            New Invitation
+                          </Button>
+                        </div>
+
+                        {/* Create Invitation Form */}
+                        {showCreateInvitation && (
+                          <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
+                            <div className="space-y-2">
+                              <Label htmlFor="invEmail">Email (optional)</Label>
+                              <Input
+                                id="invEmail"
+                                type="email"
+                                placeholder="Leave empty for any email"
+                                value={newInvitationEmail}
+                                onChange={(e) => setNewInvitationEmail(e.target.value)}
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                If specified, only this email can use the invitation
+                              </p>
+                            </div>
+                            <div className="flex gap-3">
+                              <div className="space-y-2 flex-1">
+                                <Label>Role</Label>
+                                <Select
+                                  value={newInvitationRole}
+                                  onValueChange={(v) => setNewInvitationRole(v as 'admin' | 'staff' | 'readonly')}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="staff">Staff</SelectItem>
+                                    <SelectItem value="readonly">Read Only</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2 flex-1">
+                                <Label>Expires in</Label>
+                                <Select
+                                  value={newInvitationExpiry}
+                                  onValueChange={setNewInvitationExpiry}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="1">1 day</SelectItem>
+                                    <SelectItem value="3">3 days</SelectItem>
+                                    <SelectItem value="7">7 days</SelectItem>
+                                    <SelectItem value="14">14 days</SelectItem>
+                                    <SelectItem value="30">30 days</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                              <Button
+                                size="sm"
+                                onClick={handleCreateInvitation}
+                                disabled={creatingInvitation}
+                              >
+                                {creatingInvitation ? 'Creating...' : 'Create Invitation'}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowCreateInvitation(false)}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Existing Invitations List */}
+                        {loadingInvitations ? (
+                          <p className="text-sm text-muted-foreground">Loading invitations...</p>
+                        ) : invitations.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No active invitations</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {invitations.map((inv) => {
+                              const isExpired = new Date(inv.expires_at) < new Date();
+                              const isUsed = inv.used_at !== null;
+                              return (
+                                <div
+                                  key={inv.id}
+                                  className={`flex items-center justify-between rounded-lg border p-3 ${isExpired || isUsed ? 'opacity-60' : ''}`}
+                                >
+                                  <div className="space-y-1 flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <code className="text-xs bg-muted px-2 py-1 rounded font-mono truncate max-w-[200px]">
+                                        {inv.token.substring(0, 16)}...
+                                      </code>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 px-2"
+                                        onClick={() => copyToClipboard(inv.token)}
+                                        disabled={isExpired || isUsed}
+                                      >
+                                        {copiedToken === inv.token ? (
+                                          <Check className="h-3 w-3 text-green-500" />
+                                        ) : (
+                                          <span className="text-xs">Copy</span>
+                                        )}
+                                      </Button>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <Badge variant="outline" className="capitalize text-xs">
+                                        {inv.role}
+                                      </Badge>
+                                      {inv.email && (
+                                        <span>for {inv.email}</span>
+                                      )}
+                                      <span>
+                                        {isUsed ? 'Used' : isExpired ? 'Expired' : `Expires ${new Date(inv.expires_at).toLocaleDateString()}`}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                    onClick={() => handleRevokeInvitation(inv.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </AccordionContent>
