@@ -20,24 +20,25 @@ export interface FeatureFlagConfig {
 }
 
 // Default feature flag configuration
+// All flags disabled - set enabled: true to re-enable individual features
 const defaultFlags: Record<FeatureFlag, FeatureFlagConfig> = {
   triage: {
-    enabled: true,
+    enabled: false,
     allowedUserRoles: ['admin', 'staff'],
   },
   campaign_dashboard: {
-    enabled: true,
+    enabled: false,
     allowedUserRoles: ['admin', 'staff'],
   },
   ai_suggestions: {
-    enabled: true,
+    enabled: false,
   },
   bulk_triage: {
-    enabled: true,
+    enabled: false,
     allowedUserRoles: ['admin', 'staff'],
   },
   address_request: {
-    enabled: true,
+    enabled: false,
     allowedUserRoles: ['admin', 'staff'],
   },
 };
