@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { SupabaseProvider, useSupabase } from '@/lib/SupabaseContext';
 import { TriageProgressProvider } from '@/lib/TriageProgressContext';
@@ -10,6 +10,7 @@ import Dashboard from '@/pages/Dashboard';
 import SettingsPage from '@/pages/SettingsPage';
 import LoginPage from '@/pages/LoginPage';
 import SignUpPage from '@/pages/SignUpPage';
+import LandingPage from '@/pages/LandingPage';
 import TwoFAVerificationPage from '@/pages/TwoFAVerificationPage';
 import LettersPage from '@/pages/office/LettersPage';
 import ThirdPartiesPage from '@/pages/office/ThirdPartiesPage';
@@ -178,6 +179,12 @@ function AuthenticatedLayout() {
 function RootLayout() {
   const { user, loading, requiresMfa, checkMfaStatus, signOut } = useSupabase();
   const [showSignUp, setShowSignUp] = useState(false);
+  const location = useLocation();
+
+  // Always show landing page at /landing route (public page)
+  if (location.pathname === '/landing') {
+    return <LandingPage />;
+  }
 
   if (loading) {
     return <LoadingScreen />;
