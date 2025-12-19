@@ -81,6 +81,7 @@ interface UseSupabaseDataReturn {
   updateMessage: (id: string, updates: MessageUpdate) => Promise<Message | null>;
   createCaseParty: (data: Omit<CasePartyInsert, 'office_id'>) => Promise<CaseParty | null>;
   removeCaseParty: (casePartyId: string) => Promise<boolean>;
+  createCampaign: (data: { name: string; description?: string; subject_pattern?: string }) => Promise<Campaign | null>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 
@@ -530,6 +531,34 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     return true;
   };
 
+  const createCampaign = async (data: { name: string; description?: string; subject_pattern?: string }): Promise<Campaign | null> => {
+    const officeId = getMyOfficeId();
+    if (!officeId) return null;
+
+    const insertData = {
+      office_id: officeId,
+      name: data.name,
+      description: data.description || null,
+      subject_pattern: data.subject_pattern || null,
+      status: 'active',
+    };
+
+    const { data: newCampaign, error: insertError } = await supabase
+      .from('campaigns')
+      .insert(insertData as never)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating campaign:', insertError);
+      return null;
+    }
+
+    const campaign = newCampaign as Campaign;
+    setCampaigns(prev => [campaign, ...prev]);
+    return campaign;
+  };
+
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
@@ -956,6 +985,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
     updateMessage,
     createCaseParty,
     removeCaseParty,
+    createCampaign,
     signIn,
     signOut,
 

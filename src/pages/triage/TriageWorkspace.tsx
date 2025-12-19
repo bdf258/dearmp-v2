@@ -27,19 +27,6 @@ import {
   AlertTitle,
 } from '@/components/ui/alert';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import {
   MessageDetailHeader,
   TriageSkeletons,
   ConstituentSelector,
@@ -52,6 +39,7 @@ import {
   CreateConstituentDialog,
   CreateCaseDialog,
   RequestAddressDialog,
+  AssignCampaignDialog,
 } from '@/components/triage';
 import {
   ArrowLeft,
@@ -75,11 +63,10 @@ export function TriageWorkspace() {
 
   const { messages: allMessages, isLoading: dataLoading } = useTriageQueue();
   const { approveTriage, isProcessing } = useTriageActions();
-  const { campaigns, getTagsForEntity, updateMessage } = useSupabase();
+  const { campaigns, getTagsForEntity } = useSupabase();
 
   // Campaign assignment state
-  const [campaignPopoverOpen, setCampaignPopoverOpen] = useState(false);
-  const [isAssigningCampaign, setIsAssigningCampaign] = useState(false);
+  const [showAssignCampaign, setShowAssignCampaign] = useState(false);
 
   // Find the message
   const message = useMemo(() => {
@@ -187,28 +174,6 @@ export function TriageWorkspace() {
     setTriageState(prev => ({ ...prev, caseId: id }));
   }, []);
 
-  // Handle assign to campaign
-  const handleAssignToCampaign = useCallback(async (campaignId: string) => {
-    if (!message) return;
-
-    setIsAssigningCampaign(true);
-    try {
-      const updatedMessage = await updateMessage(message.id, { campaign_id: campaignId });
-      if (!updatedMessage) {
-        toast.error('Failed to assign message to campaign');
-        return;
-      }
-
-      const selectedCampaign = campaigns.find(c => c.id === campaignId);
-      toast.success(`Message assigned to "${selectedCampaign?.name || 'campaign'}"`);
-      setCampaignPopoverOpen(false);
-    } catch (error) {
-      console.error('Error assigning to campaign:', error);
-      toast.error('Failed to assign message to campaign');
-    } finally {
-      setIsAssigningCampaign(false);
-    }
-  }, [message, updateMessage, campaigns]);
 
   // Loading state
   if (dataLoading) {
@@ -352,52 +317,18 @@ export function TriageWorkspace() {
 
         {/* Assign to Campaign button */}
         <div className="p-4 border-b bg-background">
-          <Popover open={campaignPopoverOpen} onOpenChange={setCampaignPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-2"
-                disabled={isAssigningCampaign}
-              >
-                {isAssigningCampaign ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Flag className="h-4 w-4" />
-                )}
-                {campaign ? (
-                  <span className="truncate">{campaign.name}</span>
-                ) : (
-                  'Assign to Campaign'
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 p-0" align="start">
-              <Command>
-                <CommandInput placeholder="Search campaigns..." />
-                <CommandList>
-                  <CommandEmpty>No campaigns found.</CommandEmpty>
-                  <CommandGroup>
-                    {campaigns
-                      .filter(c => c.status === 'active')
-                      .map((c) => (
-                        <CommandItem
-                          key={c.id}
-                          value={c.name}
-                          onSelect={() => handleAssignToCampaign(c.id)}
-                          className="cursor-pointer"
-                        >
-                          <Flag className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span className="flex-1 truncate">{c.name}</span>
-                          {c.id === message?.campaign_id && (
-                            <Check className="h-4 w-4 text-primary" />
-                          )}
-                        </CommandItem>
-                      ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+          <Button
+            variant="outline"
+            className="w-full justify-start gap-2"
+            onClick={() => setShowAssignCampaign(true)}
+          >
+            <Flag className="h-4 w-4" />
+            {campaign ? (
+              <span className="truncate">{campaign.name}</span>
+            ) : (
+              'Assign to Campaign'
+            )}
+          </Button>
         </div>
 
         <ScrollArea className="flex-1">
@@ -530,6 +461,14 @@ export function TriageWorkspace() {
         recipientName={message.senderName}
         recipientEmail={message.senderEmail}
         originalSubject={message.subject || ''}
+      />
+
+      <AssignCampaignDialog
+        open={showAssignCampaign}
+        onOpenChange={setShowAssignCampaign}
+        messageId={message.id}
+        messageSubject={message.subject}
+        currentCampaignId={message.campaign_id}
       />
     </div>
   );

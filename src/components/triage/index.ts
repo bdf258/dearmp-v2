@@ -48,6 +48,7 @@ export {
 export { CreateConstituentDialog } from './CreateConstituentDialog';
 export { CreateCaseDialog } from './CreateCaseDialog';
 export { RequestAddressDialog } from './RequestAddressDialog';
+export { AssignCampaignDialog } from './AssignCampaignDialog';
 
 // Message display
 export { MessageCard, CompactMessageCard, MessageDetailHeader } from './MessageCard';
