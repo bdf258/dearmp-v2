@@ -5,7 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-export default function LoginPage() {
+interface LoginPageProps {
+  onNavigateToSignUp?: () => void;
+}
+
+export default function LoginPage({ onNavigateToSignUp }: LoginPageProps) {
   const { signIn, loading, error } = useSupabase();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,6 +63,19 @@ export default function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign in'}
             </Button>
+
+            {onNavigateToSignUp && (
+              <div className="text-center text-sm">
+                <span className="text-muted-foreground">Don't have an account? </span>
+                <button
+                  type="button"
+                  onClick={onNavigateToSignUp}
+                  className="text-primary hover:underline font-medium"
+                >
+                  Sign up
+                </button>
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>
