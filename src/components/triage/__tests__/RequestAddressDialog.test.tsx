@@ -27,8 +27,9 @@ describe('RequestAddressDialog', () => {
 
   it('shows recipient information', () => {
     render(<RequestAddressDialog {...defaultProps} />);
-    expect(screen.getByText(/John Smith/)).toBeInTheDocument();
-    expect(screen.getByText(/john@example.com/)).toBeInTheDocument();
+    // Text appears in multiple places (To field and message body)
+    expect(screen.getAllByText(/John Smith/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/john@example\.com/).length).toBeGreaterThan(0);
   });
 
   it('prepopulates subject with Re: prefix', () => {
@@ -148,8 +149,8 @@ describe('RequestAddressDialog', () => {
       />
     );
 
-    const textarea = screen.getByRole('textbox', { name: /message/i });
-    expect(textarea).toHaveValue(expect.stringContaining('Jane Doe'));
-    expect(textarea).toHaveValue(expect.stringContaining('North District'));
+    const textarea = screen.getByRole('textbox', { name: /message/i }) as HTMLTextAreaElement;
+    expect(textarea.value).toContain('Jane Doe');
+    expect(textarea.value).toContain('North District');
   });
 });

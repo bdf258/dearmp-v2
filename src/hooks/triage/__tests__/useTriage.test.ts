@@ -36,7 +36,17 @@ vi.mock('@/lib/supabase', () => ({
         })),
       })),
     },
-    rpc: vi.fn(() => Promise.resolve({ data: { success: true }, error: null })),
+    rpc: vi.fn((fnName: string, params?: Record<string, unknown>) => {
+      // Return appropriate mock data based on the RPC function called
+      if (fnName === 'dismiss_triage' && params?.p_message_ids) {
+        const messageIds = params.p_message_ids as string[];
+        return Promise.resolve({
+          data: { success: true, dismissed_count: messageIds.length },
+          error: null,
+        });
+      }
+      return Promise.resolve({ data: { success: true }, error: null });
+    }),
   },
 }));
 
