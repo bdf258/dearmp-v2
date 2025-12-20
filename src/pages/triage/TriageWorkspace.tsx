@@ -350,7 +350,6 @@ export function TriageWorkspace() {
                       : 'ai_matched'
                     : 'none'
                 }
-                label="Constituent"
               />
 
               {/* Create constituent accordion - shown when open and no constituent selected */}
@@ -450,7 +449,6 @@ export function TriageWorkspace() {
                     setOpenAccordion('case');
                   }}
                   constituentId={triageState.constituentId}
-                  label="Case"
                   disabled={!!campaign || !!message.is_policy_email}
                 />
 
@@ -476,7 +474,6 @@ export function TriageWorkspace() {
                 selectedId={triageState.assigneeId}
                 onSelect={(id) => setTriageState(prev => ({ ...prev, assigneeId: id }))}
                 showUnassignedOption
-                label="Assign to"
                 disabled={!!campaign || !!message.is_policy_email}
               />
 
@@ -485,6 +482,7 @@ export function TriageWorkspace() {
                 value={triageState.priority}
                 onChange={(priority) => setTriageState(prev => ({ ...prev, priority }))}
                 disabled={!!campaign || !!message.is_policy_email}
+                label=""
               />
 
               {/* Tags */}
@@ -492,6 +490,7 @@ export function TriageWorkspace() {
                 selectedTagIds={triageState.tagIds}
                 onChange={(tagIds) => setTriageState(prev => ({ ...prev, tagIds }))}
                 disabled={!!campaign || !!message.is_policy_email}
+                label=""
               />
 
               {/* Campaign/Policy hint */}
