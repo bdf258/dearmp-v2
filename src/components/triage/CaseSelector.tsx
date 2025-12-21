@@ -22,6 +22,14 @@ interface CaseSelectorProps {
   disabled?: boolean;
   label?: string;
   className?: string;
+  /** Remove border from the button for seamless integration */
+  borderless?: boolean;
+  /** Hide secondary text in the button display */
+  hideSecondary?: boolean;
+  /** Custom placeholder text to override default */
+  placeholder?: string;
+  /** Custom class for the label element */
+  labelClassName?: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -39,6 +47,10 @@ export function CaseSelector({
   disabled,
   label = 'Case',
   className,
+  borderless,
+  hideSecondary,
+  placeholder = 'Select or create case',
+  labelClassName,
 }: CaseSelectorProps) {
   const { cases, caseParties } = useSupabase();
 
@@ -94,7 +106,7 @@ export function CaseSelector({
     <SearchableDropdown
       label={label}
       icon={<Briefcase className="h-4 w-4 text-muted-foreground" />}
-      placeholder="Select or create case"
+      placeholder={placeholder}
       items={items}
       selectedId={selectedId}
       onSelect={onSelect}
@@ -104,6 +116,9 @@ export function CaseSelector({
       searchPlaceholder="Search cases..."
       emptyMessage="No cases found"
       className={className}
+      borderless={borderless}
+      hideSecondary={hideSecondary}
+      labelClassName={labelClassName}
     />
   );
 }

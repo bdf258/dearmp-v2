@@ -22,6 +22,14 @@ interface CaseworkerSelectorProps {
   label?: string;
   className?: string;
   showUnassignedOption?: boolean;
+  /** Remove border from the button for seamless integration */
+  borderless?: boolean;
+  /** Hide secondary text in the button display */
+  hideSecondary?: boolean;
+  /** Custom placeholder text to override default */
+  placeholder?: string;
+  /** Custom class for the label element */
+  labelClassName?: string;
 }
 
 const roleLabels: Record<UserRole, string> = {
@@ -47,6 +55,10 @@ export function CaseworkerSelector({
   label = 'Assignee',
   className,
   showUnassignedOption,
+  borderless,
+  hideSecondary,
+  placeholder = 'Select assignee',
+  labelClassName,
 }: CaseworkerSelectorProps) {
   const { caseworkers } = useCaseworkers();
 
@@ -85,7 +97,7 @@ export function CaseworkerSelector({
     <SearchableDropdown
       label={label}
       icon={<UserCog className="h-4 w-4 text-muted-foreground" />}
-      placeholder="Select assignee"
+      placeholder={placeholder}
       items={items}
       selectedId={selectedId}
       onSelect={handleSelect}
@@ -93,6 +105,9 @@ export function CaseworkerSelector({
       searchPlaceholder="Search team members..."
       emptyMessage="No team members found"
       className={className}
+      borderless={borderless}
+      hideSecondary={hideSecondary}
+      labelClassName={labelClassName}
     />
   );
 }

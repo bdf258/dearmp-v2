@@ -50,6 +50,12 @@ interface SearchableDropdownProps {
   searchPlaceholder?: string;
   emptyMessage?: string;
   className?: string;
+  /** Remove border from the button for seamless integration */
+  borderless?: boolean;
+  /** Hide secondary text in the button display */
+  hideSecondary?: boolean;
+  /** Custom class for the label element */
+  labelClassName?: string;
 }
 
 export function SearchableDropdown({
@@ -68,6 +74,9 @@ export function SearchableDropdown({
   searchPlaceholder,
   emptyMessage = 'No results found.',
   className,
+  borderless,
+  hideSecondary,
+  labelClassName,
 }: SearchableDropdownProps) {
   // Compute effective recognition status (support legacy isRecognized prop)
   const effectiveStatus: RecognitionStatus = recognitionStatus
@@ -88,17 +97,20 @@ export function SearchableDropdown({
   const selectedItem = items.find((item) => item.id === selectedId);
 
   return (
-    <div className={cn('space-y-2', className)}>
-      {label && <label className="text-sm font-medium">{label}</label>}
-      <div className="flex items-center gap-2">
+    <div className={cn('space-y-2 min-w-0', className)}>
+      {label && <label className={cn('text-sm font-medium', labelClassName)}>{label}</label>}
+      <div className="flex items-center gap-2 min-w-0">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
-              variant="outline"
+              variant={borderless ? 'ghost' : 'outline'}
               role="combobox"
               aria-expanded={open}
               disabled={disabled || isLoading}
-              className="flex-1 justify-between h-auto min-h-10 py-2 min-w-0"
+              className={cn(
+                'flex-1 justify-between h-auto min-h-10 py-2 min-w-0',
+                borderless && 'border-0 hover:bg-transparent px-0'
+              )}
             >
               <span className="flex items-center gap-2 min-w-0 flex-1">
                 {icon && <span className="shrink-0">{icon}</span>}
@@ -107,7 +119,7 @@ export function SearchableDropdown({
                 ) : selectedItem ? (
                   <span className="flex flex-col items-start min-w-0 flex-1">
                     <span className="truncate w-full text-left">{selectedItem.name}</span>
-                    {selectedItem.secondary && (
+                    {!hideSecondary && selectedItem.secondary && (
                       <span className="text-xs text-muted-foreground truncate w-full text-left">
                         {selectedItem.secondary}
                       </span>

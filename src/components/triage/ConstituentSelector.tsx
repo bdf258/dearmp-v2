@@ -21,6 +21,14 @@ interface ConstituentSelectorProps {
   disabled?: boolean;
   label?: string;
   className?: string;
+  /** Remove border from the button for seamless integration */
+  borderless?: boolean;
+  /** Hide secondary text (email/address) in the button display */
+  hideSecondary?: boolean;
+  /** Custom placeholder text to override default */
+  placeholder?: string;
+  /** Custom class for the label element */
+  labelClassName?: string;
 }
 
 export function ConstituentSelector({
@@ -32,6 +40,10 @@ export function ConstituentSelector({
   disabled,
   label = 'Constituent',
   className,
+  borderless,
+  hideSecondary,
+  placeholder = 'Select constituent',
+  labelClassName,
 }: ConstituentSelectorProps) {
   const { constituents, constituentContacts } = useSupabase();
 
@@ -60,7 +72,7 @@ export function ConstituentSelector({
     <SearchableDropdown
       label={label}
       icon={<User className="h-4 w-4 text-muted-foreground" />}
-      placeholder="Select constituent"
+      placeholder={placeholder}
       items={items}
       selectedId={selectedId}
       onSelect={onSelect}
@@ -72,6 +84,9 @@ export function ConstituentSelector({
       searchPlaceholder="Search by name or email..."
       emptyMessage="No constituents found"
       className={className}
+      borderless={borderless}
+      hideSecondary={hideSecondary}
+      labelClassName={labelClassName}
     />
   );
 }

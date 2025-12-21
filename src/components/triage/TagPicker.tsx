@@ -46,6 +46,10 @@ interface TagPickerProps {
   disabled?: boolean;
   showCreateNew?: boolean;
   maxDisplayTags?: number; // For menubar variant: how many tags to show before "+X more"
+  /** Remove border for seamless integration */
+  borderless?: boolean;
+  /** Custom class for the label element */
+  labelClassName?: string;
 }
 
 export function TagPicker({
@@ -59,6 +63,8 @@ export function TagPicker({
   disabled,
   showCreateNew = true,
   maxDisplayTags = 2,
+  borderless,
+  labelClassName,
 }: TagPickerProps) {
   const { tags, createTag } = useSupabase();
   const [open, setOpen] = useState(false);
@@ -259,13 +265,15 @@ export function TagPicker({
   // Default variant
   return (
     <div className={cn('space-y-2', className)}>
-      {label && <Label className="text-sm font-medium">{label}</Label>}
+      {label && <Label className={cn('text-sm font-medium', labelClassName)}>{label}</Label>}
       <Popover open={open && !disabled} onOpenChange={(isOpen) => !disabled && setOpen(isOpen)}>
         <PopoverTrigger asChild>
           <div
             className={cn(
-              'flex flex-wrap gap-1.5 min-h-[40px] p-2 border rounded-md cursor-pointer transition-colors',
-              disabled ? 'bg-muted/50 cursor-not-allowed' : 'bg-muted/30 hover:bg-muted/50'
+              'flex flex-wrap gap-1.5 min-h-[40px] p-2 rounded-md cursor-pointer transition-colors',
+              !borderless && 'border',
+              borderless ? 'px-0' : '',
+              disabled ? 'bg-muted/50 cursor-not-allowed' : borderless ? 'bg-transparent hover:bg-muted/30' : 'bg-muted/30 hover:bg-muted/50'
             )}
           >
             {displayTags.length > 0 ? (
@@ -276,7 +284,7 @@ export function TagPicker({
                 );
               })
             ) : (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <Plus className="h-3 w-3" />
                 {placeholder}
               </span>
