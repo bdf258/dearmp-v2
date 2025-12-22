@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       attachments: {
@@ -56,39 +81,6 @@ export type Database = {
         ]
       }
       attachments_default: {
-        Row: {
-          created_at: string | null
-          file_size: number | null
-          filename: string
-          id: string
-          message_id: string
-          mime_type: string | null
-          office_id: string
-          storage_path: string
-        }
-        Insert: {
-          created_at?: string | null
-          file_size?: number | null
-          filename: string
-          id?: string
-          message_id: string
-          mime_type?: string | null
-          office_id: string
-          storage_path: string
-        }
-        Update: {
-          created_at?: string | null
-          file_size?: number | null
-          filename?: string
-          id?: string
-          message_id?: string
-          mime_type?: string | null
-          office_id?: string
-          storage_path?: string
-        }
-        Relationships: []
-      }
-      attachments_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
         Row: {
           created_at: string | null
           file_size: number | null
@@ -223,51 +215,6 @@ export type Database = {
         ]
       }
       audit_logs_default: {
-        Row: {
-          action: Database["public"]["Enums"]["audit_action"]
-          actor_id: string | null
-          alert_sent_at: string | null
-          created_at: string | null
-          entity_id: string | null
-          entity_type: string
-          id: string
-          ip_address: string | null
-          metadata: Json | null
-          office_id: string
-          requires_alert: boolean | null
-          severity: string | null
-        }
-        Insert: {
-          action: Database["public"]["Enums"]["audit_action"]
-          actor_id?: string | null
-          alert_sent_at?: string | null
-          created_at?: string | null
-          entity_id?: string | null
-          entity_type: string
-          id?: string
-          ip_address?: string | null
-          metadata?: Json | null
-          office_id: string
-          requires_alert?: boolean | null
-          severity?: string | null
-        }
-        Update: {
-          action?: Database["public"]["Enums"]["audit_action"]
-          actor_id?: string | null
-          alert_sent_at?: string | null
-          created_at?: string | null
-          entity_id?: string | null
-          entity_type?: string
-          id?: string
-          ip_address?: string | null
-          metadata?: Json | null
-          office_id?: string
-          requires_alert?: boolean | null
-          severity?: string | null
-        }
-        Relationships: []
-      }
-      audit_logs_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
         Row: {
           action: Database["public"]["Enums"]["audit_action"]
           actor_id: string | null
@@ -561,6 +508,7 @@ export type Database = {
       cases: {
         Row: {
           assigned_to: string | null
+          case_type: Database["public"]["Enums"]["case_type"] | null
           category: string | null
           closed_at: string | null
           created_at: string | null
@@ -571,12 +519,14 @@ export type Database = {
           priority: Database["public"]["Enums"]["case_priority"] | null
           reference_number: number
           retention_policy_date: string | null
+          review_date: string | null
           status: Database["public"]["Enums"]["case_status"] | null
           title: string
           updated_at: string | null
         }
         Insert: {
           assigned_to?: string | null
+          case_type?: Database["public"]["Enums"]["case_type"] | null
           category?: string | null
           closed_at?: string | null
           created_at?: string | null
@@ -587,12 +537,14 @@ export type Database = {
           priority?: Database["public"]["Enums"]["case_priority"] | null
           reference_number: number
           retention_policy_date?: string | null
+          review_date?: string | null
           status?: Database["public"]["Enums"]["case_status"] | null
           title: string
           updated_at?: string | null
         }
         Update: {
           assigned_to?: string | null
+          case_type?: Database["public"]["Enums"]["case_type"] | null
           category?: string | null
           closed_at?: string | null
           created_at?: string | null
@@ -603,6 +555,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["case_priority"] | null
           reference_number?: number
           retention_policy_date?: string | null
+          review_date?: string | null
           status?: Database["public"]["Enums"]["case_status"] | null
           title?: string
           updated_at?: string | null
@@ -1163,105 +1116,6 @@ export type Database = {
         }
         Relationships: []
       }
-      messages_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
-        Row: {
-          ai_processed_at: string | null
-          body_search_text: string | null
-          campaign_id: string | null
-          case_id: string | null
-          channel: Database["public"]["Enums"]["message_channel"] | null
-          classification_confidence: number | null
-          classification_reasoning: string | null
-          confirmed_at: string | null
-          confirmed_by: string | null
-          direction: Database["public"]["Enums"]["message_direction"]
-          email_type: string | null
-          fingerprint_hash: string | null
-          id: string
-          in_reply_to_header: string | null
-          is_campaign_email: boolean | null
-          is_policy_email: boolean | null
-          message_id_header: string | null
-          office_id: string
-          received_at: string | null
-          search_vector: unknown
-          sent_at: string | null
-          snippet: string | null
-          storage_path_html: string | null
-          storage_path_text: string | null
-          subject: string | null
-          thread_id: string | null
-          triage_metadata: Json | null
-          triage_status: Database["public"]["Enums"]["triage_status"] | null
-          triaged_at: string | null
-          triaged_by: string | null
-        }
-        Insert: {
-          ai_processed_at?: string | null
-          body_search_text?: string | null
-          campaign_id?: string | null
-          case_id?: string | null
-          channel?: Database["public"]["Enums"]["message_channel"] | null
-          classification_confidence?: number | null
-          classification_reasoning?: string | null
-          confirmed_at?: string | null
-          confirmed_by?: string | null
-          direction: Database["public"]["Enums"]["message_direction"]
-          email_type?: string | null
-          fingerprint_hash?: string | null
-          id?: string
-          in_reply_to_header?: string | null
-          is_campaign_email?: boolean | null
-          is_policy_email?: boolean | null
-          message_id_header?: string | null
-          office_id: string
-          received_at?: string | null
-          search_vector?: unknown
-          sent_at?: string | null
-          snippet?: string | null
-          storage_path_html?: string | null
-          storage_path_text?: string | null
-          subject?: string | null
-          thread_id?: string | null
-          triage_metadata?: Json | null
-          triage_status?: Database["public"]["Enums"]["triage_status"] | null
-          triaged_at?: string | null
-          triaged_by?: string | null
-        }
-        Update: {
-          ai_processed_at?: string | null
-          body_search_text?: string | null
-          campaign_id?: string | null
-          case_id?: string | null
-          channel?: Database["public"]["Enums"]["message_channel"] | null
-          classification_confidence?: number | null
-          classification_reasoning?: string | null
-          confirmed_at?: string | null
-          confirmed_by?: string | null
-          direction?: Database["public"]["Enums"]["message_direction"]
-          email_type?: string | null
-          fingerprint_hash?: string | null
-          id?: string
-          in_reply_to_header?: string | null
-          is_campaign_email?: boolean | null
-          is_policy_email?: boolean | null
-          message_id_header?: string | null
-          office_id?: string
-          received_at?: string | null
-          search_vector?: unknown
-          sent_at?: string | null
-          snippet?: string | null
-          storage_path_html?: string | null
-          storage_path_text?: string | null
-          subject?: string | null
-          thread_id?: string | null
-          triage_metadata?: Json | null
-          triage_status?: Database["public"]["Enums"]["triage_status"] | null
-          triaged_at?: string | null
-          triaged_by?: string | null
-        }
-        Relationships: []
-      }
       note_replies: {
         Row: {
           body: string
@@ -1372,6 +1226,59 @@ export type Database = {
           },
           {
             foreignKeyName: "notes_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      office_invitations: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          email: string | null
+          expires_at: string
+          id: string
+          max_uses: number | null
+          office_id: string
+          role: Database["public"]["Enums"]["user_role"]
+          token: string
+          use_count: number | null
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          email?: string | null
+          expires_at?: string
+          id?: string
+          max_uses?: number | null
+          office_id: string
+          role?: Database["public"]["Enums"]["user_role"]
+          token?: string
+          use_count?: number | null
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          email?: string | null
+          expires_at?: string
+          id?: string
+          max_uses?: number | null
+          office_id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          token?: string
+          use_count?: number | null
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "office_invitations_office_id_fkey"
             columns: ["office_id"]
             isOneToOne: false
             referencedRelation: "offices"
@@ -1855,6 +1762,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      claim_invitation: {
+        Args: { p_email?: string; p_token: string; p_user_id: string }
+        Returns: {
+          error_message: string
+          office_id: string
+          role: Database["public"]["Enums"]["user_role"]
+          success: boolean
+        }[]
+      }
       confirm_triage: {
         Args: {
           p_assignee_id?: string
@@ -1863,6 +1779,29 @@ export type Database = {
           p_tag_ids?: string[]
         }
         Returns: Json
+      }
+      create_office_invitation: {
+        Args: {
+          p_email?: string
+          p_expires_in_days?: number
+          p_max_uses?: number
+          p_office_id: string
+          p_role?: Database["public"]["Enums"]["user_role"]
+        }
+        Returns: {
+          created_at: string | null
+          created_by: string | null
+          email: string | null
+          expires_at: string
+          id: string
+          max_uses: number | null
+          office_id: string
+          role: Database["public"]["Enums"]["user_role"]
+          token: string
+          use_count: number | null
+          used_at: string | null
+          used_by: string | null
+        }
       }
       create_office_partition: {
         Args: { p_office_id: string; p_table_name: string }
@@ -1936,12 +1875,6 @@ export type Database = {
           round_robin_enabled: boolean | null
           signature_template: string | null
           updated_at: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "office_settings"
-          isOneToOne: true
-          isSetofReturn: false
         }
       }
       get_session_aal: { Args: never; Returns: string }
@@ -2089,6 +2022,15 @@ export type Database = {
         | "triage_batch"
       case_priority: "low" | "medium" | "high" | "urgent"
       case_status: "open" | "pending" | "closed" | "archived"
+      case_type:
+        | "type_1"
+        | "type_2"
+        | "type_3"
+        | "type_4"
+        | "type_5"
+        | "type_6"
+        | "type_7"
+        | "type_8"
       contact_type: "email" | "phone" | "address" | "social"
       message_channel: "email" | "phone" | "letter" | "meeting" | "social_media"
       message_direction: "inbound" | "outbound"
@@ -2219,6 +2161,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       audit_action: [
@@ -2251,6 +2196,7 @@ export const Constants = {
       ],
       case_priority: ["low", "medium", "high", "urgent"],
       case_status: ["open", "pending", "closed", "archived"],
+      case_type: ["type_1", "type_2", "type_3", "type_4", "type_5", "type_6", "type_7", "type_8"],
       contact_type: ["email", "phone", "address", "social"],
       message_channel: ["email", "phone", "letter", "meeting", "social_media"],
       message_direction: ["inbound", "outbound"],
@@ -2259,3 +2205,70 @@ export const Constants = {
     },
   },
 } as const
+
+// Custom type aliases for convenience
+export type UserRole = 'admin' | 'staff' | 'readonly';
+export type CaseStatus = 'open' | 'pending' | 'closed' | 'archived';
+export type CasePriority = 'low' | 'medium' | 'high' | 'urgent';
+export type CaseType = 'type_1' | 'type_2' | 'type_3' | 'type_4' | 'type_5' | 'type_6' | 'type_7' | 'type_8';
+export type MessageDirection = 'inbound' | 'outbound';
+export type MessageChannel = 'email' | 'phone' | 'letter' | 'meeting' | 'social_media';
+export type ContactType = 'email' | 'phone' | 'address' | 'social';
+export type AuditAction = 'create' | 'update' | 'delete' | 'view' | 'login' | 'send_email' | 'mfa_enroll' | 'mfa_verify' | 'mfa_disable' | 'mfa_unenroll' | 'login_success' | 'login_failure' | 'role_change' | 'user_create' | 'user_delete' | 'settings_change' | 'outlook_connect' | 'outlook_disconnect' | 'bulk_export' | 'session_anomaly' | 'case_assign' | 'case_close' | 'email_send' | 'triage_confirm' | 'triage_dismiss' | 'triage_batch';
+export type EmailQueueStatus = 'pending' | 'processing' | 'sent' | 'failed';
+export type TriageStatus = 'pending' | 'triaged' | 'confirmed' | 'dismissed';
+
+// Convenience type aliases
+export type Office = Database['public']['Tables']['offices']['Row'];
+export type OfficeSettings = Database['public']['Tables']['office_settings']['Row'];
+export type OfficeSettingsUpdate = Database['public']['Tables']['office_settings']['Update'];
+export type Profile = Database['public']['Tables']['profiles']['Row'];
+export type Constituent = Database['public']['Tables']['constituents']['Row'];
+export type ConstituentContact = Database['public']['Tables']['constituent_contacts']['Row'];
+export type ConstituentRelationship = Database['public']['Tables']['constituent_relationships']['Row'];
+export type Organization = Database['public']['Tables']['organizations']['Row'];
+export type OrganizationMembership = Database['public']['Tables']['organization_memberships']['Row'];
+export type Case = Database['public']['Tables']['cases']['Row'];
+export type CaseParty = Database['public']['Tables']['case_parties']['Row'];
+export type Campaign = Database['public']['Tables']['campaigns']['Row'];
+export type Message = Database['public']['Tables']['messages']['Row'];
+export type MessageRecipient = Database['public']['Tables']['message_recipients']['Row'];
+export type Attachment = Database['public']['Tables']['attachments']['Row'];
+export type BulkResponse = Database['public']['Tables']['bulk_responses']['Row'];
+export type BulkResponseLog = Database['public']['Tables']['bulk_response_log']['Row'];
+export type Tag = Database['public']['Tables']['tags']['Row'];
+export type TagAssignment = Database['public']['Tables']['tag_assignments']['Row'];
+export type AuditLog = Database['public']['Tables']['audit_logs']['Row'];
+export type RejectedEmail = Database['public']['Tables']['rejected_emails']['Row'];
+
+// Outlook Worker types
+export type OutlookSession = Database['public']['Tables']['integration_outlook_sessions']['Row'];
+export type EmailOutboxQueue = Database['public']['Tables']['email_outbox_queue']['Row'];
+export type BrowserAutomationLock = Database['public']['Tables']['browser_automation_lock']['Row'];
+
+// Security types (new)
+export type LoginAttempt = Database['public']['Tables']['login_attempts']['Row'];
+export type SessionContext = Database['public']['Tables']['session_contexts']['Row'];
+export type SessionAnomaly = Database['public']['Tables']['session_anomalies']['Row'];
+export type TrustedContext = Database['public']['Tables']['trusted_contexts']['Row'];
+export type AuditAlertQueue = Database['public']['Tables']['audit_alert_queue']['Row'];
+export type OfficeInvitation = Database['public']['Tables']['office_invitations']['Row'];
+
+// Insert types
+export type OfficeInsert = Database['public']['Tables']['offices']['Insert'];
+export type ConstituentInsert = Database['public']['Tables']['constituents']['Insert'];
+export type CaseInsert = Database['public']['Tables']['cases']['Insert'];
+export type MessageInsert = Database['public']['Tables']['messages']['Insert'];
+export type CampaignInsert = Database['public']['Tables']['campaigns']['Insert'];
+export type OutlookSessionInsert = Database['public']['Tables']['integration_outlook_sessions']['Insert'];
+export type EmailOutboxQueueInsert = Database['public']['Tables']['email_outbox_queue']['Insert'];
+export type CasePartyInsert = Database['public']['Tables']['case_parties']['Insert'];
+export type MessageUpdate = Database['public']['Tables']['messages']['Update'];
+export type OfficeInvitationInsert = Database['public']['Tables']['office_invitations']['Insert'];
+
+// Notes types
+export type Note = Database['public']['Tables']['notes']['Row'];
+export type NoteReply = Database['public']['Tables']['note_replies']['Row'];
+export type NoteInsert = Database['public']['Tables']['notes']['Insert'];
+export type NoteReplyInsert = Database['public']['Tables']['note_replies']['Insert'];
+export type TagAssignmentInsert = Database['public']['Tables']['tag_assignments']['Insert'];

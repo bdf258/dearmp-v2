@@ -17,7 +17,6 @@ import {
   FolderOpen,
   BarChart3,
   MessageSquare,
-  ChevronRight,
   Play,
   Sparkles,
   Timer,
