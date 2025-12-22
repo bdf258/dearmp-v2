@@ -59,3 +59,6 @@ export { MessageCard, CompactMessageCard, MessageDetailHeader } from './MessageC
 
 // Skeletons
 export { TriageSkeletons } from './Skeletons';
+
+// Field row with tooltip
+export { TriageFieldRow, TriageFieldColumn } from './TriageFieldRow';

@@ -123,6 +123,12 @@ export function useTriageQueue(filters?: TriageQueueFilters) {
         constituentStatus,
         addressFromEmail,
       } as TriageMessage;
+    })
+    // Sort by received_at ascending (oldest first) so triage starts with oldest emails
+    .sort((a, b) => {
+      const dateA = new Date(a.received_at || 0).getTime();
+      const dateB = new Date(b.received_at || 0).getTime();
+      return dateA - dateB;
     });
   }, [messages, messageRecipients, constituents, constituentContacts, filters, getMyOfficeId]);
 

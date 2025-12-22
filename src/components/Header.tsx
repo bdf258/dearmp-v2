@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom';
 import { useSupabase } from '@/lib/SupabaseContext';
 import { useTriageProgress } from '@/lib/TriageProgressContext';
 import { Progress } from '@/components/ui/progress';
-import { Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Menu, ArrowLeft, ArrowRight, ChevronLeft } from 'lucide-react';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -11,7 +12,7 @@ interface HeaderProps {
 
 export function Header({ onToggleSidebar }: HeaderProps) {
   const { profile, currentOffice } = useSupabase();
-  const { progress } = useTriageProgress();
+  const { progress, navigation } = useTriageProgress();
 
   const progressPercentage = progress
     ? (progress.current / progress.total) * 100
@@ -19,7 +20,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
         {/* Hamburger menu button for mobile */}
         <button
           onClick={onToggleSidebar}
@@ -28,6 +29,18 @@ export function Header({ onToggleSidebar }: HeaderProps) {
         >
           <Menu className="h-6 w-6" />
         </button>
+
+        {/* Back button - shown when in triage mode */}
+        {navigation && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={navigation.onBack}
+            className="h-8 w-8"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+        )}
 
         <h2 className="text-lg font-semibold text-card-foreground">
           {currentOffice?.name || 'Office'}
@@ -47,7 +60,31 @@ export function Header({ onToggleSidebar }: HeaderProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4">
+        {/* Navigation buttons - shown when in triage mode */}
+        {navigation && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={navigation.onPrevious}
+              disabled={!navigation.canGoPrevious}
+              className="h-8 w-8"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={navigation.onNext}
+              disabled={!navigation.canGoNext}
+              className="h-8 w-8"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         {/* User Info - links to settings */}
         <Link to="/settings" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="text-right">

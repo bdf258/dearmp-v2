@@ -12,6 +12,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useSupabase } from '@/lib/SupabaseContext';
+import { useTriageProgress } from '@/lib/TriageProgressContext';
 import {
   useTriageQueue,
   useTriageActions,
@@ -50,10 +51,11 @@ import {
   PrioritySelector,
   RequestAddressDialog,
   AssignCampaignDialog,
+  TriageFieldRow,
+  TriageFieldColumn,
 } from '@/components/triage';
 import {
   ArrowLeft,
-  ArrowRight,
   Check,
   MapPin,
   AlertCircle,
@@ -65,11 +67,21 @@ import {
   Mail,
   Type,
   AlignLeft,
-  Calendar,
-  ListChecks,
+  CalendarIcon,
   Tag,
   Layers,
+  Megaphone,
+  ScrollText,
+  HeartHandshake,
+  Pencil,
 } from 'lucide-react';
+import { format } from 'date-fns';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { toast } from 'sonner';
 import type { CasePriority, CaseStatus, CaseType } from '@/lib/database.types';
 
@@ -81,6 +93,7 @@ export function TriageWorkspace() {
   const { messages: allMessages, isLoading: dataLoading } = useTriageQueue();
   const { approveTriage, createConstituentWithContacts, createCaseForMessage, isProcessing } = useTriageActions();
   const { campaigns, getTagsForEntity, updateMessage, constituents, constituentContacts, cases } = useSupabase();
+  const { setProgress, setNavigation } = useTriageProgress();
 
   // Campaign assignment state
   const [showAssignCampaign, setShowAssignCampaign] = useState(false);
@@ -130,6 +143,10 @@ export function TriageWorkspace() {
   // Dialog states
   const [showRequestAddress, setShowRequestAddress] = useState(false);
 
+  // Email note state
+  const [emailNote, setEmailNote] = useState('');
+  const [isEditingNote, setIsEditingNote] = useState(false);
+
   // Creating new constituent mode
   const [isCreatingConstituent, setIsCreatingConstituent] = useState(false);
 
@@ -168,6 +185,10 @@ export function TriageWorkspace() {
         priority: 'medium',
         tagIds: messageTags.map(t => t.tag_id),
       });
+
+      // Reset email note when message changes
+      setEmailNote('');
+      setIsEditingNote(false);
     }
   }, [message?.id, message?.senderConstituent?.id, message?.case_id, getTagsForEntity]);
 
@@ -251,6 +272,25 @@ export function TriageWorkspace() {
       navigate('/triage/campaigns');
     }
   }, [navigate, searchParams]);
+
+  // Update header progress bar and navigation
+  useEffect(() => {
+    if (!dataLoading && allMessages.length > 0 && messageIndex >= 0) {
+      setProgress({ current: messageIndex + 1, total: allMessages.length });
+      setNavigation({
+        canGoPrevious: messageIndex > 0,
+        canGoNext: messageIndex < allMessages.length - 1,
+        onPrevious: goToPrevious,
+        onNext: goToNext,
+        onBack: goBack,
+      });
+    }
+    // Cleanup on unmount
+    return () => {
+      setProgress(null);
+      setNavigation(null);
+    };
+  }, [messageIndex, allMessages.length, dataLoading, setProgress, setNavigation, goToPrevious, goToNext, goBack]);
 
   // Approve triage
   const handleApprove = useCallback(async () => {
@@ -387,36 +427,6 @@ export function TriageWorkspace() {
     <div className="flex h-full">
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header with navigation */}
-        <div className="p-4 border-b flex items-center justify-between gap-4">
-          <Button variant="ghost" onClick={goBack}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {messageIndex + 1} of {allMessages.length}
-            </span>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={goToPrevious}
-              disabled={messageIndex === 0}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={goToNext}
-              disabled={messageIndex === allMessages.length - 1}
-            >
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
         {/* Message content */}
         <ScrollArea className="flex-1">
           <div className="p-6 mx-auto">
@@ -459,6 +469,43 @@ export function TriageWorkspace() {
             )}
 
             <Separator className="my-6" />
+
+            {/* Email note card */}
+            <div className="mb-4 rounded-lg border bg-muted/50 p-3">
+              <div className="flex items-start gap-2">
+                {isEditingNote ? (
+                  <input
+                    type="text"
+                    value={emailNote}
+                    onChange={(e) => setEmailNote(e.target.value.slice(0, 150))}
+                    onBlur={() => setIsEditingNote(false)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') setIsEditingNote(false);
+                      if (e.key === 'Escape') setIsEditingNote(false);
+                    }}
+                    placeholder="Add a note (max 150 characters)..."
+                    maxLength={150}
+                    autoFocus
+                    className="flex-1 bg-transparent text-sm focus:outline-none"
+                  />
+                ) : (
+                  <p className="flex-1 text-sm text-muted-foreground">
+                    {emailNote || 'No note added'}
+                  </p>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0"
+                  onClick={() => setIsEditingNote(true)}
+                >
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              </div>
+              <span className="text-xs text-gray-400 text-right">
+                {150 - emailNote.length}
+              </span>
+            </div>
 
             {/* Message body */}
             <div className="prose prose-sm max-w-none">
@@ -521,8 +568,7 @@ export function TriageWorkspace() {
               {/* Ghost inputs for constituent details */}
               <div className="space-y-1">
                 {/* Title and Name on same row */}
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:border hover:border-border border border-transparent transition-colors">
-                  <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                <TriageFieldRow tooltip="Constituent's title and full name" icon={User}>
                   <Select
                     value={constituentDetails.title}
                     onValueChange={(value) => setConstituentDetails(prev => ({ ...prev, title: value }))}
@@ -545,111 +591,29 @@ export function TriageWorkspace() {
                     placeholder="Name"
                     className="border-0 bg-transparent h-7 px-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
-                </div>
+                </TriageFieldRow>
                 {/* Address */}
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:border hover:border-border border border-transparent transition-colors">
-                  <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                <TriageFieldRow tooltip="Residential address for constituency verification" icon={MapPin}>
                   <Input
                     value={constituentDetails.address}
                     onChange={(e) => setConstituentDetails(prev => ({ ...prev, address: e.target.value }))}
                     placeholder="Residential address"
                     className="border-0 bg-transparent h-7 px-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
-                </div>
+                </TriageFieldRow>
                 {/* Email */}
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:border hover:border-border border border-transparent transition-colors">
-                  <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                <TriageFieldRow tooltip="Primary contact email" icon={Mail}>
                   <Input
                     value={constituentDetails.email}
                     onChange={(e) => setConstituentDetails(prev => ({ ...prev, email: e.target.value }))}
                     placeholder="Email"
                     className="border-0 bg-transparent h-7 px-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
                   />
-                </div>
+                </TriageFieldRow>
               </div>
             </div>
 
             <Separator className="my-6"/>
-            <div className="flex items-center gap-2">
-              <TooltipProvider delayDuration={300}>
-                <div className="flex border rounded-md overflow-hidden">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={campaign ? 'default' : 'ghost'}
-                        size="sm"
-                        className="rounded-none border-0 text-lg px-3"
-                        onClick={() => setShowAssignCampaign(true)}
-                        disabled={isUnlinkingCampaign}
-                      >
-                        📢
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{campaign ? campaign.name : 'Assign to campaign'}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={message.is_policy_email && !campaign ? 'default' : 'ghost'}
-                        size="sm"
-                        className="rounded-none border-0 border-l text-lg px-3"
-                        onClick={async () => {
-                          if (campaign) {
-                            await handleUnlinkCampaign();
-                          }
-                          await updateMessage(message.id, { is_policy_email: true });
-                        }}
-                        disabled={isUnlinkingCampaign}
-                      >
-                        📄
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Policy correspondence</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={!message.is_policy_email && !campaign ? 'default' : 'ghost'}
-                        size="sm"
-                        className="rounded-none border-0 border-l text-lg px-3"
-                        onClick={async () => {
-                          if (campaign) {
-                            await handleUnlinkCampaign();
-                          }
-                          await updateMessage(message.id, { is_policy_email: false });
-                        }}
-                        disabled={isUnlinkingCampaign}
-                      >
-                        🤝
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Casework</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              </TooltipProvider>
-              {campaign && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={handleUnlinkCampaign}
-                  disabled={isUnlinkingCampaign}
-                  title="Remove from campaign"
-                >
-                  {isUnlinkingCampaign ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <X className="h-4 w-4" />
-                  )}
-                </Button>
-              )}
-            </div>
 
             {/* Case fields */}
             <div className="space-y-6 -mx-4 px-4 py-4 rounded-lg overflow-hidden">
@@ -689,33 +653,130 @@ export function TriageWorkspace() {
                 {/* Ghost inputs for case details */}
                 <div className="space-y-1">
                   {/* Title */}
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent transition-colors hover:border-border">
-                    <Type className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <TriageFieldRow tooltip="Case reference title" icon={Type}>
                     <Input
                       value={caseDetails.title}
                       onChange={(e) => setCaseDetails(prev => ({ ...prev, title: e.target.value }))}
                       placeholder="Case title"
                       className="border-0 bg-transparent h-7 px-0 text-sm font-medium focus-visible:ring-0 focus-visible:ring-offset-0"
                     />
-                  </div>
+                  </TriageFieldRow>
                   {/* Description */}
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent transition-colors hover:border-border">
-                    <AlignLeft className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <Input
+                  <TriageFieldColumn
+                    tooltip="Brief case description (max 100 characters)"
+                    icon={AlignLeft}
+                    footer={
+                      <span className="text-xs text-gray-400 text-right">
+                        {100 - caseDetails.description.length}
+                      </span>
+                    }
+                  >
+                    <textarea
                       value={caseDetails.description}
-                      onChange={(e) => setCaseDetails(prev => ({ ...prev, description: e.target.value }))}
+                      onChange={(e) => {
+                        const value = e.target.value.slice(0, 100);
+                        setCaseDetails(prev => ({ ...prev, description: value }));
+                        // Auto-resize
+                        e.target.style.height = 'auto';
+                        e.target.style.height = `${e.target.scrollHeight}px`;
+                      }}
+                      onFocus={(e) => {
+                        // Ensure proper height on focus
+                        e.target.style.height = 'auto';
+                        e.target.style.height = `${e.target.scrollHeight}px`;
+                      }}
                       placeholder="Description"
-                      className="border-0 bg-transparent h-7 px-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+                      maxLength={100}
+                      rows={1}
+                      className="flex-1 border-0 bg-transparent px-0 text-sm focus-visible:outline-none resize-none leading-relaxed overflow-hidden"
+                      style={{ minHeight: '1.25rem' }}
                     />
-                  </div>
-                  {/* Status */}
+                  </TriageFieldColumn>
+                  {/* Campaign/Policy/Casework switch + Status */}
                   <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent transition-colors hover:border-border">
-                    <ListChecks className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <TooltipProvider delayDuration={300}>
+                      <div className="flex border rounded-md overflow-hidden shrink-0">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant={campaign ? 'default' : 'ghost'}
+                              size="sm"
+                              className="rounded-none border-0 px-2 h-7"
+                              onClick={() => setShowAssignCampaign(true)}
+                              disabled={isUnlinkingCampaign}
+                            >
+                              <Megaphone className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{campaign ? campaign.name : 'Assign to campaign'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant={message.is_policy_email && !campaign ? 'default' : 'ghost'}
+                              size="sm"
+                              className="rounded-none border-0 border-l px-2 h-7"
+                              onClick={async () => {
+                                if (campaign) {
+                                  await handleUnlinkCampaign();
+                                }
+                                await updateMessage(message.id, { is_policy_email: true });
+                              }}
+                              disabled={isUnlinkingCampaign}
+                            >
+                              <ScrollText className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Policy correspondence</p>
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant={!message.is_policy_email && !campaign ? 'default' : 'ghost'}
+                              size="sm"
+                              className="rounded-none border-0 border-l px-2 h-7"
+                              onClick={async () => {
+                                if (campaign) {
+                                  await handleUnlinkCampaign();
+                                }
+                                await updateMessage(message.id, { is_policy_email: false });
+                              }}
+                              disabled={isUnlinkingCampaign}
+                            >
+                              <HeartHandshake className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Casework</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </TooltipProvider>
+                    {campaign && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={handleUnlinkCampaign}
+                        disabled={isUnlinkingCampaign}
+                        title="Remove from campaign"
+                      >
+                        {isUnlinkingCampaign ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <X className="h-3.5 w-3.5" />
+                        )}
+                      </Button>
+                    )}
                     <Select
                       value={caseDetails.status}
                       onValueChange={(value) => setCaseDetails(prev => ({ ...prev, status: value as CaseStatus }))}
                     >
-                      <SelectTrigger className="w-full border-0 bg-transparent h-7 px-0 text-sm focus:ring-0 focus:ring-offset-0">
+                      <SelectTrigger className="flex-1 border-0 bg-transparent h-7 px-0 text-sm focus:ring-0 focus:ring-offset-0">
                         <SelectValue placeholder="Status" />
                       </SelectTrigger>
                       <SelectContent>
@@ -727,8 +788,7 @@ export function TriageWorkspace() {
                     </Select>
                   </div>
                   {/* Case Type */}
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent transition-colors hover:border-border">
-                    <Layers className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <TriageFieldRow tooltip="Category of casework" icon={Layers}>
                     <Select
                       value={caseDetails.caseType || ''}
                       onValueChange={(value) => setCaseDetails(prev => ({ ...prev, caseType: value as CaseType }))}
@@ -747,20 +807,50 @@ export function TriageWorkspace() {
                         <SelectItem value="type_8">Type 8</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
+                  </TriageFieldRow>
+                  {/* Tags */}
+                  <TriageFieldRow tooltip="Labels for filtering and organization" icon={Tag}>
+                    <div className="flex-1 min-w-0">
+                      <TagPicker
+                        selectedTagIds={triageState.tagIds}
+                        onChange={(tagIds) => setTriageState(prev => ({ ...prev, tagIds }))}
+                        label=""
+                        borderless
+                        placeholder="Tags"
+                      />
+                    </div>
+                  </TriageFieldRow>
                   {/* Review Date */}
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent transition-colors hover:border-border">
-                    <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <TriageFieldRow tooltip="Date to follow up on this case" icon={CalendarIcon}>
                     <span className="text-sm text-muted-foreground shrink-0">Revise on:</span>
-                    <Input
-                      type="date"
-                      value={caseDetails.reviewDate}
-                      onChange={(e) => setCaseDetails(prev => ({ ...prev, reviewDate: e.target.value }))}
-                      className="border-0 bg-transparent h-7 px-0 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                  </div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="h-7 px-2 text-sm font-normal justify-start hover:bg-transparent"
+                        >
+                          {caseDetails.reviewDate ? (
+                            format(new Date(caseDetails.reviewDate), 'PPP')
+                          ) : (
+                            <span className="text-muted-foreground">Pick a date</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={caseDetails.reviewDate ? new Date(caseDetails.reviewDate) : undefined}
+                          onSelect={(date) => setCaseDetails(prev => ({
+                            ...prev,
+                            reviewDate: date ? format(date, 'yyyy-MM-dd') : ''
+                          }))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </TriageFieldRow>
                   {/* Assignee - CaseworkerSelector already has its own icon */}
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent transition-colors hover:border-border">
+                  <TriageFieldRow tooltip="Staff member handling this case" icon={User} showIcon={false}>
                     <div className="flex-1 min-w-0">
                       <CaseworkerSelector
                         selectedId={caseDetails.assignedTo}
@@ -772,10 +862,9 @@ export function TriageWorkspace() {
                         placeholder="Assignee"
                       />
                     </div>
-                  </div>
+                  </TriageFieldRow>
                   {/* Priority */}
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent transition-colors hover:border-border">
-                    <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <TriageFieldRow tooltip="Case urgency level" icon={AlertCircle}>
                     <div className="flex-1 min-w-0">
                       <PrioritySelector
                         value={caseDetails.priority}
@@ -785,20 +874,7 @@ export function TriageWorkspace() {
                         size="sm"
                       />
                     </div>
-                  </div>
-                  {/* Tags */}
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-transparent transition-colors hover:border-border">
-                    <Tag className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <TagPicker
-                        selectedTagIds={triageState.tagIds}
-                        onChange={(tagIds) => setTriageState(prev => ({ ...prev, tagIds }))}
-                        label=""
-                        borderless
-                        placeholder="Tags"
-                      />
-                    </div>
-                  </div>
+                  </TriageFieldRow>
                 </div>
               </div>
             </div>
