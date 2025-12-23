@@ -24,6 +24,8 @@ import {
   SupabaseCaseRepository,
   SupabaseEmailRepository,
 } from './infrastructure/repositories';
+import { GeminiLLMService } from './infrastructure/llm';
+import { ILLMAnalysisService } from './application/services';
 import { OfficeId } from './domain/value-objects';
 
 // ============================================================================
@@ -38,6 +40,7 @@ console.log('║           DearMP Legacy Integration Worker                     
 console.log('╚════════════════════════════════════════════════════════════════╝');
 console.log(`Environment: ${config.nodeEnv}`);
 console.log(`Database: ${config.databaseUrl.replace(/:[^:@]+@/, ':****@')}`);
+console.log(`LLM: ${config.geminiApiKey ? `Gemini (${config.geminiModel})` : 'Disabled (no API key)'}`);
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -279,6 +282,18 @@ async function main() {
     auditLogRepository: auditLogRepo,
   });
 
+  // Create LLM service if API key is configured
+  let llmService: ILLMAnalysisService | undefined;
+  if (config.geminiApiKey) {
+    llmService = new GeminiLLMService({
+      apiKey: config.geminiApiKey,
+      model: config.geminiModel,
+      maxRetries: config.geminiMaxRetries,
+      timeoutMs: config.geminiTimeoutMs,
+    });
+    console.log('[Worker] Gemini LLM service initialized');
+  }
+
   const triageHandler = new TriageJobHandler({
     pgBossClient,
     legacyApiClient,
@@ -286,6 +301,7 @@ async function main() {
     caseRepository: caseRepo,
     emailRepository: emailRepo,
     triageCacheRepository: triageCacheRepo,
+    llmAnalysisService: llmService,
   });
 
   const scheduledHandler = new ScheduledJobHandler({
