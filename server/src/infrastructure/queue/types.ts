@@ -148,6 +148,9 @@ export interface PushCasenoteJobData extends BaseJobData {
   data: {
     type: string;
     content?: string;
+    subtypeId?: number;
+    externalId?: number; // For updates - the legacy system ID
+    actioned?: boolean;
   };
 }
 

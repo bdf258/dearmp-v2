@@ -192,6 +192,50 @@ export class SupabaseCaseRepository implements ICaseRepository {
     return counts;
   }
 
+  async create(caseEntity: Case): Promise<Case> {
+    const data = caseEntity.toPersistence();
+
+    const { data: result, error } = await this.supabase
+      .from(this.tableName)
+      .insert(data)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return this.toDomain(result as Record<string, unknown>);
+  }
+
+  async update(id: string, caseEntity: Partial<Case>): Promise<Case> {
+    const updateData: Record<string, unknown> = {};
+
+    if (caseEntity.summary !== undefined) updateData.summary = caseEntity.summary;
+    if (caseEntity.statusId !== undefined) updateData.status_id = caseEntity.statusId;
+    if (caseEntity.caseTypeId !== undefined) updateData.case_type_id = caseEntity.caseTypeId;
+    if (caseEntity.categoryTypeId !== undefined) updateData.category_type_id = caseEntity.categoryTypeId;
+    if (caseEntity.contactTypeId !== undefined) updateData.contact_type_id = caseEntity.contactTypeId;
+    if (caseEntity.assignedToId !== undefined) updateData.assigned_to_id = caseEntity.assignedToId;
+    if (caseEntity.reviewDate !== undefined) updateData.review_date = caseEntity.reviewDate;
+
+    const { data: result, error } = await this.supabase
+      .from(this.tableName)
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return this.toDomain(result as Record<string, unknown>);
+  }
+
+  async updateExternalId(id: string, externalId: ExternalId): Promise<void> {
+    const { error } = await this.supabase
+      .from(this.tableName)
+      .update({ external_id: externalId.toNumber() })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   /**
    * Convert database row to domain entity
    */

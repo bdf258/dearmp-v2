@@ -168,10 +168,10 @@ export class ScheduledJobHandler {
       limit: 100,
     });
 
-    console.log(`[PollLegacy] Found ${emails.data.length} new emails`);
+    console.log(`[PollLegacy] Found ${emails.results.length} new emails`);
 
     // Schedule triage processing for each new email
-    for (const email of emails.data) {
+    for (const email of emails.results) {
       // Check if we already have this email
       const exists = await this.emailRepo.findByExternalId(
         office,
@@ -189,14 +189,14 @@ export class ScheduledJobHandler {
     }
 
     // Also trigger a sync to get full email data
-    if (emails.data.length > 0) {
+    if (emails.results.length > 0) {
       await this.queueService.scheduleSyncEmails(office.toString(), {
         mode: 'incremental',
         modifiedSince: since,
       });
     }
 
-    return emails.data.length;
+    return emails.results.length;
   }
 
   /**
@@ -212,16 +212,16 @@ export class ScheduledJobHandler {
       resultsPerPage: 100,
     });
 
-    console.log(`[PollLegacy] Found ${cases.data.length} modified cases`);
+    console.log(`[PollLegacy] Found ${cases.results.length} modified cases`);
 
-    if (cases.data.length > 0) {
+    if (cases.results.length > 0) {
       await this.queueService.scheduleSyncCases(office.toString(), {
         mode: 'incremental',
         modifiedSince: since,
       });
     }
 
-    return cases.data.length;
+    return cases.results.length;
   }
 
   /**
@@ -233,16 +233,16 @@ export class ScheduledJobHandler {
       limit: 100,
     });
 
-    console.log(`[PollLegacy] Found ${constituents.data.length} modified constituents`);
+    console.log(`[PollLegacy] Found ${constituents.results.length} modified constituents`);
 
-    if (constituents.data.length > 0) {
+    if (constituents.results.length > 0) {
       await this.queueService.scheduleSyncConstituents(office.toString(), {
         mode: 'incremental',
         modifiedSince: since,
       });
     }
 
-    return constituents.data.length;
+    return constituents.results.length;
   }
 
   // ─────────────────────────────────────────────────────────────────────────

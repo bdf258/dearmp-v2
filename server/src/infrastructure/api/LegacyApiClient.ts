@@ -348,6 +348,49 @@ export class LegacyApiClient implements ILegacyApiClient {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+  // CASENOTE OPERATIONS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  async createCasenote(
+    officeId: OfficeId,
+    caseExternalId: number,
+    data: {
+      type: string;
+      content?: string;
+      subtypeId?: number;
+    }
+  ): Promise<{ id: number }> {
+    return this.post(officeId, `/cases/${caseExternalId}/notes`, {
+      type: data.type,
+      content: data.content,
+      subtypeId: data.subtypeId,
+    });
+  }
+
+  async updateCasenote(
+    officeId: OfficeId,
+    casenoteId: ExternalId,
+    data: {
+      content?: string;
+      actioned?: boolean;
+    }
+  ): Promise<void> {
+    await this.patch(officeId, `/casenotes/${casenoteId.toNumber()}`, data);
+  }
+
+  async linkEmailToCase(
+    officeId: OfficeId,
+    caseExternalId: number,
+    emailExternalId: number
+  ): Promise<{ id: number }> {
+    // Create a casenote of type 'email' that links to the email
+    return this.post(officeId, `/cases/${caseExternalId}/notes`, {
+      type: 'email',
+      emailId: emailExternalId,
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
   // REFERENCE DATA
   // ─────────────────────────────────────────────────────────────────────────
 

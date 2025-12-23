@@ -174,6 +174,49 @@ export class SupabaseConstituentRepository implements IConstituentRepository {
     return count ?? 0;
   }
 
+  async create(constituent: Constituent): Promise<Constituent> {
+    const data = constituent.toPersistence();
+
+    const { data: result, error } = await this.supabase
+      .from(this.tableName)
+      .insert(data)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return this.toDomain(result as Record<string, unknown>);
+  }
+
+  async update(id: string, constituent: Partial<Constituent>): Promise<Constituent> {
+    const updateData: Record<string, unknown> = {};
+
+    if (constituent.firstName !== undefined) updateData.first_name = constituent.firstName;
+    if (constituent.lastName !== undefined) updateData.last_name = constituent.lastName;
+    if (constituent.title !== undefined) updateData.title = constituent.title;
+    if (constituent.organisationType !== undefined) updateData.organisation_type = constituent.organisationType;
+    if (constituent.geocodeLat !== undefined) updateData.geocode_lat = constituent.geocodeLat;
+    if (constituent.geocodeLng !== undefined) updateData.geocode_lng = constituent.geocodeLng;
+
+    const { data: result, error } = await this.supabase
+      .from(this.tableName)
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return this.toDomain(result as Record<string, unknown>);
+  }
+
+  async updateExternalId(id: string, externalId: ExternalId): Promise<void> {
+    const { error } = await this.supabase
+      .from(this.tableName)
+      .update({ external_id: externalId.toNumber() })
+      .eq('id', id);
+
+    if (error) throw error;
+  }
+
   /**
    * Convert database row to domain entity
    */
