@@ -155,7 +155,7 @@ export class TriageJobHandler {
       // Step 2: Find constituent matches via legacy API
       const constituentMatches = await this.legacyApi.findConstituentMatches(
         office,
-        fromAddress
+        { email: fromAddress }
       );
 
       let matchedConstituent: TriageJobResult['matchedConstituent'];

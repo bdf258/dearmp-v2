@@ -148,7 +148,7 @@ export class TriageService {
 
     // 2. Query legacy API for matches
     try {
-      const legacyMatches = await this.legacyApiClient.findConstituentMatches(officeId, senderEmail);
+      const legacyMatches = await this.legacyApiClient.findConstituentMatches(officeId, { email: senderEmail });
       if (legacyMatches.length > 0) {
         const bestMatch = legacyMatches[0]; // Already sorted by score
         return {
