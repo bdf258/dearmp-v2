@@ -3,6 +3,7 @@
  *
  * Handles email triage pipeline jobs including:
  * - Processing emails to find constituent matches
+ * - LLM-powered suggestion generation (with Gemini)
  * - Batch prefetching for UI performance
  * - Submitting triage decisions
  */
@@ -11,6 +12,15 @@ import PgBoss from 'pg-boss';
 import { OfficeId, ExternalId } from '../../../domain/value-objects';
 import { ILegacyApiClient } from '../../../domain/interfaces';
 import { IConstituentRepository, ICaseRepository, IEmailRepository } from '../../../domain/interfaces';
+import { ILLMAnalysisService } from '../../../application/services';
+import {
+  TriageContextDto,
+  TriageSuggestionDto,
+  EmailContentForAnalysis,
+  ConstituentContextDto,
+  CaseContextDto,
+  OfficeReferenceDataDto,
+} from '../../../application/dtos';
 import {
   JobNames,
   TriageProcessEmailJobData,
@@ -27,6 +37,7 @@ export interface TriageJobHandlerDependencies {
   caseRepository: ICaseRepository;
   emailRepository: IEmailRepository;
   triageCacheRepository: ITriageCacheRepository;
+  llmAnalysisService?: ILLMAnalysisService;
 }
 
 /**
@@ -71,6 +82,7 @@ export class TriageJobHandler {
   private readonly caseRepo: ICaseRepository;
   private readonly emailRepo: IEmailRepository;
   private readonly triageCache: ITriageCacheRepository;
+  private readonly llmService?: ILLMAnalysisService;
 
   constructor(deps: TriageJobHandlerDependencies) {
     this.client = deps.pgBossClient;
@@ -79,6 +91,13 @@ export class TriageJobHandler {
     this.caseRepo = deps.caseRepository;
     this.emailRepo = deps.emailRepository;
     this.triageCache = deps.triageCacheRepository;
+    this.llmService = deps.llmAnalysisService;
+
+    if (this.llmService) {
+      console.log('[TriageJobHandler] LLM analysis service enabled');
+    } else {
+      console.log('[TriageJobHandler] LLM analysis service not configured, using rule-based suggestions');
+    }
   }
 
   /**
@@ -129,7 +148,11 @@ export class TriageJobHandler {
     };
 
     try {
-      // Step 1: Find constituent matches via legacy API
+      // Step 1: Fetch the full email from repository
+      const email = await this.emailRepo.findByExternalId(office, ExternalId.create(emailExternalId));
+      const emailBody = email?.htmlBody || '';
+
+      // Step 2: Find constituent matches via legacy API
       const constituentMatches = await this.legacyApi.findConstituentMatches(
         office,
         fromAddress
@@ -137,53 +160,102 @@ export class TriageJobHandler {
 
       let matchedConstituent: TriageJobResult['matchedConstituent'];
       let matchedCases: Array<{ id: string; externalId: number; summary: string }> = [];
+      let constituentContext: ConstituentContextDto | undefined;
 
       if (constituentMatches.length > 0) {
         const bestMatch = constituentMatches[0];
 
         // Look up or create constituent in shadow DB
-        let constituent = await this.constituentRepo.findByExternalId(
+        const constituent = await this.constituentRepo.findByExternalId(
           office,
           ExternalId.create(bestMatch.id)
         );
 
         if (constituent) {
           matchedConstituent = {
-            id: constituent.id,
+            id: constituent.id!,
             externalId: bestMatch.id,
             name: `${bestMatch.firstName} ${bestMatch.lastName}`.trim(),
           };
 
-          // Step 2: Find open cases for this constituent
+          // Step 3: Find open cases for this constituent
           const cases = await this.caseRepo.findByConstituentId(
             office,
-            constituent.id,
+            constituent.id!,
             { openOnly: true }
           );
 
           matchedCases = cases.map((c) => ({
-            id: c.id,
+            id: c.id!,
             externalId: c.externalId?.toNumber() ?? 0,
             summary: c.summary ?? 'No summary',
           }));
+
+          // Build constituent context for LLM
+          constituentContext = {
+            id: constituent.id!,
+            externalId: bestMatch.id,
+            fullName: `${bestMatch.firstName} ${bestMatch.lastName}`.trim(),
+            title: constituent.title,
+            isOrganisation: !!constituent.organisationType,
+            previousCaseCount: matchedCases.length,
+            lastContactDate: constituent.lastSyncedAt?.toISOString(),
+          };
         }
 
         result.matchedConstituent = matchedConstituent;
         result.matchedCase = matchedCases[0]; // Primary match
       }
 
-      // Step 3: Generate triage suggestion
-      // In a real implementation, this might call an LLM
-      const suggestion = this.generateSuggestion(
-        fromAddress,
-        subject,
-        matchedConstituent,
-        matchedCases
-      );
+      // Step 4: Generate triage suggestion
+      let suggestion: TriageJobResult['suggestion'];
+
+      if (this.llmService) {
+        // Use LLM for intelligent suggestion generation
+        console.log(`[TriageProcessEmail] Using LLM analysis for ${emailId}`);
+
+        try {
+          const llmSuggestion = await this.generateLLMSuggestion(
+            office,
+            {
+              subject: subject || '',
+              body: this.extractPlainTextFromHtml(emailBody),
+              senderEmail: fromAddress,
+              receivedAt: email?.receivedAt?.toISOString() || new Date().toISOString(),
+            },
+            constituentContext,
+            matchedCases
+          );
+
+          suggestion = {
+            action: this.mapRecommendedAction(llmSuggestion.recommendedAction),
+            confidence: llmSuggestion.actionConfidence,
+            reasoning: llmSuggestion.actionReasoning || llmSuggestion.classificationReasoning || '',
+          };
+
+          console.log(`[TriageProcessEmail] LLM suggested: ${suggestion.action} (${Math.round(suggestion.confidence * 100)}%)`);
+        } catch (llmError) {
+          console.error(`[TriageProcessEmail] LLM analysis failed, falling back to rule-based:`, llmError);
+          suggestion = this.generateRuleBasedSuggestion(
+            fromAddress,
+            subject,
+            matchedConstituent,
+            matchedCases
+          );
+        }
+      } else {
+        // Use rule-based suggestion
+        suggestion = this.generateRuleBasedSuggestion(
+          fromAddress,
+          subject,
+          matchedConstituent,
+          matchedCases
+        );
+      }
 
       result.suggestion = suggestion;
 
-      // Step 4: Cache the result for quick UI access
+      // Step 5: Cache the result for quick UI access
       await this.triageCache.set(emailId, {
         matchedConstituent,
         matchedCases,
@@ -209,16 +281,129 @@ export class TriageJobHandler {
   }
 
   /**
-   * Generate a triage suggestion based on matches
+   * Generate suggestion using LLM service
    */
-  private generateSuggestion(
+  private async generateLLMSuggestion(
+    office: OfficeId,
+    emailContent: EmailContentForAnalysis,
+    constituentContext: ConstituentContextDto | undefined,
+    matchedCases: Array<{ id: string; externalId: number; summary: string }>
+  ): Promise<TriageSuggestionDto> {
+    if (!this.llmService) {
+      throw new Error('LLM service not available');
+    }
+
+    // Build case contexts
+    const caseContexts: CaseContextDto[] = matchedCases.map((c) => ({
+      id: c.id,
+      externalId: c.externalId,
+      summary: c.summary,
+      createdAt: new Date().toISOString(), // Would need actual data
+    }));
+
+    // Get reference data from legacy API
+    let referenceData: OfficeReferenceDataDto;
+    try {
+      const [caseTypes, categoryTypes, statusTypes, caseworkers] = await Promise.all([
+        this.legacyApi.getCaseTypes(office),
+        this.legacyApi.getCategoryTypes(office),
+        this.legacyApi.getStatusTypes(office),
+        this.legacyApi.getCaseworkers(office),
+      ]);
+
+      referenceData = {
+        caseTypes: caseTypes.filter(ct => ct.isActive).map(ct => ({
+          id: ct.id,
+          name: ct.name,
+        })),
+        categoryTypes: categoryTypes.filter(ct => ct.isActive).map(ct => ({
+          id: ct.id,
+          name: ct.name,
+        })),
+        statusTypes: statusTypes.filter(st => st.isActive).map(st => ({
+          id: st.id,
+          name: st.name,
+        })),
+        caseworkers: caseworkers.filter(cw => cw.isActive).map(cw => ({
+          id: cw.id,
+          name: cw.name,
+          email: cw.email,
+        })),
+        tags: [], // Tags would come from Supabase
+      };
+    } catch (refError) {
+      console.warn('[TriageProcessEmail] Failed to load reference data:', refError);
+      referenceData = {
+        caseTypes: [],
+        categoryTypes: [],
+        statusTypes: [],
+        caseworkers: [],
+        tags: [],
+      };
+    }
+
+    // Build full triage context
+    const triageContext: TriageContextDto = {
+      email: emailContent,
+      matchedConstituent: constituentContext,
+      constituentMatchConfidence: constituentContext ? 1.0 : undefined,
+      existingCases: caseContexts,
+      matchedCampaigns: [], // Would need campaign matching
+      referenceData,
+    };
+
+    // Call LLM service
+    return this.llmService.analyzeEmail(triageContext);
+  }
+
+  /**
+   * Map LLM recommended action to job result action
+   */
+  private mapRecommendedAction(action: TriageSuggestionDto['recommendedAction']): string {
+    switch (action) {
+      case 'create_case':
+        return 'create_new';
+      case 'add_to_case':
+        return 'add_to_case';
+      case 'assign_campaign':
+        return 'assign_campaign';
+      case 'ignore':
+        return 'ignore';
+      default:
+        return 'create_new';
+    }
+  }
+
+  /**
+   * Extract plain text from HTML
+   */
+  private extractPlainTextFromHtml(html: string): string {
+    if (!html) return '';
+
+    return html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Generate a rule-based triage suggestion when LLM is not available
+   */
+  private generateRuleBasedSuggestion(
     fromAddress: string,
     subject: string | undefined,
     matchedConstituent: TriageJobResult['matchedConstituent'],
     matchedCases: Array<{ id: string; externalId: number; summary: string }>
   ): NonNullable<TriageJobResult['suggestion']> {
-    // Simple rule-based suggestion
-    // In production, this would likely use an LLM
+    // Simple rule-based suggestion (fallback when LLM unavailable)
 
     if (!matchedConstituent) {
       return {

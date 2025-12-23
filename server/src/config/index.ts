@@ -29,6 +29,12 @@ export interface Config {
   queueMonitorStateIntervalSeconds: number;
   queueDeleteAfterDays: number;
   queueRetentionDays: number;
+
+  // LLM (Gemini)
+  geminiApiKey?: string;
+  geminiModel: string;
+  geminiMaxRetries: number;
+  geminiTimeoutMs: number;
 }
 
 /**
@@ -62,6 +68,12 @@ export function loadConfig(): Config {
     queueMonitorStateIntervalSeconds: parseInt(process.env.QUEUE_MONITOR_INTERVAL ?? '30', 10),
     queueDeleteAfterDays: parseInt(process.env.QUEUE_DELETE_AFTER_DAYS ?? '7', 10),
     queueRetentionDays: parseInt(process.env.QUEUE_RETENTION_DAYS ?? '30', 10),
+
+    // LLM (Gemini) - optional, falls back to rule-based if not provided
+    geminiApiKey: process.env.GEMINI_API_KEY,
+    geminiModel: process.env.GEMINI_MODEL ?? 'gemini-2.0-flash',
+    geminiMaxRetries: parseInt(process.env.GEMINI_MAX_RETRIES ?? '3', 10),
+    geminiTimeoutMs: parseInt(process.env.GEMINI_TIMEOUT_MS ?? '30000', 10),
   };
 }
 
