@@ -290,6 +290,44 @@ export interface ILegacyApiClient {
   ): Promise<void>;
 
   // ─────────────────────────────────────────────────────────────────────────
+  // CASENOTE OPERATIONS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Create a casenote on a case
+   */
+  createCasenote(
+    officeId: OfficeId,
+    caseExternalId: number,
+    data: {
+      type: string; // 'note', 'email', 'letter', 'file', 'reviewDate', 'appointment'
+      content?: string;
+      subtypeId?: number;
+    }
+  ): Promise<{ id: number }>;
+
+  /**
+   * Update an existing casenote
+   */
+  updateCasenote(
+    officeId: OfficeId,
+    casenoteId: ExternalId,
+    data: {
+      content?: string;
+      actioned?: boolean;
+    }
+  ): Promise<void>;
+
+  /**
+   * Link an email to a case by creating a casenote
+   */
+  linkEmailToCase(
+    officeId: OfficeId,
+    caseExternalId: number,
+    emailExternalId: number
+  ): Promise<{ id: number }>;
+
+  // ─────────────────────────────────────────────────────────────────────────
   // REFERENCE DATA
   // ─────────────────────────────────────────────────────────────────────────
 

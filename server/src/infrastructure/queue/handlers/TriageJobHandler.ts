@@ -560,15 +560,20 @@ export class TriageJobHandler {
     }
 
     // Get case external ID
-    const caseEntity = await this.caseRepo.findById(decision.caseId);
+    const caseEntity = await this.caseRepo.findById(office, decision.caseId);
     if (!caseEntity?.externalId) {
       throw new Error(`Case ${decision.caseId} has no external ID`);
     }
 
-    // The legacy system handles email-to-case linking differently
-    // This might involve updating the email or creating a casenote
+    // Link the email to the case by creating a casenote of type 'email'
+    await this.legacyApi.linkEmailToCase(
+      office,
+      caseEntity.externalId.toNumber(),
+      emailExternalId
+    );
+
     console.log(
-      `[TriageSubmitDecision] Would link email ${emailExternalId} to case ${caseEntity.externalId.toNumber()}`
+      `[TriageSubmitDecision] Linked email ${emailExternalId} to case ${caseEntity.externalId.toNumber()}`
     );
 
     // Mark email as actioned

@@ -444,19 +444,42 @@ export class PushJobHandler {
     };
 
     try {
-      // Casenote operations would go through the legacy API
-      // For now, log the operation
-      console.log(
-        `[PushCasenote] Would ${operation} casenote of type '${data.type}' ` +
-          `for case ${caseExternalId}`
-      );
+      // Call the legacy API based on operation type
+      if (operation === 'create') {
+        const response = await this.legacyClient.createCasenote(
+          office,
+          caseExternalId,
+          {
+            type: data.type,
+            content: data.content,
+            subtypeId: data.subtypeId,
+          }
+        );
+        result.externalId = response.id;
+        console.log(
+          `[PushCasenote] Created casenote ${casenoteId} -> external ID ${response.id}`
+        );
+      } else if (operation === 'update') {
+        await this.legacyClient.updateCasenote(
+          office,
+          { toNumber: () => data.externalId! } as any,
+          {
+            content: data.content,
+            actioned: data.actioned,
+          }
+        );
+        result.externalId = data.externalId;
+        console.log(
+          `[PushCasenote] Updated casenote ${casenoteId} (external: ${data.externalId})`
+        );
+      }
 
       await this.auditLog.log({
         officeId,
         entityType: 'casenote',
         operation,
         internalId: casenoteId,
-        externalId: caseExternalId,
+        externalId: result.externalId ?? caseExternalId,
         newData: data,
       });
 
