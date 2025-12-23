@@ -9,8 +9,8 @@
 
 import PgBoss from 'pg-boss';
 import { OfficeId } from '../../../domain/value-objects';
-import { ILegacyApiClient } from '../../../domain/interfaces';
-import { IEmailRepository } from '../../../domain/interfaces';
+import { ILegacyApiClient, IReferenceDataRepository } from '../../../domain/interfaces';
+import { IEmailRepository, IConstituentRepository, ICaseRepository } from '../../../domain/interfaces';
 import {
   JobNames,
   ScheduledPollLegacyJobData,
@@ -26,12 +26,21 @@ export interface ScheduledJobHandlerDependencies {
   queueService: QueueService;
   legacyApiClient: ILegacyApiClient;
   emailRepository: IEmailRepository;
+  constituentRepository: IConstituentRepository;
+  caseRepository: ICaseRepository;
+  referenceDataRepository: IReferenceDataRepository;
   pollStatusRepository: IPollStatusRepository;
+  syncStatusRepository: ISyncStatusRepository;
 }
 
 export interface IPollStatusRepository {
   getLastPollTime(officeId: OfficeId, pollType: string): Promise<Date | null>;
   updateLastPollTime(officeId: OfficeId, pollType: string, pollTime: Date): Promise<void>;
+}
+
+export interface ISyncStatusRepository {
+  deleteOldSyncStatuses(officeId: OfficeId, olderThan: Date): Promise<number>;
+  getActiveOffices(): Promise<OfficeId[]>;
 }
 
 /**
@@ -42,14 +51,22 @@ export class ScheduledJobHandler {
   private readonly queueService: QueueService;
   private readonly legacyApi: ILegacyApiClient;
   private readonly emailRepo: IEmailRepository;
+  private readonly constituentRepo: IConstituentRepository;
+  private readonly caseRepo: ICaseRepository;
+  private readonly referenceDataRepo: IReferenceDataRepository;
   private readonly pollStatus: IPollStatusRepository;
+  private readonly syncStatus: ISyncStatusRepository;
 
   constructor(deps: ScheduledJobHandlerDependencies) {
     this.client = deps.pgBossClient;
     this.queueService = deps.queueService;
     this.legacyApi = deps.legacyApiClient;
     this.emailRepo = deps.emailRepository;
+    this.constituentRepo = deps.constituentRepository;
+    this.caseRepo = deps.caseRepository;
+    this.referenceDataRepo = deps.referenceDataRepository;
     this.pollStatus = deps.pollStatusRepository;
+    this.syncStatus = deps.syncStatusRepository;
   }
 
   /**
@@ -316,6 +333,7 @@ export class ScheduledJobHandler {
 
     try {
       const cutoffDate = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000);
+      const office = OfficeId.create(officeId);
 
       switch (cleanupType) {
         case 'old_jobs':
@@ -325,19 +343,31 @@ export class ScheduledJobHandler {
 
         case 'stale_syncs':
           // Clean up sync status entries older than cutoff
-          console.log(`[Cleanup] Would clean stale sync status entries older than ${cutoffDate}`);
+          const deletedSyncStatuses = await this.syncStatus.deleteOldSyncStatuses(office, cutoffDate);
+          result.itemsProcessed += deletedSyncStatuses;
+          console.log(`[Cleanup] Deleted ${deletedSyncStatuses} stale sync status entries`);
           break;
 
         case 'orphaned_records':
-          // Find and clean up records that exist locally but not in legacy
-          console.log('[Cleanup] Orphaned record cleanup not yet implemented');
+          // Clean up stale reference data (records not synced recently)
+          const deletedRefData = await this.referenceDataRepo.deleteStaleRecords(office, cutoffDate);
+          result.itemsProcessed += deletedRefData;
+          console.log(`[Cleanup] Deleted ${deletedRefData} stale reference data records`);
+
+          // For orphaned records in main entities, we'd need to:
+          // 1. Fetch IDs from legacy system
+          // 2. Compare with local IDs
+          // 3. Delete records that don't exist in legacy
+          // This is expensive and should be done carefully
+          // For now, we just clean up old records that haven't been synced
+          console.log('[Cleanup] Full orphan reconciliation should be triggered via maintenance job');
           break;
       }
 
       result.success = true;
       result.durationMs = Date.now() - startTime;
 
-      console.log(`[Cleanup] Completed in ${result.durationMs}ms`);
+      console.log(`[Cleanup] Completed in ${result.durationMs}ms, processed ${result.itemsProcessed} items`);
     } catch (error) {
       result.error = error instanceof Error ? error.message : 'Unknown error';
       result.durationMs = Date.now() - startTime;

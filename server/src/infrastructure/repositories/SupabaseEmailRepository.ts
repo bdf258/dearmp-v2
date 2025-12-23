@@ -14,13 +14,23 @@ export class SupabaseEmailRepository implements IEmailRepository {
 
   constructor(private readonly supabase: ISupabaseClient) {}
 
-  async findById(officeId: OfficeId, id: string): Promise<Email | null> {
-    const { data, error } = await this.supabase
-      .from(this.tableName)
-      .select('*')
-      .eq('office_id', officeId.toString())
-      .eq('id', id)
-      .single();
+  async findById(officeIdOrId: OfficeId | string, id?: string): Promise<Email | null> {
+    // Handle both overloads:
+    // findById(officeId: OfficeId, id: string)
+    // findById(id: string)
+    let query = this.supabase.from(this.tableName).select('*');
+
+    if (typeof officeIdOrId === 'string' && id === undefined) {
+      // Called as findById(id: string)
+      query = query.eq('id', officeIdOrId);
+    } else if (officeIdOrId instanceof OfficeId && id !== undefined) {
+      // Called as findById(officeId: OfficeId, id: string)
+      query = query.eq('office_id', officeIdOrId.toString()).eq('id', id);
+    } else {
+      throw new Error('Invalid arguments to findById');
+    }
+
+    const { data, error } = await query.single();
 
     if (error || !data) return null;
     return this.toDomain(data as Record<string, unknown>);
@@ -195,6 +205,53 @@ export class SupabaseEmailRepository implements IEmailRepository {
 
     if (error) throw error;
     return count ?? 0;
+  }
+
+  async create(email: Email): Promise<Email> {
+    const data = email.toPersistence();
+
+    const { data: result, error } = await this.supabase
+      .from(this.tableName)
+      .insert(data)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return this.toDomain(result as Record<string, unknown>);
+  }
+
+  async update(id: string, email: Partial<Email>): Promise<Email> {
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    // Map entity properties to database columns
+    if (email.subject !== undefined) updateData.subject = email.subject;
+    if (email.htmlBody !== undefined) updateData.html_body = email.htmlBody;
+    if (email.actioned !== undefined) updateData.actioned = email.actioned;
+    if (email.type !== undefined) updateData.type = email.type;
+
+    const { data: result, error } = await this.supabase
+      .from(this.tableName)
+      .update(updateData)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    return this.toDomain(result as Record<string, unknown>);
+  }
+
+  async updateExternalId(id: string, externalId: ExternalId): Promise<void> {
+    const { error } = await this.supabase
+      .from(this.tableName)
+      .update({
+        external_id: externalId.toNumber(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    if (error) throw error;
   }
 
   /**

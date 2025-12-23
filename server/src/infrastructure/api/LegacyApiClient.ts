@@ -310,6 +310,43 @@ export class LegacyApiClient implements ILegacyApiClient {
     });
   }
 
+  async createDraftEmail(
+    officeId: OfficeId,
+    data: {
+      to: string[];
+      cc?: string[];
+      bcc?: string[];
+      subject: string;
+      htmlBody: string;
+      caseId?: number;
+    }
+  ): Promise<LegacyEmailResponse> {
+    return this.post(officeId, '/emails', {
+      type: 'draft',
+      to: data.to,
+      cc: data.cc,
+      bcc: data.bcc,
+      subject: data.subject,
+      htmlBody: data.htmlBody,
+      caseID: data.caseId,
+    });
+  }
+
+  async sendDraftEmail(officeId: OfficeId, emailId: ExternalId): Promise<void> {
+    await this.post(officeId, `/emails/${emailId.toNumber()}/send`, {});
+  }
+
+  async scheduleEmail(
+    officeId: OfficeId,
+    emailId: ExternalId,
+    scheduledAt: Date
+  ): Promise<void> {
+    await this.patch(officeId, `/emails/${emailId.toNumber()}`, {
+      type: 'scheduled',
+      scheduledAt: scheduledAt.toISOString(),
+    });
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // REFERENCE DATA
   // ─────────────────────────────────────────────────────────────────────────

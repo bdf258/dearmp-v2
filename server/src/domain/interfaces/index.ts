@@ -10,3 +10,11 @@ export {
   type LegacySearchResult,
   type LegacyConstituentMatch,
 } from './ILegacyApiClient';
+export {
+  type IReferenceDataRepository,
+  type CaseType,
+  type StatusType,
+  type CategoryType,
+  type ContactType,
+  type Caseworker,
+} from './IReferenceDataRepository';

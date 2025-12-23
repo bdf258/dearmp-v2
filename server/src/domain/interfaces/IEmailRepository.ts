@@ -98,4 +98,9 @@ export interface IEmailRepository {
    * Find an email by internal ID (simplified, without officeId for internal operations)
    */
   findById(id: string): Promise<Email | null>;
+
+  /**
+   * Update the external ID for an email (after pushing to legacy system)
+   */
+  updateExternalId(id: string, externalId: ExternalId): Promise<void>;
 }
