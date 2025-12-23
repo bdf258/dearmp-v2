@@ -71,7 +71,7 @@ export function loadConfig(): Config {
 
     // LLM (Gemini) - optional, falls back to rule-based if not provided
     geminiApiKey: process.env.GEMINI_API_KEY,
-    geminiModel: process.env.GEMINI_MODEL ?? 'gemini-2.0-flash',
+    geminiModel: process.env.GEMINI_MODEL ?? 'gemini-3.0-flash',
     geminiMaxRetries: parseInt(process.env.GEMINI_MAX_RETRIES ?? '3', 10),
     geminiTimeoutMs: parseInt(process.env.GEMINI_TIMEOUT_MS ?? '30000', 10),
   };
