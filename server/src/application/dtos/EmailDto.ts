@@ -33,6 +33,18 @@ export interface EmailDto {
 }
 
 /**
+ * DTO: CampaignMatchDto
+ *
+ * Result of matching an email to a campaign.
+ */
+export interface CampaignMatchDto {
+  campaignId: string;
+  campaignName: string;
+  confidence: number;
+  matchType: 'pattern' | 'fingerprint' | 'fuzzy';
+}
+
+/**
  * DTO: TriageEmailDto
  *
  * Email enriched with triage information for the UI.
@@ -43,6 +55,9 @@ export interface TriageEmailDto extends EmailDto {
 
   // Existing open cases for the constituent
   existingCases?: CaseDto[];
+
+  // Matched campaigns (sorted by confidence, highest first)
+  matchedCampaigns?: CampaignMatchDto[];
 
   // LLM-generated suggestions
   suggestion?: CaseSuggestionDto;

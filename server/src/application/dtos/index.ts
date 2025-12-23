@@ -16,6 +16,7 @@ export {
 
 export {
   type EmailDto,
+  type CampaignMatchDto,
   type TriageEmailDto,
   type TriageDecisionDto,
   type TriageResultDto,
@@ -29,3 +30,15 @@ export {
   type SyncResultDto,
   type SyncAuditLogDto,
 } from './SyncDto';
+
+export {
+  type EmailContentForAnalysis,
+  type ReferenceDataItem,
+  type ConstituentContextDto,
+  type CaseContextDto,
+  type CampaignContextDto,
+  type OfficeReferenceDataDto,
+  type TriageContextDto,
+  type TriageSuggestionDto,
+  buildTriageContextPrompt,
+} from './TriageContextDto';
