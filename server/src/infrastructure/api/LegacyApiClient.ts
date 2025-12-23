@@ -118,9 +118,12 @@ export class LegacyApiClient implements ILegacyApiClient {
 
   async findConstituentMatches(
     officeId: OfficeId,
-    email: string
+    params: { name?: string; email: string }
   ): Promise<LegacyConstituentMatch[]> {
-    return this.post(officeId, '/inbox/constituentMatches', { email });
+    return this.post(officeId, '/inbox/constituentMatches', {
+      name: params.name,
+      email: params.email,
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -225,7 +228,7 @@ export class LegacyApiClient implements ILegacyApiClient {
       };
       statusID?: number[];
       caseTypeID?: number[];
-      caseworkerID?: number[];
+      assignedToID?: number[];
       pageNo?: number;
       resultsPerPage?: number;
     }
@@ -240,7 +243,7 @@ export class LegacyApiClient implements ILegacyApiClient {
         : undefined,
       statusID: params.statusID,
       casetypeID: params.caseTypeID,
-      caseworkerID: params.caseworkerID,
+      assignedToID: params.assignedToID,
       pageNo: params.pageNo ?? 1,
       resultsPerPage: params.resultsPerPage ?? 100,
     });
@@ -329,13 +332,14 @@ export class LegacyApiClient implements ILegacyApiClient {
   async getCaseTypes(
     officeId: OfficeId
   ): Promise<Array<{ id: number; name: string; isActive: boolean }>> {
-    const data = await this.get<Array<{ id: number; name: string; is_active: boolean }>>(
+    // Note: Caseworker API uses singular /casetype, returns 'casetype' field as name
+    const data = await this.get<Array<{ id: number; casetype: string; is_active: boolean }>>(
       officeId,
-      '/caseTypes'
+      '/casetype'
     );
     return data.map(ct => ({
       id: ct.id,
-      name: ct.name,
+      name: ct.casetype,
       isActive: ct.is_active,
     }));
   }
@@ -343,13 +347,14 @@ export class LegacyApiClient implements ILegacyApiClient {
   async getStatusTypes(
     officeId: OfficeId
   ): Promise<Array<{ id: number; name: string; isActive: boolean }>> {
-    const data = await this.get<Array<{ id: number; name: string; is_active: boolean }>>(
+    // Note: Caseworker API uses singular /statustype, returns 'statustype' field as name
+    const data = await this.get<Array<{ id: number; statustype: string; is_active: boolean }>>(
       officeId,
-      '/statusTypes'
+      '/statustype'
     );
     return data.map(st => ({
       id: st.id,
-      name: st.name,
+      name: st.statustype,
       isActive: st.is_active,
     }));
   }
@@ -357,13 +362,14 @@ export class LegacyApiClient implements ILegacyApiClient {
   async getCategoryTypes(
     officeId: OfficeId
   ): Promise<Array<{ id: number; name: string; isActive: boolean }>> {
-    const data = await this.get<Array<{ id: number; name: string; is_active: boolean }>>(
+    // Note: Caseworker API uses singular /categorytype, returns 'categorytype' field as name
+    const data = await this.get<Array<{ id: number; categorytype: string; is_active: boolean }>>(
       officeId,
-      '/categoryTypes'
+      '/categorytype'
     );
     return data.map(cat => ({
       id: cat.id,
-      name: cat.name,
+      name: cat.categorytype,
       isActive: cat.is_active,
     }));
   }
@@ -371,9 +377,10 @@ export class LegacyApiClient implements ILegacyApiClient {
   async getContactTypes(
     officeId: OfficeId
   ): Promise<Array<{ id: number; name: string; type: string; isActive: boolean }>> {
+    // Note: Caseworker API uses singular /contacttype (for constituent contact details)
     const data = await this.get<Array<{ id: number; name: string; type: string; is_active: boolean }>>(
       officeId,
-      '/contactTypes'
+      '/contacttype'
     );
     return data.map(ct => ({
       id: ct.id,

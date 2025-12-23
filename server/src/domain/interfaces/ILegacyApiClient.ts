@@ -102,11 +102,11 @@ export interface ILegacyApiClient {
   ): Promise<LegacySearchResult<LegacyEmailResponse>>;
 
   /**
-   * Find constituent matches for an email address
+   * Find constituent matches for an email address (and optionally name)
    */
   findConstituentMatches(
     officeId: OfficeId,
-    email: string
+    params: { name?: string; email: string }
   ): Promise<LegacyConstituentMatch[]>;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -197,7 +197,7 @@ export interface ILegacyApiClient {
       };
       statusID?: number[];
       caseTypeID?: number[];
-      caseworkerID?: number[];
+      assignedToID?: number[];
       pageNo?: number;
       resultsPerPage?: number;
     }

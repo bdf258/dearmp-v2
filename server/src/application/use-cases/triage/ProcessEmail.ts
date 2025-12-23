@@ -119,7 +119,7 @@ export class ProcessEmail {
     // Try legacy API for constituent matching
     const legacyMatches = await this.legacyApiClient.findConstituentMatches(
       officeId,
-      email.fromAddress
+      { email: email.fromAddress }
     );
 
     if (legacyMatches.length > 0) {
