@@ -1,0 +1,32 @@
+{
+  "name": "dearmp-legacy-integration",
+  "version": "0.1.0",
+  "description": "Anti-Corruption Layer for legacy Caseworker system integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "worker": "tsx src/worker.ts",
+    "worker:dev": "tsx watch src/worker.ts",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "pg-boss": "^10.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "eslint": "^8.55.0",
+    "tsx": "^4.6.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
