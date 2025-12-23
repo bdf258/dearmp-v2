@@ -13,3 +13,9 @@ export type { ReferenceDataRoutesDependencies } from './referenceData';
 
 export { createHealthRoutes } from './health';
 export type { HealthRoutesDependencies } from './health';
+
+export { createCasesRoutes } from './cases';
+export type { CasesRoutesDependencies } from './cases';
+
+export { createEmailsRoutes } from './emails';
+export type { EmailsRoutesDependencies } from './emails';
