@@ -40,6 +40,9 @@ export * from './config';
 // Presentation Layer (Workers)
 export * from './presentation/workers';
 
+// Presentation Layer (HTTP)
+export * from './presentation/http';
+
 /**
  * Example: Using the pg-boss queue system
  *
