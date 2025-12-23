@@ -299,16 +299,16 @@ export class SyncJobHandler {
         resultsPerPage: batchSize,
       });
 
-      for (const legacyCase of legacyResult.data) {
+      for (const legacyCase of legacyResult.results) {
         try {
-          const caseEntity = this.caseAdapter.fromLegacy(legacyCase, office);
-          const existingId = await this.caseRepo.findByExternalId(
+          const caseEntity = CaseAdapter.fromLegacy(office, legacyCase);
+          const existing = await this.caseRepo.findByExternalId(
             office,
             caseEntity.externalId
           );
 
-          if (existingId) {
-            await this.caseRepo.update(existingId, caseEntity);
+          if (existing) {
+            await this.caseRepo.update(existing.id!, caseEntity);
             result.recordsUpdated++;
           } else {
             await this.caseRepo.create(caseEntity);
@@ -324,7 +324,7 @@ export class SyncJobHandler {
         }
       }
 
-      result.hasMore = legacyResult.data.length === batchSize;
+      result.hasMore = legacyResult.results.length === batchSize;
       if (result.hasMore) {
         result.cursor = String((cursor ? parseInt(cursor, 10) : 1) + 1);
         await this.client.send(JobNames.SYNC_CASES, {
@@ -402,13 +402,13 @@ export class SyncJobHandler {
         limit: batchSize,
       });
 
-      for (const legacyEmail of legacyResult.data) {
+      for (const legacyEmail of legacyResult.results) {
         try {
-          const email = this.emailAdapter.fromLegacy(legacyEmail, office);
-          const existingId = await this.emailRepo.findByExternalId(office, email.externalId);
+          const email = EmailAdapter.fromLegacy(office, legacyEmail);
+          const existing = await this.emailRepo.findByExternalId(office, email.externalId);
 
-          if (existingId) {
-            await this.emailRepo.update(existingId, email);
+          if (existing) {
+            await this.emailRepo.update(existing.id!, email);
             result.recordsUpdated++;
           } else {
             await this.emailRepo.create(email);
@@ -424,7 +424,7 @@ export class SyncJobHandler {
         }
       }
 
-      result.hasMore = legacyResult.data.length === batchSize;
+      result.hasMore = legacyResult.results.length === batchSize;
       if (result.hasMore) {
         result.cursor = String((cursor ? parseInt(cursor, 10) : 1) + 1);
         await this.client.send(JobNames.SYNC_EMAILS, {
