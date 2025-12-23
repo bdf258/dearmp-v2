@@ -328,9 +328,77 @@ export class PushJobHandler {
           newData: data,
         });
       } else if (operation === 'send') {
-        // Send/schedule email through legacy system
-        // This would involve creating a draft and then sending it
-        console.log(`[PushEmail] Sending email ${emailId} - not yet implemented`);
+        // Send email through legacy system
+        // First create a draft, then send it
+        if (!data.to || data.to.length === 0) {
+          throw new Error('Email must have at least one recipient');
+        }
+
+        if (!data.subject) {
+          throw new Error('Email must have a subject');
+        }
+
+        // Create draft email in legacy system
+        const draftResponse = await this.legacyApi.createDraftEmail(office, {
+          to: data.to,
+          cc: data.cc,
+          bcc: data.bcc,
+          subject: data.subject,
+          htmlBody: data.htmlBody ?? '',
+          caseId: data.caseId,
+        });
+
+        result.externalId = draftResponse.id;
+
+        // Send the draft
+        await this.legacyApi.sendDraftEmail(
+          office,
+          { toNumber: () => draftResponse.id } as ExternalId
+        );
+
+        // Update shadow DB with external ID if needed
+        if (email && !email.externalId) {
+          await this.emailRepo.updateExternalId(emailId, ExternalId.create(draftResponse.id));
+        }
+
+        await this.auditLog.log({
+          officeId,
+          entityType: 'email',
+          operation: 'send',
+          internalId: emailId,
+          externalId: draftResponse.id,
+          newData: data,
+        });
+
+        console.log(`[PushEmail] Sent email ${emailId} (external: ${draftResponse.id})`);
+      } else if (operation === 'create') {
+        // Create a draft email without sending
+        if (!data.subject) {
+          throw new Error('Email must have a subject');
+        }
+
+        const draftResponse = await this.legacyApi.createDraftEmail(office, {
+          to: data.to ?? [],
+          cc: data.cc,
+          bcc: data.bcc,
+          subject: data.subject,
+          htmlBody: data.htmlBody ?? '',
+          caseId: data.caseId,
+        });
+
+        result.externalId = draftResponse.id;
+
+        // Update shadow DB with external ID
+        await this.emailRepo.updateExternalId(emailId, ExternalId.create(draftResponse.id));
+
+        await this.auditLog.log({
+          officeId,
+          entityType: 'email',
+          operation: 'create',
+          internalId: emailId,
+          externalId: draftResponse.id,
+          newData: data,
+        });
       }
 
       result.success = true;

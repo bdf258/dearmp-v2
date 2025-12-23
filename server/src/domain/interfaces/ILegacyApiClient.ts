@@ -260,6 +260,35 @@ export interface ILegacyApiClient {
     caseworkerId: ExternalId
   ): Promise<void>;
 
+  /**
+   * Create a draft email
+   */
+  createDraftEmail(
+    officeId: OfficeId,
+    data: {
+      to: string[];
+      cc?: string[];
+      bcc?: string[];
+      subject: string;
+      htmlBody: string;
+      caseId?: number;
+    }
+  ): Promise<LegacyEmailResponse>;
+
+  /**
+   * Send a draft email
+   */
+  sendDraftEmail(officeId: OfficeId, emailId: ExternalId): Promise<void>;
+
+  /**
+   * Schedule an email to be sent at a specific time
+   */
+  scheduleEmail(
+    officeId: OfficeId,
+    emailId: ExternalId,
+    scheduledAt: Date
+  ): Promise<void>;
+
   // ─────────────────────────────────────────────────────────────────────────
   // REFERENCE DATA
   // ─────────────────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@
 
 import PgBoss from 'pg-boss';
 import { OfficeId } from '../../../domain/value-objects';
-import { ILegacyApiClient, LegacyConstituentResponse, LegacyCaseResponse, LegacyEmailResponse } from '../../../domain/interfaces';
+import { ILegacyApiClient, LegacyConstituentResponse, LegacyCaseResponse, LegacyEmailResponse, IReferenceDataRepository } from '../../../domain/interfaces';
 import { IConstituentRepository, ICaseRepository, IEmailRepository } from '../../../domain/interfaces';
 import { ConstituentAdapter, CaseAdapter, EmailAdapter } from '../../adapters';
 import {
@@ -27,6 +27,7 @@ export interface SyncJobHandlerDependencies {
   constituentRepository: IConstituentRepository;
   caseRepository: ICaseRepository;
   emailRepository: IEmailRepository;
+  referenceDataRepository: IReferenceDataRepository;
   syncStatusRepository: ISyncStatusRepository;
 }
 
@@ -56,6 +57,7 @@ export class SyncJobHandler {
   private readonly constituentRepo: IConstituentRepository;
   private readonly caseRepo: ICaseRepository;
   private readonly emailRepo: IEmailRepository;
+  private readonly referenceDataRepo: IReferenceDataRepository;
   private readonly syncStatusRepo: ISyncStatusRepository;
 
   constructor(deps: SyncJobHandlerDependencies) {
@@ -64,6 +66,7 @@ export class SyncJobHandler {
     this.constituentRepo = deps.constituentRepository;
     this.caseRepo = deps.caseRepository;
     this.emailRepo = deps.emailRepository;
+    this.referenceDataRepo = deps.referenceDataRepository;
     this.syncStatusRepo = deps.syncStatusRepository;
   }
 
@@ -524,31 +527,31 @@ export class SyncJobHandler {
 
   private async syncCaseTypes(office: OfficeId): Promise<void> {
     const caseTypes = await this.legacyApi.getCaseTypes(office);
-    // TODO: Upsert to repository
-    console.log(`[SyncReferenceData] Synced ${caseTypes.length} case types`);
+    const saved = await this.referenceDataRepo.upsertCaseTypes(office, caseTypes);
+    console.log(`[SyncReferenceData] Synced ${saved.length} case types`);
   }
 
   private async syncStatusTypes(office: OfficeId): Promise<void> {
     const statusTypes = await this.legacyApi.getStatusTypes(office);
-    // TODO: Upsert to repository
-    console.log(`[SyncReferenceData] Synced ${statusTypes.length} status types`);
+    const saved = await this.referenceDataRepo.upsertStatusTypes(office, statusTypes);
+    console.log(`[SyncReferenceData] Synced ${saved.length} status types`);
   }
 
   private async syncCategoryTypes(office: OfficeId): Promise<void> {
     const categoryTypes = await this.legacyApi.getCategoryTypes(office);
-    // TODO: Upsert to repository
-    console.log(`[SyncReferenceData] Synced ${categoryTypes.length} category types`);
+    const saved = await this.referenceDataRepo.upsertCategoryTypes(office, categoryTypes);
+    console.log(`[SyncReferenceData] Synced ${saved.length} category types`);
   }
 
   private async syncContactTypes(office: OfficeId): Promise<void> {
     const contactTypes = await this.legacyApi.getContactTypes(office);
-    // TODO: Upsert to repository
-    console.log(`[SyncReferenceData] Synced ${contactTypes.length} contact types`);
+    const saved = await this.referenceDataRepo.upsertContactTypes(office, contactTypes);
+    console.log(`[SyncReferenceData] Synced ${saved.length} contact types`);
   }
 
   private async syncCaseworkers(office: OfficeId): Promise<void> {
     const caseworkers = await this.legacyApi.getCaseworkers(office);
-    // TODO: Upsert to repository
-    console.log(`[SyncReferenceData] Synced ${caseworkers.length} caseworkers`);
+    const saved = await this.referenceDataRepo.upsertCaseworkers(office, caseworkers);
+    console.log(`[SyncReferenceData] Synced ${saved.length} caseworkers`);
   }
 }
