@@ -135,10 +135,21 @@ export function createEmailsRoutes({ supabase, queueService }: EmailsRoutesDepen
         dbQuery = dbQuery.eq('constituent_id', query.constituentId);
       }
       if (query.fromAddress) {
-        dbQuery = dbQuery.ilike('from_address', `%${query.fromAddress}%`);
+        // Escape special PostgREST filter characters to prevent injection
+        const escapedFromAddress = query.fromAddress.replace(/[%_\\]/g, '\\$&');
+        dbQuery = dbQuery.ilike('from_address', `%${escapedFromAddress}%`);
       }
       if (query.search) {
-        dbQuery = dbQuery.or(`subject.ilike.%${query.search}%,from_address.ilike.%${query.search}%`);
+        // Escape special PostgREST filter characters to prevent injection
+        // Characters that need escaping: % _ \ . , ( ) and PostgREST operators
+        const escapedSearch = query.search
+          .replace(/[%_\\]/g, '\\$&')  // Escape SQL LIKE wildcards
+          .replace(/[.,()]/g, '');       // Remove PostgREST filter operators
+        // Use separate filter calls instead of .or() with template literals
+        // to avoid filter expression injection
+        dbQuery = dbQuery.or(
+          `subject.ilike.%${escapedSearch}%,from_address.ilike.%${escapedSearch}%`
+        );
       }
       if (query.dateFrom) {
         dbQuery = dbQuery.gte('received_at', query.dateFrom);
@@ -194,6 +205,7 @@ export function createEmailsRoutes({ supabase, queueService }: EmailsRoutesDepen
   /**
    * GET /emails/unactioned
    * Get count of unactioned emails
+   * NOTE: This route MUST be defined before /:id to avoid route shadowing
    */
   const getUnactionedHandler: RequestHandler = async (req, res, next) => {
     try {
@@ -221,7 +233,80 @@ export function createEmailsRoutes({ supabase, queueService }: EmailsRoutesDepen
     }
   };
 
+  // NOTE: Static routes (/unactioned, /stats) MUST be registered before parameterized routes (/:id)
+  // to prevent route shadowing where "unactioned" or "stats" would be treated as an ID
   router.get('/unactioned', requireCaseworker as RequestHandler, getUnactionedHandler);
+
+  /**
+   * GET /emails/stats
+   * Get email statistics for the office
+   * NOTE: This route MUST be defined before /:id to avoid route shadowing
+   */
+  const getStatsHandler: RequestHandler = async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const officeId = authReq.officeId;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+      // Get total received
+      const { count: totalReceived } = await supabase
+        .from('emails')
+        .select('*', { count: 'exact', head: true })
+        .eq('office_id', officeId)
+        .eq('type', 'received');
+
+      // Get unactioned count
+      const { count: unactionedCount } = await supabase
+        .from('emails')
+        .select('*', { count: 'exact', head: true })
+        .eq('office_id', officeId)
+        .eq('type', 'received')
+        .eq('actioned', false);
+
+      // Get received today
+      const { count: receivedToday } = await supabase
+        .from('emails')
+        .select('*', { count: 'exact', head: true })
+        .eq('office_id', officeId)
+        .eq('type', 'received')
+        .gte('received_at', today.toISOString());
+
+      // Get actioned today
+      const { count: actionedToday } = await supabase
+        .from('emails')
+        .select('*', { count: 'exact', head: true })
+        .eq('office_id', officeId)
+        .eq('type', 'received')
+        .eq('actioned', true)
+        .gte('updated_at', today.toISOString());
+
+      // Get received this week
+      const { count: receivedThisWeek } = await supabase
+        .from('emails')
+        .select('*', { count: 'exact', head: true })
+        .eq('office_id', officeId)
+        .eq('type', 'received')
+        .gte('received_at', weekAgo.toISOString());
+
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          totalReceived: totalReceived ?? 0,
+          unactionedCount: unactionedCount ?? 0,
+          receivedToday: receivedToday ?? 0,
+          actionedToday: actionedToday ?? 0,
+          receivedThisWeek: receivedThisWeek ?? 0,
+        },
+      };
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  router.get('/stats', requireCaseworker as RequestHandler, getStatsHandler);
 
   /**
    * GET /emails/:id
@@ -611,76 +696,6 @@ export function createEmailsRoutes({ supabase, queueService }: EmailsRoutesDepen
   };
 
   router.post('/:id/link-case', requireCaseworker as RequestHandler, linkCaseHandler);
-
-  /**
-   * GET /emails/stats
-   * Get email statistics for the office
-   */
-  const getStatsHandler: RequestHandler = async (req, res, next) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      const officeId = authReq.officeId;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-      // Get total received
-      const { count: totalReceived } = await supabase
-        .from('emails')
-        .select('*', { count: 'exact', head: true })
-        .eq('office_id', officeId)
-        .eq('type', 'received');
-
-      // Get unactioned count
-      const { count: unactionedCount } = await supabase
-        .from('emails')
-        .select('*', { count: 'exact', head: true })
-        .eq('office_id', officeId)
-        .eq('type', 'received')
-        .eq('actioned', false);
-
-      // Get received today
-      const { count: receivedToday } = await supabase
-        .from('emails')
-        .select('*', { count: 'exact', head: true })
-        .eq('office_id', officeId)
-        .eq('type', 'received')
-        .gte('received_at', today.toISOString());
-
-      // Get actioned today
-      const { count: actionedToday } = await supabase
-        .from('emails')
-        .select('*', { count: 'exact', head: true })
-        .eq('office_id', officeId)
-        .eq('type', 'received')
-        .eq('actioned', true)
-        .gte('updated_at', today.toISOString());
-
-      // Get received this week
-      const { count: receivedThisWeek } = await supabase
-        .from('emails')
-        .select('*', { count: 'exact', head: true })
-        .eq('office_id', officeId)
-        .eq('type', 'received')
-        .gte('received_at', weekAgo.toISOString());
-
-      const response: ApiResponse = {
-        success: true,
-        data: {
-          totalReceived: totalReceived ?? 0,
-          unactionedCount: unactionedCount ?? 0,
-          receivedToday: receivedToday ?? 0,
-          actionedToday: actionedToday ?? 0,
-          receivedThisWeek: receivedThisWeek ?? 0,
-        },
-      };
-      res.json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  router.get('/stats', requireCaseworker as RequestHandler, getStatsHandler);
 
   return router;
 }

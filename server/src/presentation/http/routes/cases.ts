@@ -218,6 +218,108 @@ export function createCasesRoutes({ supabase, queueService }: CasesRoutesDepende
   router.get('/', requireCaseworker as RequestHandler, listCasesHandler);
 
   /**
+   * GET /cases/stats
+   * Get case statistics for the office
+   * NOTE: This route MUST be defined before /:id to avoid route shadowing
+   */
+  const getStatsHandler: RequestHandler = async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const officeId = authReq.officeId;
+      const now = new Date().toISOString();
+
+      // Get total count
+      const { count: totalCount } = await supabase
+        .from('cases')
+        .select('*', { count: 'exact', head: true })
+        .eq('office_id', officeId);
+
+      // Get overdue count
+      const { count: overdueCount } = await supabase
+        .from('cases')
+        .select('*', { count: 'exact', head: true })
+        .eq('office_id', officeId)
+        .lt('review_date', now)
+        .not('review_date', 'is', null);
+
+      // Get counts by status (simplified)
+      const { data: statusData } = await supabase
+        .from('cases')
+        .select('status_external_id')
+        .eq('office_id', officeId);
+
+      const statusCounts: Record<number, number> = {};
+      ((statusData || []) as Array<{ status_external_id: number | null }>).forEach((c) => {
+        if (c.status_external_id !== null) {
+          statusCounts[c.status_external_id] = (statusCounts[c.status_external_id] || 0) + 1;
+        }
+      });
+
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          totalCount: totalCount ?? 0,
+          overdueCount: overdueCount ?? 0,
+          byStatus: statusCounts,
+        },
+      };
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  // NOTE: Static routes (/stats) MUST be registered before parameterized routes (/:id)
+  // to prevent route shadowing where "stats" would be treated as an ID
+  router.get('/stats', requireCaseworker as RequestHandler, getStatsHandler);
+
+  /**
+   * GET /cases/constituent/:constituentId
+   * Get all cases for a constituent
+   * NOTE: This route MUST be defined before /:id to avoid route shadowing
+   */
+  const getCasesByConstituentHandler: RequestHandler = async (req, res, next) => {
+    try {
+      const authReq = req as AuthenticatedRequest;
+      const { constituentId } = authReq.params;
+      const officeId = authReq.officeId;
+
+      const { data, error } = await supabase
+        .from('cases')
+        .select('*')
+        .eq('constituent_id', constituentId)
+        .eq('office_id', officeId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const cases = (data || []) as CaseRecord[];
+      const response: ApiResponse = {
+        success: true,
+        data: cases.map((c) => ({
+          id: c.id,
+          officeId: c.office_id,
+          externalId: c.external_id,
+          caseTypeId: c.case_type_id,
+          caseTypeExternalId: c.case_type_external_id,
+          statusId: c.status_id,
+          statusExternalId: c.status_external_id,
+          summary: c.summary,
+          reviewDate: c.review_date,
+          isOverdue: c.review_date ? new Date(c.review_date) < new Date() : false,
+          createdAt: c.created_at,
+          updatedAt: c.updated_at,
+        })),
+      };
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  router.get('/constituent/:constituentId', requireCaseworker as RequestHandler, getCasesByConstituentHandler);
+
+  /**
    * GET /cases/:id
    * Get case details by ID
    */
@@ -564,104 +666,6 @@ export function createCasesRoutes({ supabase, queueService }: CasesRoutesDepende
   };
 
   router.get('/:id/notes', requireCaseworker as RequestHandler, getCaseNotesHandler);
-
-  /**
-   * GET /cases/constituent/:constituentId
-   * Get all cases for a constituent
-   */
-  const getCasesByConstituentHandler: RequestHandler = async (req, res, next) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      const { constituentId } = authReq.params;
-      const officeId = authReq.officeId;
-
-      const { data, error } = await supabase
-        .from('cases')
-        .select('*')
-        .eq('constituent_id', constituentId)
-        .eq('office_id', officeId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const cases = (data || []) as CaseRecord[];
-      const response: ApiResponse = {
-        success: true,
-        data: cases.map((c) => ({
-          id: c.id,
-          officeId: c.office_id,
-          externalId: c.external_id,
-          caseTypeId: c.case_type_id,
-          caseTypeExternalId: c.case_type_external_id,
-          statusId: c.status_id,
-          statusExternalId: c.status_external_id,
-          summary: c.summary,
-          reviewDate: c.review_date,
-          isOverdue: c.review_date ? new Date(c.review_date) < new Date() : false,
-          createdAt: c.created_at,
-          updatedAt: c.updated_at,
-        })),
-      };
-      res.json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  router.get('/constituent/:constituentId', requireCaseworker as RequestHandler, getCasesByConstituentHandler);
-
-  /**
-   * GET /cases/stats
-   * Get case statistics for the office
-   */
-  const getStatsHandler: RequestHandler = async (req, res, next) => {
-    try {
-      const authReq = req as AuthenticatedRequest;
-      const officeId = authReq.officeId;
-      const now = new Date().toISOString();
-
-      // Get total count
-      const { count: totalCount } = await supabase
-        .from('cases')
-        .select('*', { count: 'exact', head: true })
-        .eq('office_id', officeId);
-
-      // Get overdue count
-      const { count: overdueCount } = await supabase
-        .from('cases')
-        .select('*', { count: 'exact', head: true })
-        .eq('office_id', officeId)
-        .lt('review_date', now)
-        .not('review_date', 'is', null);
-
-      // Get counts by status (simplified)
-      const { data: statusData } = await supabase
-        .from('cases')
-        .select('status_external_id')
-        .eq('office_id', officeId);
-
-      const statusCounts: Record<number, number> = {};
-      ((statusData || []) as Array<{ status_external_id: number | null }>).forEach((c) => {
-        if (c.status_external_id !== null) {
-          statusCounts[c.status_external_id] = (statusCounts[c.status_external_id] || 0) + 1;
-        }
-      });
-
-      const response: ApiResponse = {
-        success: true,
-        data: {
-          totalCount: totalCount ?? 0,
-          overdueCount: overdueCount ?? 0,
-          byStatus: statusCounts,
-        },
-      };
-      res.json(response);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  router.get('/stats', requireCaseworker as RequestHandler, getStatsHandler);
 
   return router;
 }

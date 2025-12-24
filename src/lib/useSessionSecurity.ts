@@ -41,6 +41,25 @@ let cachedIp: string | null = null;
 let ipCacheTime: number = 0;
 const IP_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Validate IP address format (IPv4 or IPv6)
+function isValidIpAddress(ip: string): boolean {
+  // IPv4 pattern
+  const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  // IPv6 pattern (simplified)
+  const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+
+  if (ipv4Pattern.test(ip)) {
+    // Validate each octet is 0-255
+    const octets = ip.split('.');
+    return octets.every(o => {
+      const num = parseInt(o, 10);
+      return num >= 0 && num <= 255;
+    });
+  }
+
+  return ipv6Pattern.test(ip);
+}
+
 async function getClientIp(): Promise<string> {
   // Return cached IP if still valid
   if (cachedIp && Date.now() - ipCacheTime < IP_CACHE_DURATION) {
@@ -48,10 +67,15 @@ async function getClientIp(): Promise<string> {
   }
 
   try {
-    // Try multiple IP lookup services for reliability
+    // SECURITY NOTE: These external IP services are used as a fallback for client-side
+    // IP detection. For production APT-resistant deployments, prefer server-side IP
+    // detection using X-Forwarded-For or X-Real-IP headers from trusted reverse proxies.
+    // The server should pass the client IP to the frontend in a secure session context.
+
+    // Use multiple IP lookup services for reliability, with validation
     const services = [
-      'https://api.ipify.org?format=json',
-      'https://api.my-ip.io/v2/ip.json',
+      { url: 'https://api.ipify.org?format=json', field: 'ip' },
+      { url: 'https://api.my-ip.io/v2/ip.json', field: 'ip' },
     ];
 
     for (const service of services) {
@@ -59,18 +83,28 @@ async function getClientIp(): Promise<string> {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-        const response = await fetch(service, {
+        const response = await fetch(service.url, {
           signal: controller.signal,
+          // Prevent credentials from being sent to third-party services
+          credentials: 'omit',
+          // Prevent caching of potentially stale IP info
+          cache: 'no-store',
         });
 
         clearTimeout(timeoutId);
 
         if (response.ok) {
           const data = await response.json();
-          const ip = data.ip || data.origin || '0.0.0.0';
-          cachedIp = ip;
-          ipCacheTime = Date.now();
-          return ip;
+          const ip = data[service.field] || data.origin;
+
+          // Validate the returned IP address to prevent injection
+          if (ip && typeof ip === 'string' && isValidIpAddress(ip)) {
+            cachedIp = ip;
+            ipCacheTime = Date.now();
+            return ip;
+          }
+          // Invalid IP format - try next service
+          console.warn(`[SessionSecurity] Invalid IP format from ${service.url}: ${ip}`);
         }
       } catch {
         // Try next service
@@ -78,10 +112,12 @@ async function getClientIp(): Promise<string> {
       }
     }
 
-    // Fallback if all services fail
-    return '0.0.0.0';
+    // Fallback if all services fail - use a sentinel value that indicates failure
+    // rather than a valid-looking IP that could bypass security checks
+    console.warn('[SessionSecurity] All IP lookup services failed, using fallback');
+    return 'UNKNOWN';
   } catch {
-    return '0.0.0.0';
+    return 'UNKNOWN';
   }
 }
 
