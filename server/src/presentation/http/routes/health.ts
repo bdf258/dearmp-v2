@@ -7,15 +7,18 @@
  * - GET /health/live - Liveness check (is the server running)
  */
 
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router, Request, Response, NextFunction, RequestHandler } from 'express';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ApiResponse } from '../types';
 import { QueueService } from '../../../infrastructure/queue';
+import { requireAdmin } from '../middleware';
 
 export interface HealthRoutesDependencies {
   supabase: SupabaseClient;
   queueService?: QueueService;
   startTime: Date;
+  /** Optional auth middleware to protect /metrics endpoint */
+  authMiddleware?: RequestHandler;
 }
 
 interface HealthStatus {
@@ -32,7 +35,7 @@ interface HealthStatus {
 /**
  * Create health routes
  */
-export function createHealthRoutes({ supabase, queueService, startTime }: HealthRoutesDependencies): Router {
+export function createHealthRoutes({ supabase, queueService, startTime, authMiddleware }: HealthRoutesDependencies): Router {
   const router = Router();
 
   /**
@@ -122,8 +125,9 @@ export function createHealthRoutes({ supabase, queueService, startTime }: Health
   /**
    * GET /health/metrics
    * Returns basic metrics for monitoring
+   * Protected: requires authentication (admin only) as it exposes internal details
    */
-  router.get('/metrics', async (_req: Request, res: Response, next: NextFunction) => {
+  const metricsHandler = async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const memoryUsage = process.memoryUsage();
       const cpuUsage = process.cpuUsage();
@@ -166,7 +170,15 @@ export function createHealthRoutes({ supabase, queueService, startTime }: Health
     } catch (error) {
       next(error);
     }
-  });
+  };
+
+  // Register metrics endpoint with authentication if middleware provided
+  if (authMiddleware) {
+    router.get('/metrics', authMiddleware, requireAdmin as RequestHandler, metricsHandler);
+  } else {
+    // Fallback without auth (for backwards compatibility in development)
+    router.get('/metrics', metricsHandler);
+  }
 
   return router;
 }

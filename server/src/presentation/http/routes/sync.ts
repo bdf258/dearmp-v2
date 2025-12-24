@@ -13,7 +13,7 @@ import { Router, RequestHandler } from 'express';
 import { z } from 'zod';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { AuthenticatedRequest, ApiResponse, ApiError } from '../types';
-import { requireAdmin } from '../middleware';
+import { requireAdmin, strictRateLimiter } from '../middleware';
 import { QueueService } from '../../../infrastructure/queue';
 
 // Request validation schemas
@@ -30,7 +30,7 @@ const CancelSyncSchema = z.object({
 });
 
 const AuditLogQuerySchema = z.object({
-  entityType: z.string().optional(),
+  entityType: z.string().max(100).optional(),
   operation: z.enum(['create', 'update', 'delete', 'conflict']).optional(),
   limit: z.coerce.number().min(1).max(100).default(50),
   offset: z.coerce.number().min(0).default(0),
@@ -227,7 +227,8 @@ export function createSyncRoutes({ supabase, queueService }: SyncRoutesDependenc
     }
   };
 
-  router.post('/start', requireAdmin as RequestHandler, startSyncHandler);
+  // Apply strict rate limiting (10 req/min) to prevent resource exhaustion
+  router.post('/start', strictRateLimiter, requireAdmin as RequestHandler, startSyncHandler);
 
   /**
    * POST /sync/cancel
@@ -351,7 +352,8 @@ export function createSyncRoutes({ supabase, queueService }: SyncRoutesDependenc
     }
   };
 
-  router.get('/queue-status', requireAdmin as RequestHandler, getQueueStatusHandler);
+  // Apply strict rate limiting to queue-status to prevent abuse
+  router.get('/queue-status', strictRateLimiter, requireAdmin as RequestHandler, getQueueStatusHandler);
 
   return router;
 }

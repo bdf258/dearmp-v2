@@ -13,6 +13,7 @@
  */
 
 import express from 'express';
+import helmet from 'helmet';
 import { createClient } from '@supabase/supabase-js';
 import { loadConfig, validateConfig } from './config';
 import {
@@ -60,6 +61,9 @@ const supabase = createClient(config.supabaseUrl, config.supabaseServiceRoleKey,
 // ============================================================================
 
 const app = express();
+
+// Security headers (X-Content-Type-Options, X-Frame-Options, HSTS, CSP, etc.)
+app.use(helmet());
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -118,13 +122,15 @@ async function main() {
   // ROUTES
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Health routes (no auth required)
+  // Health routes (basic health/ready/live are public, /metrics requires admin auth)
   app.use(
     '/health',
     createHealthRoutes({
       supabase,
       queueService,
       startTime,
+      // Cast to RequestHandler to satisfy TypeScript (authMiddleware uses AuthenticatedRequest)
+      authMiddleware: authMiddleware as unknown as import('express').RequestHandler,
     })
   );
 

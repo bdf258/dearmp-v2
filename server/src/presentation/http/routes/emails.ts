@@ -17,6 +17,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { AuthenticatedRequest, ApiResponse, ApiError } from '../types';
 import { requireCaseworker } from '../middleware';
 import { QueueService } from '../../../infrastructure/queue';
+import { sanitizeEmailHtml } from '../utils';
 
 // Request validation schemas
 const ListEmailsQuerySchema = z.object({
@@ -26,8 +27,9 @@ const ListEmailsQuerySchema = z.object({
   actioned: z.coerce.boolean().optional(),
   caseId: z.string().uuid().optional(),
   constituentId: z.string().uuid().optional(),
-  fromAddress: z.string().optional(),
-  search: z.string().optional(),
+  // Add max length limits to prevent payload attacks
+  fromAddress: z.string().max(500).optional(),
+  search: z.string().max(500).optional(),
   dateFrom: z.string().datetime().optional(),
   dateTo: z.string().datetime().optional(),
   orderBy: z.enum(['received_at', 'sent_at', 'created_at', 'updated_at']).default('received_at'),
@@ -44,7 +46,7 @@ const UpdateEmailSchema = z.object({
 
 const ActionEmailSchema = z.object({
   markActioned: z.boolean().default(true),
-  reason: z.string().optional(),
+  reason: z.string().max(1000).optional(),
 });
 
 const AssignEmailSchema = z.object({
@@ -257,7 +259,8 @@ export function createEmailsRoutes({ supabase, queueService }: EmailsRoutesDepen
           constituentExternalId: e.constituent_external_id,
           type: e.type,
           subject: e.subject,
-          htmlBody: e.html_body,
+          // Sanitize HTML to prevent XSS (defense-in-depth with frontend DOMPurify)
+          htmlBody: sanitizeEmailHtml(e.html_body),
           fromAddress: e.from_address,
           toAddresses: e.to_addresses,
           ccAddresses: e.cc_addresses,

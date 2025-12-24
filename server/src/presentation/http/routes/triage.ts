@@ -16,6 +16,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { AuthenticatedRequest, ApiResponse, ApiError } from '../types';
 import { requireCaseworker } from '../middleware';
 import { QueueService } from '../../../infrastructure/queue';
+import { sanitizeEmailHtml } from '../utils';
 
 // Request validation schemas
 const GetTriageQueueSchema = z.object({
@@ -26,10 +27,10 @@ const GetTriageQueueSchema = z.object({
 });
 
 const ConfirmTriageSchema = z.object({
-  messageIds: z.array(z.string().uuid()).min(1),
+  messageIds: z.array(z.string().uuid()).min(1).max(100),
   caseId: z.string().uuid().optional(),
   assigneeId: z.string().uuid().optional(),
-  tagIds: z.array(z.string().uuid()).optional(),
+  tagIds: z.array(z.string().uuid()).max(50).optional(),
   createCase: z.boolean().optional(),
   newCase: z
     .object({
@@ -37,13 +38,13 @@ const ConfirmTriageSchema = z.object({
       caseTypeExternalId: z.number().optional(),
       statusId: z.string().uuid().optional(),
       statusExternalId: z.number().optional(),
-      summary: z.string().optional(),
+      summary: z.string().max(5000).optional(),
       constituentId: z.string().uuid().optional(),
       newConstituent: z
         .object({
-          firstName: z.string().optional(),
-          lastName: z.string().optional(),
-          email: z.string().email().optional(),
+          firstName: z.string().max(200).optional(),
+          lastName: z.string().max(200).optional(),
+          email: z.string().email().max(500).optional(),
         })
         .optional(),
     })
@@ -51,15 +52,15 @@ const ConfirmTriageSchema = z.object({
 });
 
 const DismissTriageSchema = z.object({
-  messageIds: z.array(z.string().uuid()).min(1),
-  reason: z.string().optional(),
+  messageIds: z.array(z.string().uuid()).min(1).max(100),
+  reason: z.string().max(1000).optional(),
 });
 
 const ProcessEmailSchema = z.object({
   emailId: z.string().uuid(),
   emailExternalId: z.number(),
-  fromAddress: z.string().email(),
-  subject: z.string().optional(),
+  fromAddress: z.string().email().max(500),
+  subject: z.string().max(1000).optional(),
 });
 
 export interface TriageRoutesDependencies {
@@ -203,7 +204,8 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
           officeId: email.office_id,
           externalId: email.external_id,
           subject: email.subject,
-          htmlBody: email.html_body,
+          // Sanitize HTML to prevent XSS (defense-in-depth with frontend DOMPurify)
+          htmlBody: sanitizeEmailHtml(email.html_body),
           fromAddress: email.from_address,
           toAddresses: email.to_addresses,
           ccAddresses: email.cc_addresses,
