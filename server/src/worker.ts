@@ -58,34 +58,46 @@ const supabase = createClient(config.supabaseUrl, config.supabaseServiceRoleKey,
 // ============================================================================
 
 // Credentials repository for legacy API authentication
+// Uses RPC functions to handle encryption/decryption in the database
 class SupabaseCredentialsRepository implements ICredentialsRepository {
   async getCredentials(officeId: OfficeId) {
-    const { data, error } = await supabase
-      .from('api_credentials')
-      .select('*')
-      .eq('office_id', officeId.toString())
-      .single();
+    // Use RPC function to get decrypted credentials
+    const { data, error } = await supabase.rpc('get_api_credentials', {
+      p_office_id: officeId.toString(),
+    });
 
-    if (error || !data) return null;
+    if (error) {
+      console.error('Failed to get API credentials:', error.message);
+      return null;
+    }
+
+    // RPC returns an array, get the first row
+    const credentials = Array.isArray(data) ? data[0] : data;
+    if (!credentials) return null;
 
     return {
-      apiBaseUrl: data.api_base_url,
-      token: data.encrypted_token,
-      tokenExpiresAt: data.token_expires_at ? new Date(data.token_expires_at) : undefined,
-      email: data.encrypted_email,
-      password: data.encrypted_password,
+      apiBaseUrl: credentials.api_base_url,
+      token: credentials.token,
+      tokenExpiresAt: credentials.token_expires_at
+        ? new Date(credentials.token_expires_at)
+        : undefined,
+      email: credentials.email,
+      password: credentials.password,
     };
   }
 
   async updateToken(officeId: OfficeId, token: string, expiresAt: Date) {
-    await supabase
-      .from('api_credentials')
-      .update({
-        encrypted_token: token,
-        token_expires_at: expiresAt.toISOString(),
-        last_auth_at: new Date().toISOString(),
-      })
-      .eq('office_id', officeId.toString());
+    // Use RPC function to encrypt and store the token
+    const { error } = await supabase.rpc('update_api_token', {
+      p_office_id: officeId.toString(),
+      p_token: token,
+      p_expires_at: expiresAt.toISOString(),
+    });
+
+    if (error) {
+      console.error('Failed to update API token:', error.message);
+      throw new Error(`Failed to update API token: ${error.message}`);
+    }
   }
 }
 

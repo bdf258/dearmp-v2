@@ -27,6 +27,7 @@ import {
   createTriageRoutes,
   createReferenceDataRoutes,
   createHealthRoutes,
+  apiRateLimiter,
 } from './presentation/http';
 
 // ============================================================================
@@ -83,6 +84,9 @@ app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
+
+// Rate limiting (applied globally, 100 requests per minute per user/IP)
+app.use(apiRateLimiter);
 
 // ============================================================================
 // MAIN STARTUP
