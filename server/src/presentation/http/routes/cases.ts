@@ -28,7 +28,8 @@ const ListCasesQuerySchema = z.object({
   caseTypeExternalId: z.coerce.number().optional(),
   assignedToId: z.string().uuid().optional(),
   constituentId: z.string().uuid().optional(),
-  search: z.string().optional(),
+  // Add max length to prevent payload attacks
+  search: z.string().max(500).optional(),
   orderBy: z.enum(['created_at', 'updated_at', 'review_date']).default('updated_at'),
   orderDir: z.enum(['asc', 'desc']).default('desc'),
   includeOverdue: z.coerce.boolean().optional(),
