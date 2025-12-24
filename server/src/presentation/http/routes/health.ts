@@ -172,12 +172,21 @@ export function createHealthRoutes({ supabase, queueService, startTime, authMidd
     }
   };
 
-  // Register metrics endpoint with authentication if middleware provided
+  // Register metrics endpoint - ALWAYS requires authentication and admin role
+  // Metrics expose sensitive system internals that could aid reconnaissance attacks
   if (authMiddleware) {
     router.get('/metrics', authMiddleware, requireAdmin as RequestHandler, metricsHandler);
   } else {
-    // Fallback without auth (for backwards compatibility in development)
-    router.get('/metrics', metricsHandler);
+    // No auth middleware provided - return 503 to prevent unauthenticated access
+    router.get('/metrics', (_req, res) => {
+      res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Metrics endpoint requires authentication middleware',
+        },
+      });
+    });
   }
 
   return router;

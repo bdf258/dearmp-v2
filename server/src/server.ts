@@ -69,23 +69,56 @@ app.use(helmet());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// CORS headers (for development)
-if (config.nodeEnv === 'development') {
-  app.use((_req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    next();
-  });
+// CORS headers - restricted to allowed origins only
+const ALLOWED_ORIGINS = [
+  // Production domains
+  /^https:\/\/([a-z0-9-]+\.)?dearmp\.uk$/,
+  /^https:\/\/([a-z0-9-]+\.)?kep\.la$/,
+  /^https:\/\/([a-z0-9-]+\.)?farier\.com$/,
+  // Development (only in dev mode)
+  ...(config.nodeEnv === 'development' ? [
+    /^http:\/\/localhost(:\d+)?$/,
+    /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+  ] : []),
+];
 
-  app.options('*', (_req, res) => {
-    res.sendStatus(204);
-  });
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some(pattern => pattern.test(origin));
 }
 
-// Request logging
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Vary', 'Origin');
+  }
+  next();
+});
+
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  if (origin && isAllowedOrigin(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.sendStatus(204);
+  } else {
+    res.sendStatus(403);
+  }
+});
+
+// Request logging - redact sensitive path segments (UUIDs, IDs)
 app.use((req, _res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  // Redact UUIDs and numeric IDs from path for privacy
+  const redactedPath = req.path
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '[REDACTED-UUID]')
+    .replace(/\/\d+(?=\/|$)/g, '/[REDACTED-ID]');
+  console.log(`[${new Date().toISOString()}] ${req.method} ${redactedPath}`);
   next();
 });
 

@@ -327,7 +327,8 @@ export function createSyncRoutes({ supabase, queueService }: SyncRoutesDependenc
     }
   };
 
-  router.get('/audit-log', getAuditLogHandler);
+  // Audit log requires admin privileges - contains sensitive sync operation details
+  router.get('/audit-log', requireAdmin as RequestHandler, getAuditLogHandler);
 
   /**
    * GET /sync/queue-status
