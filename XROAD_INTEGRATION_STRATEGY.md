@@ -31,6 +31,7 @@ The strategic imperative is clear: constituent cases rarely exist in isolation. 
 9. [Cost-Benefit Analysis](#9-cost-benefit-analysis)
 10. [Risk Assessment](#10-risk-assessment)
 11. [Recommendations](#11-recommendations)
+12. [MVP: Low-Cost Preparation for Future Federation](#12-mvp-low-cost-preparation-for-future-federation)
 
 ---
 
@@ -476,6 +477,12 @@ Cons:
 
 **Current UK government identity and data sharing infrastructure**
 
+> ⚠️ **Important Clarification**: GOV.UK One Login is **NOT freely available** to all organizations. While the source code is open source (MIT license for many components, available at [github.com/govuk-one-login](https://github.com/govuk-one-login)), **integration is restricted to**:
+> - Central government departments and agencies
+> - Some public sector bodies (approved case-by-case)
+>
+> Private sector organizations and third-party software vendors **cannot integrate** with GOV.UK One Login. The £305M+ programme costs are absorbed centrally by government, not charged per-integration.
+
 ```
 Architecture:
 ┌──────────┐      ┌─────────────┐      ┌───────────┐
@@ -483,18 +490,28 @@ Architecture:
 │          │      │ One Login   │      │ etc.      │
 └──────────┘      └─────────────┘      └───────────┘
 
+Availability:
+- Central government: ✅ Available (free, centrally funded)
+- Local authorities: ⚠️ Case-by-case approval
+- Private sector vendors: ❌ Not available
+- Third-party integrators: ❌ Not available
+
 Pros:
-+ Already deployed in UK government
++ Already deployed in UK government (80+ services, 7.8M users)
 + Citizen-centric identity verification
 + GDS-approved architecture
 + Aligned with UK data protection
++ Source code is open source (can study/learn from it)
 
 Cons:
 - Primarily identity, not data exchange
-- Limited to specific service integrations
+- Restricted access (central government only)
 - Not designed for system-to-system bulk queries
 - Centralized (single point of failure)
+- Cannot self-host or deploy independently
 ```
+
+**Implication for DearMP**: If DearMP is a government-commissioned system operated by central government, GOV.UK One Login integration may be possible. If DearMP is a private sector product sold to MP offices, GOV.UK One Login is **not an option** and alternatives like Keycloak must be considered.
 
 ### 6.2 NIEM (National Information Exchange Model)
 
@@ -579,10 +596,12 @@ Cons:
 Given the UK context, consider a layered strategy:
 
 ```
-Layer 1: GOV.UK One Login
-├── Citizen identity verification
-├── Consent management
-└── Authentication delegation
+Layer 1: Identity (choose based on access)
+├── Option A: GOV.UK One Login (if central government)
+│   └── Citizen identity verification, consent management
+├── Option B: Keycloak (if private sector / self-hosted required)
+│   └── Open source, self-hosted, OIDC-compatible
+└── Both use OpenID Connect, so switching is possible
 
 Layer 2: X-Road (or UK Adaptation)
 ├── System-to-system data exchange
@@ -594,6 +613,22 @@ Layer 3: Domain-Specific Standards
 ├── NIEM for justice data
 └── Custom schemas for sectors without standards
 ```
+
+### 6.7 Truly Free & Open Source Stack
+
+For organizations without access to GOV.UK One Login, this stack provides equivalent capabilities:
+
+| Layer | Solution | License | Self-Hosted | Notes |
+|-------|----------|---------|-------------|-------|
+| **Identity** | Keycloak | Apache 2.0 | ✅ | Red Hat backed, OIDC/SAML |
+| **Data Exchange** | X-Road | MIT | ✅ | Estonian/Finnish, proven at scale |
+| **API Gateway** | Kong OSS | Apache 2.0 | ✅ | Rate limiting, auth plugins |
+| **Messaging** | Apache Kafka | Apache 2.0 | ✅ | Event streaming, audit logs |
+| **Service Mesh** | Linkerd | Apache 2.0 | ✅ | mTLS, observability |
+| **PKI** | EJBCA | LGPL | ✅ | Certificate authority |
+| **Secrets** | Vault (pre-BSL) | MPL 2.0 | ✅ | Use v1.14 or OpenBao fork |
+
+All components can be deployed on UK-based infrastructure (AWS London, Azure UK, on-premises).
 
 ---
 
@@ -966,6 +1001,750 @@ If the government selects a different interoperability standard:
    - Invest in PKI/certificate infrastructure regardless
    - Implement comprehensive audit logging
    - Design for mutual authentication patterns
+
+---
+
+## 12. MVP: Low-Cost Preparation for Future Federation
+
+This section outlines minimal-investment changes that can be implemented **now** (with few users and limited budget) to enable seamless federation capabilities **later** (when scale justifies full X-Road deployment).
+
+### 12.1 Philosophy: Build the Seams, Not the Building
+
+The goal is not to implement X-Road today, but to ensure DearMP's architecture doesn't **preclude** federation tomorrow. These are "architectural seams" - clean interfaces that make future integration cheap rather than expensive.
+
+**Investment now:** ~£5,000-15,000 (developer time)
+**Savings later:** ~£50,000-100,000 (avoid major refactoring)
+
+### 12.2 MVP Tier 1: Zero-Cost Patterns (Implement Immediately)
+
+These require no new dependencies—just disciplined coding patterns.
+
+#### 12.2.1 Canonical Data Types
+
+Create TypeScript interfaces that mirror common government data exchange formats:
+
+```typescript
+// src/types/federation/canonical.ts
+
+/**
+ * ISO 8601 date string (YYYY-MM-DD)
+ * X-Road and most government systems use this format
+ */
+export type ISODate = string;
+
+/**
+ * Canonical person identifier
+ * Designed to map to multiple ID schemes
+ */
+export interface CanonicalPerson {
+  // Internal ID (UUID)
+  id: string;
+
+  // External identifiers (for future federation)
+  externalIds?: {
+    scheme: 'nino' | 'nhs-number' | 'passport' | 'driving-license' | 'electoral-roll';
+    value: string;
+    verified: boolean;
+    verifiedAt?: ISODate;
+  }[];
+
+  // Core demographics
+  givenNames: string;
+  familyName: string;
+  dateOfBirth?: ISODate;
+
+  // Contact (structured for interop)
+  addresses?: CanonicalAddress[];
+  emailAddresses?: { value: string; primary: boolean }[];
+  phoneNumbers?: { value: string; type: 'mobile' | 'landline' | 'work' }[];
+}
+
+/**
+ * UK address format compatible with:
+ * - Royal Mail PAF
+ * - OS AddressBase
+ * - GDS address patterns
+ */
+export interface CanonicalAddress {
+  uprn?: string;  // Unique Property Reference Number
+  line1: string;
+  line2?: string;
+  line3?: string;
+  city: string;
+  postcode: string;
+  country: 'GB' | 'UK' | string;
+}
+
+/**
+ * Case summary - minimal shareable data about a case
+ * Designed for cross-system queries without exposing sensitive details
+ */
+export interface CanonicalCaseSummary {
+  id: string;
+  externalRef?: string;
+  status: 'open' | 'in-progress' | 'resolved' | 'escalated' | 'closed';
+  category: string;
+  subcategory?: string;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+
+  // For cross-system correlation
+  relatedSystemRefs?: {
+    system: string;  // e.g., 'dwp-uc', 'hmrc-paye', 'nhs-spine'
+    reference: string;
+  }[];
+}
+```
+
+**Cost:** 2-4 hours
+**Benefit:** When federation arrives, data mapping is already defined
+
+#### 12.2.2 Request Context Object
+
+Every external request should carry context that X-Road will require:
+
+```typescript
+// src/types/federation/context.ts
+
+/**
+ * Request context - attach to every cross-boundary operation
+ * This becomes the X-Road message metadata when federation is enabled
+ */
+export interface FederationContext {
+  // Who is making this request?
+  requestor: {
+    systemId: string;      // 'dearmp-v2'
+    userId?: string;       // Internal user ID
+    userRole?: string;     // 'caseworker', 'admin', etc.
+  };
+
+  // Why is this request being made?
+  purpose: {
+    code: string;          // e.g., 'CASE_INVESTIGATION', 'CONSENT_CHECK'
+    description: string;   // Human-readable
+    legalBasis?: string;   // GDPR Article 6 basis
+  };
+
+  // Traceability
+  correlationId: string;   // UUID for request tracing
+  timestamp: string;       // ISO 8601 with timezone
+
+  // Consent reference (if applicable)
+  consentRef?: {
+    constituentId: string;
+    consentId: string;
+    scope: string[];
+  };
+}
+
+// Helper to create context for internal use
+export function createFederationContext(
+  userId: string,
+  purposeCode: string,
+  purposeDesc: string
+): FederationContext {
+  return {
+    requestor: {
+      systemId: 'dearmp-v2',
+      userId,
+      userRole: undefined, // Populated by auth middleware
+    },
+    purpose: {
+      code: purposeCode,
+      description: purposeDesc,
+    },
+    correlationId: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+  };
+}
+```
+
+**Cost:** 2-4 hours
+**Benefit:** Audit trails are federation-ready; legal basis tracking built-in
+
+#### 12.2.3 External Service Interface Pattern
+
+Wrap all external service calls behind interfaces that can later route to X-Road:
+
+```typescript
+// src/services/federation/external-service.ts
+
+/**
+ * Abstract interface for external data sources
+ * Today: direct API calls
+ * Tomorrow: X-Road Security Server routing
+ */
+export interface ExternalDataService<TRequest, TResponse> {
+  readonly serviceId: string;
+  readonly version: string;
+
+  query(
+    request: TRequest,
+    context: FederationContext
+  ): Promise<ExternalServiceResult<TResponse>>;
+}
+
+export interface ExternalServiceResult<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+    retryable: boolean;
+  };
+  metadata: {
+    responseTime: number;
+    source: 'direct' | 'cache' | 'xroad';
+    timestamp: string;
+  };
+}
+
+// Example: Benefits status service (stub for now)
+export class BenefitsStatusService
+  implements ExternalDataService<BenefitsRequest, BenefitsResponse> {
+
+  readonly serviceId = 'uk-gov/dwp/benefits-status';
+  readonly version = 'v1';
+
+  async query(
+    request: BenefitsRequest,
+    context: FederationContext
+  ): Promise<ExternalServiceResult<BenefitsResponse>> {
+    // TODAY: Return not-implemented (no DWP access yet)
+    // TOMORROW: Route through X-Road adapter
+    return {
+      success: false,
+      error: {
+        code: 'NOT_IMPLEMENTED',
+        message: 'Benefits lookup requires X-Road federation',
+        retryable: false,
+      },
+      metadata: {
+        responseTime: 0,
+        source: 'direct',
+        timestamp: new Date().toISOString(),
+      },
+    };
+  }
+}
+```
+
+**Cost:** 4-8 hours
+**Benefit:** External integrations have consistent interface; easy to swap implementations
+
+### 12.3 MVP Tier 2: Low-Cost Infrastructure (~£2,000-5,000)
+
+#### 12.3.1 Structured Audit Logging
+
+Add a dedicated audit log table designed for compliance and federation:
+
+```sql
+-- migrations/xxx_add_federation_audit_log.sql
+
+CREATE TABLE federation_audit_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- When
+  timestamp TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Who (internal)
+  user_id UUID REFERENCES auth.users(id),
+  user_role TEXT,
+  office_id UUID REFERENCES offices(id),
+
+  -- What
+  action TEXT NOT NULL,  -- 'READ', 'WRITE', 'QUERY', 'EXPORT'
+  resource_type TEXT NOT NULL,  -- 'constituent', 'case', 'message'
+  resource_id UUID,
+
+  -- Why (federation context)
+  purpose_code TEXT,
+  purpose_description TEXT,
+  legal_basis TEXT,
+
+  -- Correlation
+  correlation_id UUID NOT NULL,
+  session_id UUID,
+
+  -- External system (for future federation)
+  external_system_id TEXT,  -- NULL for internal, 'dwp', 'hmrc' for federated
+  external_request_id TEXT,
+
+  -- What was accessed (for GDPR subject access requests)
+  data_categories TEXT[],  -- ['personal', 'financial', 'health']
+
+  -- Outcome
+  success BOOLEAN NOT NULL,
+  error_code TEXT,
+
+  -- Searchable metadata
+  metadata JSONB DEFAULT '{}'
+);
+
+-- Indexes for compliance queries
+CREATE INDEX idx_audit_timestamp ON federation_audit_log(timestamp);
+CREATE INDEX idx_audit_user ON federation_audit_log(user_id);
+CREATE INDEX idx_audit_resource ON federation_audit_log(resource_type, resource_id);
+CREATE INDEX idx_audit_correlation ON federation_audit_log(correlation_id);
+CREATE INDEX idx_audit_external ON federation_audit_log(external_system_id)
+  WHERE external_system_id IS NOT NULL;
+
+-- Retention policy (keep 7 years for GDPR)
+-- Add pg_partman or manual partitioning for large scale
+```
+
+**Cost:** £500-1,000 (dev time) + negligible storage
+**Benefit:** GDPR compliance, Subject Access Requests, federation audit trails
+
+#### 12.3.2 Consent Management Foundation
+
+Add basic consent tracking that federations require:
+
+```sql
+-- migrations/xxx_add_consent_management.sql
+
+CREATE TABLE constituent_consents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  constituent_id UUID NOT NULL REFERENCES constituents(id),
+
+  -- What they consented to
+  consent_type TEXT NOT NULL,  -- 'data-sharing', 'contact', 'case-transfer'
+  scope TEXT[] NOT NULL,       -- ['dwp', 'hmrc', 'nhs'] or ['*']
+
+  -- When
+  granted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ,      -- NULL = no expiry
+  revoked_at TIMESTAMPTZ,
+
+  -- How (evidence)
+  granted_via TEXT NOT NULL,   -- 'web-form', 'email', 'verbal', 'letter'
+  evidence_ref TEXT,           -- Link to stored evidence
+
+  -- Who recorded it
+  recorded_by UUID REFERENCES auth.users(id),
+  office_id UUID REFERENCES offices(id),
+
+  -- Status
+  status TEXT NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'expired', 'revoked')),
+
+  UNIQUE (constituent_id, consent_type, status)
+    WHERE status = 'active'
+);
+
+CREATE INDEX idx_consent_constituent ON constituent_consents(constituent_id);
+CREATE INDEX idx_consent_active ON constituent_consents(status)
+  WHERE status = 'active';
+```
+
+**Cost:** £1,000-2,000 (dev time)
+**Benefit:** Required for any data sharing; legal compliance
+
+#### 12.3.3 Service Registry Stub
+
+Create a configuration-driven service registry:
+
+```typescript
+// src/config/external-services.ts
+
+/**
+ * Registry of external services
+ * Today: configuration only
+ * Tomorrow: populated from X-Road Central Server
+ */
+export interface ServiceRegistryEntry {
+  serviceId: string;
+  name: string;
+  description: string;
+  provider: string;
+
+  // Connection (null = not yet available)
+  endpoint: string | null;
+  available: boolean;
+
+  // Federation metadata
+  xroadMemberCode?: string;
+  xroadSubsystemCode?: string;
+
+  // Data classification
+  dataCategories: string[];
+  requiresConsent: boolean;
+
+  // Status
+  status: 'planned' | 'pilot' | 'production' | 'deprecated';
+}
+
+export const SERVICE_REGISTRY: ServiceRegistryEntry[] = [
+  {
+    serviceId: 'uk-gov/dwp/benefits-status',
+    name: 'DWP Benefits Status',
+    description: 'Check Universal Credit and legacy benefit status',
+    provider: 'Department for Work and Pensions',
+    endpoint: null,  // Not yet integrated
+    available: false,
+    dataCategories: ['financial', 'personal'],
+    requiresConsent: true,
+    status: 'planned',
+  },
+  {
+    serviceId: 'uk-gov/hmrc/tax-status',
+    name: 'HMRC Tax Status',
+    description: 'Verify tax compliance status',
+    provider: 'HM Revenue & Customs',
+    endpoint: null,
+    available: false,
+    dataCategories: ['financial'],
+    requiresConsent: true,
+    status: 'planned',
+  },
+  {
+    serviceId: 'uk-gov/home-office/immigration-status',
+    name: 'Immigration Status Check',
+    description: 'Verify right to remain/work',
+    provider: 'Home Office',
+    endpoint: null,
+    available: false,
+    dataCategories: ['personal', 'legal-status'],
+    requiresConsent: true,
+    status: 'planned',
+  },
+  // Add more as needed...
+];
+
+// Helper to check if a service is available
+export function isServiceAvailable(serviceId: string): boolean {
+  const entry = SERVICE_REGISTRY.find(s => s.serviceId === serviceId);
+  return entry?.available ?? false;
+}
+```
+
+**Cost:** 2-4 hours
+**Benefit:** UI can show "coming soon" features; architecture is ready
+
+### 12.4 MVP Tier 3: Preparation Investments (~£5,000-15,000)
+
+#### 12.4.1 Self-Signed Certificate Infrastructure
+
+Set up certificate management even without X-Road:
+
+```bash
+# scripts/setup-pki.sh
+# Create a local CA for development/testing
+
+# 1. Create CA directory structure
+mkdir -p pki/{ca,certs,private,csr}
+chmod 700 pki/private
+
+# 2. Generate CA private key
+openssl genrsa -out pki/private/ca.key 4096
+chmod 600 pki/private/ca.key
+
+# 3. Generate CA certificate
+openssl req -new -x509 -days 3650 \
+  -key pki/private/ca.key \
+  -out pki/ca/ca.crt \
+  -subj "/C=GB/O=DearMP/CN=DearMP Development CA"
+
+# 4. Generate service certificate
+openssl genrsa -out pki/private/dearmp.key 2048
+openssl req -new \
+  -key pki/private/dearmp.key \
+  -out pki/csr/dearmp.csr \
+  -subj "/C=GB/O=DearMP/CN=dearmp-api"
+
+openssl x509 -req -days 365 \
+  -in pki/csr/dearmp.csr \
+  -CA pki/ca/ca.crt \
+  -CAkey pki/private/ca.key \
+  -CAcreateserial \
+  -out pki/certs/dearmp.crt
+
+echo "PKI setup complete. Certificates in ./pki/"
+```
+
+**Cost:** £1,000-2,000 (setup + documentation)
+**Benefit:** Team learns PKI; ready for mTLS when X-Road arrives
+
+#### 12.4.2 Message Signing Library
+
+Implement request/response signing using standard libraries:
+
+```typescript
+// src/lib/signing.ts
+
+import { createSign, createVerify, generateKeyPairSync } from 'crypto';
+
+/**
+ * Simple message signing for non-repudiation
+ * Uses RSA-SHA256 (compatible with X-Road)
+ */
+export class MessageSigner {
+  constructor(
+    private privateKeyPem: string,
+    private publicKeyPem: string
+  ) {}
+
+  /**
+   * Sign a message payload
+   */
+  sign(payload: object): SignedMessage {
+    const canonical = this.canonicalize(payload);
+    const timestamp = new Date().toISOString();
+
+    const signatureInput = `${timestamp}|${canonical}`;
+
+    const signer = createSign('RSA-SHA256');
+    signer.update(signatureInput);
+    const signature = signer.sign(this.privateKeyPem, 'base64');
+
+    return {
+      payload,
+      signature: {
+        algorithm: 'RSA-SHA256',
+        timestamp,
+        value: signature,
+      },
+    };
+  }
+
+  /**
+   * Verify a signed message
+   */
+  verify(message: SignedMessage, publicKey?: string): boolean {
+    const key = publicKey ?? this.publicKeyPem;
+    const canonical = this.canonicalize(message.payload);
+    const signatureInput = `${message.signature.timestamp}|${canonical}`;
+
+    const verifier = createVerify('RSA-SHA256');
+    verifier.update(signatureInput);
+
+    return verifier.verify(key, message.signature.value, 'base64');
+  }
+
+  /**
+   * Canonicalize JSON for consistent signing
+   * (JSON key ordering matters for signatures)
+   */
+  private canonicalize(obj: object): string {
+    return JSON.stringify(obj, Object.keys(obj).sort());
+  }
+}
+
+export interface SignedMessage {
+  payload: object;
+  signature: {
+    algorithm: string;
+    timestamp: string;
+    value: string;
+  };
+}
+
+// Generate keys for development
+export function generateDevKeyPair() {
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  });
+  return { publicKey, privateKey };
+}
+```
+
+**Cost:** £2,000-3,000 (implementation + testing)
+**Benefit:** Non-repudiation ready; can verify message integrity
+
+#### 12.4.3 API Versioning and OpenAPI Spec
+
+Document APIs in a format compatible with X-Road service definitions:
+
+```yaml
+# openapi/dearmp-federation-api.yaml
+openapi: 3.0.3
+info:
+  title: DearMP Federation API
+  version: 1.0.0
+  description: |
+    API endpoints designed for future X-Road federation.
+    Currently internal-only; will be exposed via Security Server.
+  contact:
+    name: DearMP Team
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.dearmp.local/federation/v1
+    description: Internal (pre-federation)
+
+paths:
+  /constituents/verify:
+    post:
+      operationId: verifyConstituent
+      summary: Verify constituent relationship to MP
+      description: |
+        X-Road Service ID: UK-GOV/DearMP/constituentVerification/v1
+      tags:
+        - Federation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConstituentVerifyRequest'
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConstituentVerifyResponse'
+        '403':
+          description: Insufficient consent or authorization
+
+  /cases/{caseId}/summary:
+    get:
+      operationId: getCaseSummary
+      summary: Get minimal case summary for cross-system reference
+      description: |
+        X-Road Service ID: UK-GOV/DearMP/caseStatus/v1
+      tags:
+        - Federation
+      parameters:
+        - name: caseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: X-Purpose-Code
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-Correlation-Id
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Case summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaseSummary'
+
+components:
+  schemas:
+    ConstituentVerifyRequest:
+      type: object
+      required:
+        - identifier
+      properties:
+        identifier:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [email, postcode-dob, nino]
+            value:
+              type: string
+
+    ConstituentVerifyResponse:
+      type: object
+      properties:
+        verified:
+          type: boolean
+        constituency:
+          type: string
+        hasActiveCase:
+          type: boolean
+
+    CaseSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [open, in-progress, resolved, escalated, closed]
+        category:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+```
+
+**Cost:** £2,000-4,000 (documentation + endpoint stubs)
+**Benefit:** Clear API contract; X-Road service registration ready
+
+### 12.5 MVP Implementation Checklist
+
+| Priority | Item | Cost | Time | Status |
+|----------|------|------|------|--------|
+| **P0** | Canonical TypeScript types | £0 | 4h | ⬜ |
+| **P0** | FederationContext on all external calls | £0 | 4h | ⬜ |
+| **P0** | ExternalDataService interface pattern | £0 | 8h | ⬜ |
+| **P1** | Audit log table + basic logging | £500 | 2d | ⬜ |
+| **P1** | Consent management table | £1,000 | 2d | ⬜ |
+| **P1** | Service registry configuration | £0 | 4h | ⬜ |
+| **P2** | Development PKI setup | £1,000 | 1d | ⬜ |
+| **P2** | Message signing library | £2,000 | 3d | ⬜ |
+| **P2** | OpenAPI federation spec | £2,000 | 2d | ⬜ |
+| **P3** | UI placeholders for external data | £1,000 | 2d | ⬜ |
+| **P3** | Integration test harness | £2,000 | 3d | ⬜ |
+
+**Total MVP Investment:** ~£9,500 + 25 developer days
+**Future Savings:** Estimated £50,000-100,000 in refactoring costs avoided
+
+### 12.6 What This Enables
+
+After implementing the MVP:
+
+```
+TODAY (MVP Complete):
+┌─────────────────────────────────────────────────────────┐
+│ DearMP Application                                       │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ ✅ Canonical data types                              │ │
+│ │ ✅ Federation context on all operations              │ │
+│ │ ✅ Structured audit logging                          │ │
+│ │ ✅ Consent management                                │ │
+│ │ ✅ Service interface pattern                         │ │
+│ │ ✅ Message signing capability                        │ │
+│ │ ⬜ External integrations (stub: "Coming Soon")       │ │
+│ └─────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+
+TOMORROW (When Federation Arrives):
+┌─────────────────────────────────────────────────────────┐
+│ DearMP Application                                       │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ ✅ Canonical data types (already done)               │ │
+│ │ ✅ Federation context (already done)                 │ │
+│ │ ✅ Audit logging (already done)                      │ │
+│ │ ✅ Consent management (already done)                 │ │
+│ │ ✅ Service interface (swap implementation)    ←──┐   │ │
+│ │ ✅ Message signing (production keys)               │   │ │
+│ │ 🆕 X-Road adapter (NEW: ~2 weeks work)      ←──────┤   │ │
+│ └────────────────────────────────────────────────────┘   │ │
+│                         │                                 │
+│                         ▼                                 │
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ X-Road Security Server (deploy & configure)          │ │
+│ └─────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
+
+The difference between "prepared" and "unprepared" when federation becomes available:
+
+| Scenario | Unprepared | Prepared (MVP) |
+|----------|------------|----------------|
+| Time to integrate first external service | 3-6 months | 2-4 weeks |
+| Refactoring required | Major (data models, logging, auth) | Minor (adapter only) |
+| Risk of security gaps | High (retrofit audit/consent) | Low (built-in) |
+| Cost | £50,000-100,000 | £10,000-20,000 |
 
 ---
 
