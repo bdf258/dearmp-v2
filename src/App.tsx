@@ -39,6 +39,7 @@ import ComponentPrototypePage from '@/pages/prototypes/ComponentPrototypePage';
 import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import { TriageDashboard, CampaignDashboard, TriageWorkspace, TriageRedirect } from '@/pages/triage';
+import TriageTestPage from '@/pages/TriageTestPage';
 
 function LoadingScreen() {
   return (
@@ -150,6 +151,9 @@ function AuthenticatedLayout() {
             <Route path="/triage/campaigns" element={<CampaignDashboard />} />
             <Route path="/triage/campaigns/:campaignId" element={<CampaignDashboard />} />
             <Route path="/triage/messages/:messageId" element={<TriageWorkspace />} />
+
+            {/* Triage Test Page */}
+            <Route path="/test" element={<PageLayout><TriageTestPage /></PageLayout>} />
 
             {/* Prototypes Index */}
             <Route path="/prototypes" element={<PageLayout><PrototypesPage /></PageLayout>} />
