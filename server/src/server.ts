@@ -26,6 +26,7 @@ import {
   notFoundHandler,
   createSyncRoutes,
   createTriageRoutes,
+  createTestTriageRoutes,
   createReferenceDataRoutes,
   createHealthRoutes,
   apiRateLimiter,
@@ -180,6 +181,13 @@ async function main() {
       authMiddleware,
       createTriageRoutes({ supabase, queueService })
     );
+
+    // Test triage routes (for uploading .eml files to test the triage pipeline)
+    app.use(
+      '/test-triage',
+      authMiddleware,
+      createTestTriageRoutes({ supabase, queueService })
+    );
   } else {
     // Return 503 for sync/triage if queue not available
     app.use('/sync', (_req, res) => {
@@ -193,6 +201,16 @@ async function main() {
     });
 
     app.use('/triage', (_req, res) => {
+      res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Queue service not available',
+        },
+      });
+    });
+
+    app.use('/test-triage', (_req, res) => {
       res.status(503).json({
         success: false,
         error: {
@@ -218,6 +236,7 @@ async function main() {
         health: '/health',
         sync: '/sync',
         triage: '/triage',
+        testTriage: '/test-triage',
         reference: '/reference',
       },
     });
@@ -252,6 +271,10 @@ async function main() {
     console.log('║  - POST /triage/confirm   Confirm triage                       ║');
     console.log('║  - POST /triage/dismiss   Dismiss emails                       ║');
     console.log('║  - GET  /triage/stats     Get triage stats                     ║');
+    console.log('║                                                                ║');
+    console.log('║  - POST /test-triage/upload  Upload .eml for testing           ║');
+    console.log('║  - GET  /test-triage/status/:id  Get job status                ║');
+    console.log('║  - GET  /test-triage/list  List test emails                    ║');
     console.log('║                                                                ║');
     console.log('║  - GET  /reference/all    Get all reference data               ║');
     console.log('║  - GET  /reference/*      Get specific reference types         ║');
