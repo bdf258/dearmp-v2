@@ -194,9 +194,9 @@ export default function TriagePage() {
                                 variant="outline"
                                 className="text-xs"
                                 style={{
-                                  borderColor: tag.color,
-                                  backgroundColor: `${tag.color}20`,
-                                  color: tag.color,
+                                  borderColor: tag.color ?? undefined,
+                                  backgroundColor: tag.color ? `${tag.color}20` : undefined,
+                                  color: tag.color ?? undefined,
                                 }}
                               >
                                 {tag.name}
@@ -208,7 +208,7 @@ export default function TriagePage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {new Date(message.received_at).toLocaleDateString()}
+                        {message.received_at ? new Date(message.received_at).toLocaleDateString() : 'Unknown'}
                       </TableCell>
                       <TableCell>
                         {matchedCampaign ? (

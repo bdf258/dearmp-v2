@@ -133,7 +133,7 @@ export default function Dashboard() {
                   <div className="flex-1 space-y-1">
                     <p className="text-sm font-medium">{message.subject || '(No subject)'}</p>
                     <p className="text-xs text-muted-foreground">
-                      {message.channel} • {new Date(message.received_at).toLocaleDateString()}
+                      {message.channel} • {message.received_at ? new Date(message.received_at).toLocaleDateString() : 'Unknown'}
                     </p>
                   </div>
                   {!message.case_id && !message.campaign_id && (

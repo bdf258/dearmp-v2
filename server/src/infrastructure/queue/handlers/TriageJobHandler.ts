@@ -9,6 +9,7 @@
  */
 
 import PgBoss from 'pg-boss';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { OfficeId, ExternalId } from '../../../domain/value-objects';
 import { ILegacyApiClient } from '../../../domain/interfaces';
 import { IConstituentRepository, ICaseRepository, IEmailRepository } from '../../../domain/interfaces';
@@ -38,6 +39,7 @@ export interface TriageJobHandlerDependencies {
   emailRepository: IEmailRepository;
   triageCacheRepository: ITriageCacheRepository;
   llmAnalysisService?: ILLMAnalysisService;
+  supabaseClient?: SupabaseClient; // For updating test email status
 }
 
 /**
@@ -83,6 +85,7 @@ export class TriageJobHandler {
   private readonly emailRepo: IEmailRepository;
   private readonly triageCache: ITriageCacheRepository;
   private readonly llmService?: ILLMAnalysisService;
+  private readonly supabase?: SupabaseClient;
 
   constructor(deps: TriageJobHandlerDependencies) {
     this.client = deps.pgBossClient;
@@ -92,6 +95,7 @@ export class TriageJobHandler {
     this.emailRepo = deps.emailRepository;
     this.triageCache = deps.triageCacheRepository;
     this.llmService = deps.llmAnalysisService;
+    this.supabase = deps.supabaseClient;
 
     if (this.llmService) {
       console.log('[TriageJobHandler] LLM analysis service enabled');
@@ -106,20 +110,17 @@ export class TriageJobHandler {
   async register(): Promise<void> {
     await this.client.work<TriageProcessEmailJobData>(
       JobNames.TRIAGE_PROCESS_EMAIL,
-      this.handleProcessEmail.bind(this),
-      { teamSize: 5, teamConcurrency: 2 }
+      this.handleProcessEmail.bind(this)
     );
 
     await this.client.work<TriageSubmitDecisionJobData>(
       JobNames.TRIAGE_SUBMIT_DECISION,
-      this.handleSubmitDecision.bind(this),
-      { teamSize: 3, teamConcurrency: 1 }
+      this.handleSubmitDecision.bind(this)
     );
 
     await this.client.work<TriageBatchPrefetchJobData>(
       JobNames.TRIAGE_BATCH_PREFETCH,
-      this.handleBatchPrefetch.bind(this),
-      { teamSize: 2, teamConcurrency: 1 }
+      this.handleBatchPrefetch.bind(this)
     );
 
     console.log('[TriageJobHandler] Registered all triage job handlers');
@@ -135,11 +136,11 @@ export class TriageJobHandler {
   private async handleProcessEmail(
     job: PgBoss.Job<TriageProcessEmailJobData>
   ): Promise<void> {
-    const { officeId, emailId, emailExternalId, fromAddress, subject } = job.data;
+    const { officeId, emailId, emailExternalId, fromAddress, subject, isTestEmail } = job.data;
     const startTime = Date.now();
     const office = OfficeId.create(officeId);
 
-    console.log(`[TriageProcessEmail] Processing email ${emailId} from: ${fromAddress}`);
+    console.log(`[TriageProcessEmail] Processing email ${emailId} from: ${fromAddress}${isTestEmail ? ' (TEST)' : ''}`);
 
     const result: TriageJobResult = {
       success: false,
@@ -148,15 +149,25 @@ export class TriageJobHandler {
     };
 
     try {
-      // Step 1: Fetch the full email from repository
-      const email = await this.emailRepo.findByExternalId(office, ExternalId.create(emailExternalId));
-      const emailBody = email?.htmlBody || '';
+      // Step 1: Fetch the full email from repository (skip for test emails - they don't exist in legacy)
+      let emailBody = '';
+      let emailReceivedAt: Date | undefined;
+      if (!isTestEmail) {
+        const email = await this.emailRepo.findByExternalId(office, ExternalId.create(emailExternalId));
+        emailBody = email?.htmlBody || '';
+        emailReceivedAt = email?.receivedAt;
+      }
 
-      // Step 2: Find constituent matches via legacy API
-      const constituentMatches = await this.legacyApi.findConstituentMatches(
-        office,
-        { email: fromAddress }
-      );
+      // Step 2: Find constituent matches via legacy API (skip for test emails)
+      let constituentMatches: Awaited<ReturnType<typeof this.legacyApi.findConstituentMatches>> = [];
+      if (!isTestEmail) {
+        constituentMatches = await this.legacyApi.findConstituentMatches(
+          office,
+          { email: fromAddress }
+        );
+      } else {
+        console.log(`[TriageProcessEmail] Skipping legacy API for test email ${emailId}`);
+      }
 
       let matchedConstituent: TriageJobResult['matchedConstituent'];
       let matchedCases: Array<{ id: string; externalId: number; summary: string }> = [];
@@ -221,7 +232,7 @@ export class TriageJobHandler {
               subject: subject || '',
               body: this.extractPlainTextFromHtml(emailBody),
               senderEmail: fromAddress,
-              receivedAt: email?.receivedAt?.toISOString() || new Date().toISOString(),
+              receivedAt: emailReceivedAt?.toISOString() || new Date().toISOString(),
             },
             constituentContext,
             matchedCases
@@ -265,6 +276,17 @@ export class TriageJobHandler {
 
       result.success = true;
       result.durationMs = Date.now() - startTime;
+
+      // Step 6: Mark test emails as actioned (processed) so UI shows correct status
+      if (isTestEmail && this.supabase) {
+        try {
+          await this.supabase.rpc('mark_test_email_processed', { p_email_id: emailId });
+          console.log(`[TriageProcessEmail] Marked test email ${emailId} as processed`);
+        } catch (updateError) {
+          // Non-fatal - just log the error
+          console.warn(`[TriageProcessEmail] Failed to mark test email as processed:`, updateError);
+        }
+      }
 
       console.log(
         `[TriageProcessEmail] Completed processing ${emailId}: ` +
@@ -522,7 +544,7 @@ export class TriageJobHandler {
       );
     } else if (decision.constituentId) {
       // Use existing constituent
-      const constituent = await this.constituentRepo.findById(decision.constituentId);
+      const constituent = await this.constituentRepo.findById(office, decision.constituentId);
       constituentExternalId = constituent?.externalId?.toNumber();
     }
 
@@ -630,15 +652,15 @@ export class TriageJobHandler {
 
       // Schedule processing jobs for uncached emails
       const jobs = uncachedIds.map((emailId) => ({
-        name: JobNames.TRIAGE_PROCESS_EMAIL as const,
+        name: JobNames.TRIAGE_PROCESS_EMAIL,
         data: {
-          type: JobNames.TRIAGE_PROCESS_EMAIL as const,
+          type: JobNames.TRIAGE_PROCESS_EMAIL,
           officeId,
           emailId,
           emailExternalId: 0, // Would be looked up
           fromAddress: '', // Would be looked up
           correlationId: job.data.correlationId,
-        },
+        } as TriageProcessEmailJobData,
       }));
 
       await this.client.sendBatch(jobs);

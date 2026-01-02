@@ -26,6 +26,7 @@ import {
   notFoundHandler,
   createSyncRoutes,
   createTriageRoutes,
+  createTestTriageRoutes,
   createReferenceDataRoutes,
   createHealthRoutes,
   apiRateLimiter,
@@ -79,6 +80,7 @@ const ALLOWED_ORIGINS = [
   ...(config.nodeEnv === 'development' ? [
     /^http:\/\/localhost(:\d+)?$/,
     /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+    /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/, // Local network IPs for development
   ] : []),
 ];
 
@@ -168,17 +170,27 @@ async function main() {
   );
 
   // Protected routes (require authentication)
+  // Cast authMiddleware to satisfy Express types (it mutates req to add user/officeId)
+  const typedAuthMiddleware = authMiddleware as unknown as express.RequestHandler;
+
   if (queueService) {
     app.use(
       '/sync',
-      authMiddleware,
+      typedAuthMiddleware,
       createSyncRoutes({ supabase, queueService })
     );
 
     app.use(
       '/triage',
-      authMiddleware,
+      typedAuthMiddleware,
       createTriageRoutes({ supabase, queueService })
+    );
+
+    // Test triage routes (for uploading .eml files to test the triage pipeline)
+    app.use(
+      '/test-triage',
+      typedAuthMiddleware,
+      createTestTriageRoutes({ supabase, queueService })
     );
   } else {
     // Return 503 for sync/triage if queue not available
@@ -201,11 +213,21 @@ async function main() {
         },
       });
     });
+
+    app.use('/test-triage', (_req, res) => {
+      res.status(503).json({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Queue service not available',
+        },
+      });
+    });
   }
 
   app.use(
     '/reference',
-    authMiddleware,
+    typedAuthMiddleware,
     createReferenceDataRoutes({ supabase })
   );
 
@@ -218,6 +240,7 @@ async function main() {
         health: '/health',
         sync: '/sync',
         triage: '/triage',
+        testTriage: '/test-triage',
         reference: '/reference',
       },
     });
@@ -252,6 +275,10 @@ async function main() {
     console.log('║  - POST /triage/confirm   Confirm triage                       ║');
     console.log('║  - POST /triage/dismiss   Dismiss emails                       ║');
     console.log('║  - GET  /triage/stats     Get triage stats                     ║');
+    console.log('║                                                                ║');
+    console.log('║  - POST /test-triage/upload  Upload .eml for testing           ║');
+    console.log('║  - GET  /test-triage/status/:id  Get job status                ║');
+    console.log('║  - GET  /test-triage/list  List test emails                    ║');
     console.log('║                                                                ║');
     console.log('║  - GET  /reference/all    Get all reference data               ║');
     console.log('║  - GET  /reference/*      Get specific reference types         ║');

@@ -75,20 +75,17 @@ export class ScheduledJobHandler {
   async register(): Promise<void> {
     await this.client.work<ScheduledPollLegacyJobData>(
       JobNames.SCHEDULED_POLL_LEGACY,
-      this.handlePollLegacy.bind(this),
-      { teamSize: 1, teamConcurrency: 1 }
+      this.handlePollLegacy.bind(this)
     );
 
     await this.client.work<ScheduledSyncOfficeJobData>(
       JobNames.SCHEDULED_SYNC_OFFICE,
-      this.handleSyncOffice.bind(this),
-      { teamSize: 1, teamConcurrency: 1 }
+      this.handleSyncOffice.bind(this)
     );
 
     await this.client.work<ScheduledCleanupJobData>(
       JobNames.SCHEDULED_CLEANUP,
-      this.handleCleanup.bind(this),
-      { teamSize: 1, teamConcurrency: 1 }
+      this.handleCleanup.bind(this)
     );
 
     console.log('[ScheduledJobHandler] Registered all scheduled job handlers');

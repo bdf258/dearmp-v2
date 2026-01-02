@@ -557,9 +557,9 @@ function CampaignInbox({
                           variant="outline"
                           className="text-xs h-5"
                           style={{
-                            borderColor: tag.color,
-                            backgroundColor: `${tag.color}20`,
-                            color: tag.color,
+                            borderColor: tag.color ?? undefined,
+                            backgroundColor: tag.color ? `${tag.color}20` : undefined,
+                            color: tag.color ?? undefined,
                           }}
                         >
                           {tag.name}
@@ -604,9 +604,9 @@ function CampaignInbox({
                               variant="outline"
                               className="text-xs"
                               style={{
-                                borderColor: tag.color,
-                                backgroundColor: `${tag.color}20`,
-                                color: tag.color,
+                                borderColor: tag.color ?? undefined,
+                                backgroundColor: tag.color ? `${tag.color}20` : undefined,
+                                color: tag.color ?? undefined,
                               }}
                             >
                               {tag.name}
@@ -824,7 +824,7 @@ function MessagePreviewWithToolbar({
                 From: {message.senderName} &lt;{message.senderEmail}&gt;
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                {new Date(message.received_at).toLocaleString()}
+                {message.received_at ? new Date(message.received_at).toLocaleString() : 'Unknown'}
               </div>
             </div>
             {message.constituentStatus === 'known' && message.senderConstituent && (

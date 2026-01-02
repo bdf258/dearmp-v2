@@ -52,7 +52,8 @@ export default function CasesPage() {
     });
   }, [cases, searchQuery, statusFilter, assignedFilter]);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Unknown';
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',

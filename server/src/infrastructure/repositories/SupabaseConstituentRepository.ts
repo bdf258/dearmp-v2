@@ -10,14 +10,16 @@ export interface ISupabaseClient {
 }
 
 export interface ISupabaseQueryBuilder {
-  select(columns?: string): ISupabaseQueryBuilder;
+  select(columns?: string, options?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }): ISupabaseQueryBuilder;
   insert(values: Record<string, unknown> | Record<string, unknown>[]): ISupabaseQueryBuilder;
   update(values: Record<string, unknown>): ISupabaseQueryBuilder;
-  upsert(values: Record<string, unknown> | Record<string, unknown>[]): ISupabaseQueryBuilder;
+  upsert(values: Record<string, unknown> | Record<string, unknown>[], options?: { onConflict?: string }): ISupabaseQueryBuilder;
   delete(): ISupabaseQueryBuilder;
   eq(column: string, value: unknown): ISupabaseQueryBuilder;
+  neq(column: string, value: unknown): ISupabaseQueryBuilder;
   ilike(column: string, value: string): ISupabaseQueryBuilder;
   gte(column: string, value: unknown): ISupabaseQueryBuilder;
+  lt(column: string, value: unknown): ISupabaseQueryBuilder;
   order(column: string, options?: { ascending?: boolean }): ISupabaseQueryBuilder;
   limit(count: number): ISupabaseQueryBuilder;
   range(from: number, to: number): ISupabaseQueryBuilder;
@@ -167,7 +169,7 @@ export class SupabaseConstituentRepository implements IConstituentRepository {
   async count(officeId: OfficeId): Promise<number> {
     const { count, error } = await this.supabase
       .from(this.tableName)
-      .select('*', { count: 'exact', head: true } as unknown as string)
+      .select('*', { count: 'exact', head: true })
       .eq('office_id', officeId.toString());
 
     if (error) throw error;

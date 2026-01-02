@@ -171,7 +171,7 @@ export function MessageCard({
             <ConstituentStatusBadge status={message.constituentStatus} />
           </div>
           <span className="text-xs text-muted-foreground shrink-0">
-            {formatMessageDate(message.received_at)}
+            {message.received_at ? formatMessageDate(message.received_at) : 'Unknown'}
           </span>
         </div>
 
@@ -297,7 +297,7 @@ export function MessageDetailHeader({
 
         <div className="text-sm text-muted-foreground flex items-center gap-1">
           <Clock className="h-3.5 w-3.5" />
-          {format(new Date(message.received_at), 'MMM d, yyyy h:mm a')}
+          {message.received_at ? format(new Date(message.received_at), 'MMM d, yyyy h:mm a') : 'Unknown'}
         </div>
       </div>
     </div>

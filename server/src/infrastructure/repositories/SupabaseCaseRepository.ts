@@ -166,7 +166,7 @@ export class SupabaseCaseRepository implements ICaseRepository {
   async count(officeId: OfficeId): Promise<number> {
     const { count, error } = await this.supabase
       .from(this.tableName)
-      .select('*', { count: 'exact', head: true } as unknown as string)
+      .select('*', { count: 'exact', head: true })
       .eq('office_id', officeId.toString());
 
     if (error) throw error;

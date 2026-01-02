@@ -23,6 +23,7 @@ import {
   SupabaseConstituentRepository,
   SupabaseCaseRepository,
   SupabaseEmailRepository,
+  SupabaseReferenceDataRepository,
 } from './infrastructure/repositories';
 import { GeminiLLMService } from './infrastructure/llm';
 import { ILLMAnalysisService } from './application/services';
@@ -155,6 +156,35 @@ class SupabaseSyncStatusRepository {
 
     return data ?? [];
   }
+
+  async deleteOldSyncStatuses(officeId: OfficeId, olderThan: Date): Promise<number> {
+    // First count, then delete
+    const { count } = await supabase
+      .from('sync_status')
+      .select('*', { count: 'exact', head: true })
+      .eq('office_id', officeId.toString())
+      .lt('updated_at', olderThan.toISOString());
+
+    // Now delete
+    await supabase
+      .from('sync_status')
+      .delete()
+      .eq('office_id', officeId.toString())
+      .lt('updated_at', olderThan.toISOString());
+
+    return count ?? 0;
+  }
+
+  async getActiveOffices(): Promise<OfficeId[]> {
+    const { data } = await supabase
+      .from('sync_status')
+      .select('office_id')
+      .gte('updated_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+
+    if (!data) return [];
+    const uniqueOfficeIds = [...new Set(data.map((d: { office_id: string }) => d.office_id))];
+    return uniqueOfficeIds.map(id => OfficeId.create(id));
+  }
 }
 
 // Audit log repository
@@ -251,9 +281,11 @@ async function main() {
   const pollStatusRepo = new SupabasePollStatusRepository();
   const triageCacheRepo = new SupabaseTriageCacheRepository();
 
-  const constituentRepo = new SupabaseConstituentRepository(supabase);
-  const caseRepo = new SupabaseCaseRepository(supabase);
-  const emailRepo = new SupabaseEmailRepository(supabase);
+  // Cast to ISupabaseClient for type compatibility
+  const constituentRepo = new SupabaseConstituentRepository(supabase as any);
+  const caseRepo = new SupabaseCaseRepository(supabase as any);
+  const emailRepo = new SupabaseEmailRepository(supabase as any);
+  const referenceDataRepo = new SupabaseReferenceDataRepository(supabase as any);
 
   // Create legacy API client
   const legacyApiClient = new LegacyApiClient(credentialsRepo);
@@ -283,6 +315,7 @@ async function main() {
     constituentRepository: constituentRepo,
     caseRepository: caseRepo,
     emailRepository: emailRepo,
+    referenceDataRepository: referenceDataRepo,
     syncStatusRepository: syncStatusRepo,
   });
 
@@ -315,6 +348,7 @@ async function main() {
     emailRepository: emailRepo,
     triageCacheRepository: triageCacheRepo,
     llmAnalysisService: llmService,
+    supabaseClient: supabase, // For updating test email status
   });
 
   const scheduledHandler = new ScheduledJobHandler({
@@ -322,7 +356,11 @@ async function main() {
     queueService,
     legacyApiClient,
     emailRepository: emailRepo,
+    constituentRepository: constituentRepo,
+    caseRepository: caseRepo,
+    referenceDataRepository: referenceDataRepo,
     pollStatusRepository: pollStatusRepo,
+    syncStatusRepository: syncStatusRepo,
   });
 
   // Register all handlers

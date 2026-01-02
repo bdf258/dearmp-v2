@@ -475,23 +475,36 @@ export class LegacyApiClient implements ILegacyApiClient {
   // ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Make an authenticated request to the legacy API
+   * Build the full API URL from subdomain and path.
+   * The subdomain is stored in credentials.apiBaseUrl (e.g., "caseworker")
+   * and is combined to form: https://{subdomain}.farier.com/api/ajax{path}
    */
+  private buildApiUrl(subdomain: string, path: string): string {
+    // Remove any protocol prefix or trailing slashes from subdomain if present
+    const cleanSubdomain = subdomain
+      .replace(/^https?:\/\//, '')
+      .replace(/\.farier\.com.*$/, '')
+      .replace(/\/$/, '');
+    return `https://${cleanSubdomain}.farier.com/api/ajax${path}`;
+  }
+
   private async request<T>(
-    baseUrl: string,
+    subdomain: string,
     path: string,
     init: RequestInit
   ): Promise<T> {
+    const url = this.buildApiUrl(subdomain, path);
+
     // Safety guard: prevent all API calls when LEGACY_API_DISABLED is set
     if (process.env.LEGACY_API_DISABLED === 'true') {
-      console.warn(`[LegacyApiClient] API calls disabled. Would have called: ${init.method} ${baseUrl}${path}`);
+      console.warn(`[LegacyApiClient] API calls disabled. Would have called: ${init.method} ${url}`);
       throw new Error('Legacy API calls are disabled (LEGACY_API_DISABLED=true)');
     }
 
     return this.rateLimiter.execute(() =>
       this.backoff.execute(
         async (): Promise<T> => {
-          const response = await fetch(`${baseUrl}/api/ajax${path}`, init);
+          const response = await fetch(url, init);
 
           if (!response.ok) {
             if (response.status === 429) {

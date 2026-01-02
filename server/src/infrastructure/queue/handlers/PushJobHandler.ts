@@ -67,26 +67,22 @@ export class PushJobHandler {
   async register(): Promise<void> {
     await this.client.work<PushConstituentJobData>(
       JobNames.PUSH_CONSTITUENT,
-      this.handlePushConstituent.bind(this),
-      { teamSize: 3, teamConcurrency: 1 }
+      this.handlePushConstituent.bind(this)
     );
 
     await this.client.work<PushCaseJobData>(
       JobNames.PUSH_CASE,
-      this.handlePushCase.bind(this),
-      { teamSize: 3, teamConcurrency: 1 }
+      this.handlePushCase.bind(this)
     );
 
     await this.client.work<PushEmailJobData>(
       JobNames.PUSH_EMAIL,
-      this.handlePushEmail.bind(this),
-      { teamSize: 3, teamConcurrency: 1 }
+      this.handlePushEmail.bind(this)
     );
 
     await this.client.work<PushCasenoteJobData>(
       JobNames.PUSH_CASENOTE,
-      this.handlePushCasenote.bind(this),
-      { teamSize: 2, teamConcurrency: 1 }
+      this.handlePushCasenote.bind(this)
     );
 
     console.log('[PushJobHandler] Registered all push job handlers');
@@ -138,7 +134,7 @@ export class PushJobHandler {
         });
       } else if (operation === 'update') {
         // Get existing external ID
-        const constituent = await this.constituentRepo.findById(constituentId);
+        const constituent = await this.constituentRepo.findById(office, constituentId);
         if (!constituent?.externalId) {
           throw new Error(`Constituent ${constituentId} has no external ID`);
         }
@@ -207,7 +203,7 @@ export class PushJobHandler {
 
     try {
       // Get constituent external ID
-      const constituent = await this.constituentRepo.findById(data.constituentId);
+      const constituent = await this.constituentRepo.findById(office, data.constituentId);
       if (!constituent?.externalId) {
         throw new Error(`Constituent ${data.constituentId} has no external ID`);
       }
@@ -238,7 +234,7 @@ export class PushJobHandler {
           newData: data,
         });
       } else if (operation === 'update') {
-        const caseEntity = await this.caseRepo.findById(caseId);
+        const caseEntity = await this.caseRepo.findById(office, caseId);
         if (!caseEntity?.externalId) {
           throw new Error(`Case ${caseId} has no external ID`);
         }
@@ -446,7 +442,7 @@ export class PushJobHandler {
     try {
       // Call the legacy API based on operation type
       if (operation === 'create') {
-        const response = await this.legacyClient.createCasenote(
+        const response = await this.legacyApi.createCasenote(
           office,
           caseExternalId,
           {
@@ -460,7 +456,7 @@ export class PushJobHandler {
           `[PushCasenote] Created casenote ${casenoteId} -> external ID ${response.id}`
         );
       } else if (operation === 'update') {
-        await this.legacyClient.updateCasenote(
+        await this.legacyApi.updateCasenote(
           office,
           { toNumber: () => data.externalId! } as any,
           {

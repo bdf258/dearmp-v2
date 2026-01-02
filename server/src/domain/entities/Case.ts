@@ -120,6 +120,10 @@ export class Case {
     return this.props.categoryTypeId;
   }
 
+  get contactTypeId(): string | undefined {
+    return this.props.contactTypeId;
+  }
+
   get assignedToId(): string | undefined {
     return this.props.assignedToId;
   }

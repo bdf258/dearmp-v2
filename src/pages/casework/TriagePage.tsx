@@ -41,7 +41,8 @@ export default function TriagePage() {
   // Filter messages that need triage (no case or campaign assigned)
   const triageMessages = messages.filter((msg) => !msg.case_id && !msg.campaign_id);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Unknown';
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
@@ -224,9 +225,9 @@ export default function TriagePage() {
                                 variant="outline"
                                 className="text-xs"
                                 style={{
-                                  borderColor: tag.color,
-                                  backgroundColor: `${tag.color}20`,
-                                  color: tag.color,
+                                  borderColor: tag.color ?? undefined,
+                                  backgroundColor: tag.color ? `${tag.color}20` : undefined,
+                                  color: tag.color ?? undefined,
                                 }}
                               >
                                 {tag.name}

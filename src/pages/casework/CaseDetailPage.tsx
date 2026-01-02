@@ -59,7 +59,7 @@ export default function CaseDetailPage() {
     if (!caseId) return [];
     return messages
       .filter((m) => m.case_id === caseId)
-      .sort((a, b) => new Date(a.received_at).getTime() - new Date(b.received_at).getTime());
+      .sort((a, b) => new Date(a.received_at ?? 0).getTime() - new Date(b.received_at ?? 0).getTime());
   }, [caseId, messages]);
 
   // Get case parties with full data
@@ -167,7 +167,8 @@ export default function CaseDetailPage() {
     );
   }
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Unknown';
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',

@@ -28,7 +28,7 @@ import type {
   Note,
   NoteReply,
 } from './database.types';
-import type { User } from '@supabase/supabase-js';
+import type { User, Session } from '@supabase/supabase-js';
 
 interface UseSupabaseDataReturn {
   // Supabase client (for realtime subscriptions, etc.)
@@ -36,6 +36,7 @@ interface UseSupabaseDataReturn {
 
   // Auth state
   user: User | null;
+  session: Session | null;
   profile: Profile | null;
   loading: boolean;
   error: string | null;
@@ -74,7 +75,7 @@ interface UseSupabaseDataReturn {
 
   // Actions
   refreshData: () => Promise<void>;
-  createCase: (caseData: Omit<CaseInsert, 'office_id'>) => Promise<Case | null>;
+  createCase: (caseData: Omit<CaseInsert, 'office_id' | 'reference_number'>) => Promise<Case | null>;
   updateCase: (id: string, updates: Partial<Case>) => Promise<Case | null>;
   createConstituent: (data: Omit<ConstituentInsert, 'office_id'>) => Promise<Constituent | null>;
   createMessage: (data: Omit<MessageInsert, 'office_id'>) => Promise<Message | null>;
@@ -133,6 +134,7 @@ interface UseSupabaseDataReturn {
 export function useSupabaseData(): UseSupabaseDataReturn {
   // Auth state
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -328,13 +330,15 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   // Auth state listener
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
     });
 
     return () => subscription.unsubscribe();
@@ -347,6 +351,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
       checkMfaStatus();
     } else {
       // Clear data on sign out
+      setSession(null);
       setProfile(null);
       setOffices([]);
       setProfiles([]);
@@ -372,7 +377,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   }, [user, fetchData]);
 
   // Actions
-  const createCase = async (caseData: Omit<CaseInsert, 'office_id'>): Promise<Case | null> => {
+  const createCase = async (caseData: Omit<CaseInsert, 'office_id' | 'reference_number'>): Promise<Case | null> => {
     const officeId = getMyOfficeId();
     if (!officeId) return null;
 
@@ -1200,6 +1205,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
 
     // Auth
     user,
+    session,
     profile,
     loading,
     error,

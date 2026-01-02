@@ -95,7 +95,7 @@ function useTriageEmailData() {
         preview: message.snippet || '',
         fromEmail: message.senderEmail,
         fromName: message.senderName,
-        receivedAt: message.received_at,
+        receivedAt: message.received_at ?? new Date().toISOString(),
         isSelected: false,
         constituent: {
           status: constituentStatus,

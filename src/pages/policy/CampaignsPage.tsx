@@ -151,7 +151,7 @@ export default function CampaignsPage() {
                       </TableCell>
                       <TableCell className="text-right">{emailCount}</TableCell>
                       <TableCell>
-                        {new Date(campaign.created_at).toLocaleDateString()}
+                        {campaign.created_at ? new Date(campaign.created_at).toLocaleDateString() : 'Unknown'}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button

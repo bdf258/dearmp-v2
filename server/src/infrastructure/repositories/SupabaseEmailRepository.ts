@@ -188,7 +188,7 @@ export class SupabaseEmailRepository implements IEmailRepository {
   async count(officeId: OfficeId): Promise<number> {
     const { count, error } = await this.supabase
       .from(this.tableName)
-      .select('*', { count: 'exact', head: true } as unknown as string)
+      .select('*', { count: 'exact', head: true })
       .eq('office_id', officeId.toString());
 
     if (error) throw error;
@@ -198,7 +198,7 @@ export class SupabaseEmailRepository implements IEmailRepository {
   async countUnactioned(officeId: OfficeId): Promise<number> {
     const { count, error } = await this.supabase
       .from(this.tableName)
-      .select('*', { count: 'exact', head: true } as unknown as string)
+      .select('*', { count: 'exact', head: true })
       .eq('office_id', officeId.toString())
       .eq('actioned', false)
       .eq('type', 'received');

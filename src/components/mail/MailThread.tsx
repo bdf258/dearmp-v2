@@ -70,7 +70,7 @@ export function MailThread({
                   ? `${sender.name} <${sender.email}>`
                   : sender.email || 'Unknown'
                 }
-                date={formatDate(message.received_at)}
+                date={formatDate(message.received_at ?? undefined)}
                 subject={message.subject || '(No subject)'}
               />
             );

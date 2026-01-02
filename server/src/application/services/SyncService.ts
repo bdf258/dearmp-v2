@@ -62,15 +62,12 @@ export interface ILogger {
  */
 const defaultLogger: ILogger = {
   log: (message: string) => {
-    // eslint-disable-next-line no-console
     (globalThis as { console?: { log: (m: string) => void } }).console?.log(message);
   },
   warn: (message: string) => {
-    // eslint-disable-next-line no-console
     (globalThis as { console?: { warn: (m: string) => void } }).console?.warn(message);
   },
   error: (message: string, error?: unknown) => {
-    // eslint-disable-next-line no-console
     (globalThis as { console?: { error: (m: string, e?: unknown) => void } }).console?.error(message, error);
   },
 };

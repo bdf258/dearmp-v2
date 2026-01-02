@@ -144,9 +144,9 @@ export function TagSelectorDialog({
                       <Badge
                         variant="outline"
                         style={{
-                          borderColor: tag.color,
-                          backgroundColor: `${tag.color}20`,
-                          color: tag.color,
+                          borderColor: tag.color ?? undefined,
+                          backgroundColor: tag.color ? `${tag.color}20` : undefined,
+                          color: tag.color ?? undefined,
                         }}
                       >
                         {tag.name}

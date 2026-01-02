@@ -148,7 +148,7 @@ export function AuditLogViewer() {
       const { data, error: fetchError } = await supabase.rpc('get_audit_logs', {
         p_limit: PAGE_SIZE + 1, // Fetch one extra to check if there are more
         p_offset: currentPage * PAGE_SIZE,
-        p_severity: filter === 'all' ? null : filter,
+        p_severity: filter === 'all' ? undefined : filter,
       });
 
       if (fetchError) throw fetchError;

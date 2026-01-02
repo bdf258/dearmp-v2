@@ -19,9 +19,13 @@ export interface ICaseRepository {
   findByExternalId(officeId: OfficeId, externalId: ExternalId): Promise<Case | null>;
 
   /**
-   * Find cases for a constituent
+   * Find cases for a constituent with optional filters
    */
-  findByConstituentId(officeId: OfficeId, constituentId: string): Promise<Case[]>;
+  findByConstituentId(
+    officeId: OfficeId,
+    constituentId: string,
+    options?: { openOnly?: boolean }
+  ): Promise<Case[]>;
 
   /**
    * Find cases for a constituent by external ID
@@ -87,18 +91,4 @@ export interface ICaseRepository {
    * Update the external ID for a case (after push to legacy)
    */
   updateExternalId(id: string, externalId: ExternalId): Promise<void>;
-
-  /**
-   * Find a case by internal ID (simplified, without officeId for internal operations)
-   */
-  findById(id: string): Promise<Case | null>;
-
-  /**
-   * Find cases for a constituent with filter options
-   */
-  findByConstituentId(
-    officeId: OfficeId,
-    constituentId: string,
-    options?: { openOnly?: boolean }
-  ): Promise<Case[]>;
 }
