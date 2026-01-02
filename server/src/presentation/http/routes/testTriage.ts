@@ -90,6 +90,16 @@ export function createTestTriageRoutes({
         throw ApiError.validation('EML file must contain a From address');
       }
 
+      // Log parsed content for debugging
+      console.log(`[TestTriage] STEP 1 - parseEmlContent() returned:`, {
+        subject: parsed.subject,
+        from: parsed.fromAddress,
+        htmlBodyLength: parsed.htmlBody?.length ?? 0,
+        textBodyLength: parsed.textBody?.length ?? 0,
+        textBodyPreview: parsed.textBody?.substring(0, 100) ?? '(empty)',
+        hasBody: !!(parsed.htmlBody || parsed.textBody),
+      });
+
       // Generate a unique external ID for this test email
       // Use negative numbers to distinguish from real emails and avoid conflicts
       const testExternalId = -Math.floor(Date.now() / 1000);
@@ -182,6 +192,15 @@ export function createTestTriageRoutes({
 
       // Note: Audit logging skipped for test emails (legacy schema not exposed via REST API)
 
+      // Build textBody for response
+      const responseTextBody = parsed.textBody.substring(0, 500) + (parsed.textBody.length > 500 ? '...' : '');
+
+      console.log(`[TestTriage] STEP 2 - Building response.data.parsed.textBody:`, {
+        originalLength: parsed.textBody.length,
+        truncatedLength: responseTextBody.length,
+        preview: responseTextBody.substring(0, 100) || '(empty)',
+      });
+
       const response: ApiResponse = {
         success: true,
         data: {
@@ -207,12 +226,13 @@ export function createTestTriageRoutes({
             fromName: parsed.fromName,
             toAddresses: parsed.toAddresses,
             receivedAt: parsed.receivedAt.toISOString(),
-            textBody: parsed.textBody.substring(0, 500) + (parsed.textBody.length > 500 ? '...' : ''),
+            textBody: responseTextBody,
           },
           message: 'Test email uploaded and queued for triage processing',
         },
       };
 
+      console.log(`[TestTriage] STEP 3 - Sending response to frontend`);
       res.status(202).json(response);
     } catch (error) {
       next(error);

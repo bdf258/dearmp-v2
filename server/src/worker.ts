@@ -8,6 +8,12 @@
  * Development: npm run worker:dev
  */
 
+import { initializeLogging, getLogsDirectory } from './infrastructure/logging/logger';
+
+// Initialize logging FIRST - captures all subsequent console output to files
+initializeLogging('worker');
+console.log(`Logs directory: ${getLogsDirectory()}`);
+
 import { createClient } from '@supabase/supabase-js';
 import { loadConfig, validateConfig } from './config';
 import {

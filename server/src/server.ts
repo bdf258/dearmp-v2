@@ -12,6 +12,12 @@
  * Development: npm run server:dev
  */
 
+import { initializeLogging, getLogsDirectory } from './infrastructure/logging/logger';
+
+// Initialize logging FIRST - captures all subsequent console output to files
+initializeLogging('server');
+console.log(`Logs directory: ${getLogsDirectory()}`);
+
 import express from 'express';
 import helmet from 'helmet';
 import { createClient } from '@supabase/supabase-js';

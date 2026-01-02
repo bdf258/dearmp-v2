@@ -180,6 +180,25 @@ export interface GeminiLLMServiceConfig {
   timeoutMs?: number;
 }
 
+/**
+ * Debug info returned from LLM analysis
+ */
+export interface LLMAnalysisDebugInfo {
+  fullPrompt: string;
+  rawResponse: string;
+  parsedSuggestion: TriageSuggestionDto;
+  model: string;
+  llmDurationMs: number;
+}
+
+/**
+ * Result with optional debug info
+ */
+export interface LLMAnalysisResult {
+  suggestion: TriageSuggestionDto;
+  debugInfo?: LLMAnalysisDebugInfo;
+}
+
 export class GeminiLLMService implements ILLMAnalysisService {
   private readonly client: GoogleGenAI;
   private readonly model: string;
@@ -197,16 +216,39 @@ export class GeminiLLMService implements ILLMAnalysisService {
    * Analyze an email and generate triage suggestions
    */
   async analyzeEmail(context: TriageContextDto): Promise<TriageSuggestionDto> {
+    const result = await this.analyzeEmailWithDebug(context);
+    return result.suggestion;
+  }
+
+  /**
+   * Analyze an email and return both suggestions and debug info
+   * Used for test emails to show what's happening inside the LLM
+   */
+  async analyzeEmailWithDebug(context: TriageContextDto): Promise<LLMAnalysisResult> {
     const prompt = this.buildPrompt(context);
     const jsonSchema = zodToJsonSchema(TriageSuggestionSchema, 'TriageSuggestion');
 
     let lastError: Error | null = null;
+    let rawResponse: string | undefined;
+    let llmStartTime = Date.now();
 
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
-        const response = await this.callGemini(prompt, jsonSchema);
-        const parsed = this.parseAndValidate(response, context);
-        return parsed;
+        llmStartTime = Date.now();
+        rawResponse = await this.callGemini(prompt, jsonSchema);
+        const llmDurationMs = Date.now() - llmStartTime;
+        const parsed = this.parseAndValidate(rawResponse, context);
+
+        return {
+          suggestion: parsed,
+          debugInfo: {
+            fullPrompt: prompt,
+            rawResponse: rawResponse,
+            parsedSuggestion: parsed,
+            model: this.model,
+            llmDurationMs,
+          },
+        };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         console.error(`[GeminiLLMService] Attempt ${attempt}/${this.maxRetries} failed:`, lastError.message);
@@ -220,7 +262,18 @@ export class GeminiLLMService implements ILLMAnalysisService {
     }
 
     console.error('[GeminiLLMService] All retries exhausted, returning fallback');
-    return this.getFallbackSuggestion(context);
+    const fallback = this.getFallbackSuggestion(context);
+
+    return {
+      suggestion: fallback,
+      debugInfo: {
+        fullPrompt: prompt,
+        rawResponse: rawResponse || `LLM failed after ${this.maxRetries} attempts: ${lastError?.message}`,
+        parsedSuggestion: fallback,
+        model: this.model,
+        llmDurationMs: Date.now() - llmStartTime,
+      },
+    };
   }
 
   /**

@@ -28,7 +28,9 @@ import {
   TriageSubmitDecisionJobData,
   TriageBatchPrefetchJobData,
   TriageJobResult,
+  LLMDebugInfo,
 } from '../types';
+import { GeminiLLMService, LLMAnalysisDebugInfo } from '../../llm';
 import { PgBossClient } from '../PgBossClient';
 
 export interface TriageJobHandlerDependencies {
@@ -220,13 +222,14 @@ export class TriageJobHandler {
 
       // Step 4: Generate triage suggestion
       let suggestion: TriageJobResult['suggestion'];
+      let llmDebug: LLMDebugInfo | undefined;
 
       if (this.llmService) {
         // Use LLM for intelligent suggestion generation
         console.log(`[TriageProcessEmail] Using LLM analysis for ${emailId}`);
 
         try {
-          const llmSuggestion = await this.generateLLMSuggestion(
+          const llmResult = await this.generateLLMSuggestion(
             office,
             {
               subject: subject || '',
@@ -235,8 +238,12 @@ export class TriageJobHandler {
               receivedAt: emailReceivedAt?.toISOString() || new Date().toISOString(),
             },
             constituentContext,
-            matchedCases
+            matchedCases,
+            isTestEmail // Include debug info for test emails
           );
+
+          const llmSuggestion = llmResult.suggestion;
+          llmDebug = llmResult.debugInfo;
 
           suggestion = {
             action: this.mapRecommendedAction(llmSuggestion.recommendedAction),
@@ -265,6 +272,9 @@ export class TriageJobHandler {
       }
 
       result.suggestion = suggestion;
+      if (isTestEmail && llmDebug) {
+        result.llmDebug = llmDebug;
+      }
 
       // Step 5: Cache the result for quick UI access
       await this.triageCache.set(emailId, {
@@ -309,8 +319,9 @@ export class TriageJobHandler {
     office: OfficeId,
     emailContent: EmailContentForAnalysis,
     constituentContext: ConstituentContextDto | undefined,
-    matchedCases: Array<{ id: string; externalId: number; summary: string }>
-  ): Promise<TriageSuggestionDto> {
+    matchedCases: Array<{ id: string; externalId: number; summary: string }>,
+    includeDebug: boolean = false
+  ): Promise<{ suggestion: TriageSuggestionDto; debugInfo?: LLMDebugInfo }> {
     if (!this.llmService) {
       throw new Error('LLM service not available');
     }
@@ -374,8 +385,24 @@ export class TriageJobHandler {
       referenceData,
     };
 
-    // Call LLM service
-    return this.llmService.analyzeEmail(triageContext);
+    // Call LLM service - use debug method for test emails
+    if (includeDebug && this.llmService instanceof GeminiLLMService) {
+      const result = await this.llmService.analyzeEmailWithDebug(triageContext);
+      return {
+        suggestion: result.suggestion,
+        debugInfo: result.debugInfo ? {
+          fullPrompt: result.debugInfo.fullPrompt,
+          rawResponse: result.debugInfo.rawResponse,
+          parsedSuggestion: result.debugInfo.parsedSuggestion,
+          model: result.debugInfo.model,
+          llmDurationMs: result.debugInfo.llmDurationMs,
+        } : undefined,
+      };
+    }
+
+    // Standard call without debug info
+    const suggestion = await this.llmService.analyzeEmail(triageContext);
+    return { suggestion };
   }
 
   /**

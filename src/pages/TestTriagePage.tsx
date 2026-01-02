@@ -79,6 +79,27 @@ interface UploadResponse {
   };
 }
 
+interface LLMDebugInfo {
+  fullPrompt: string;
+  rawResponse: string;
+  parsedSuggestion: unknown;
+  model: string;
+  llmDurationMs: number;
+}
+
+interface JobOutput {
+  success?: boolean;
+  emailId?: string;
+  suggestion?: {
+    action: string;
+    confidence: number;
+    reasoning: string;
+  };
+  llmDebug?: LLMDebugInfo;
+  error?: string;
+  durationMs?: number;
+}
+
 interface JobStatus {
   jobId: string;
   state: string;
@@ -86,7 +107,7 @@ interface JobStatus {
   startedAt?: string;
   completedAt?: string;
   retryCount: number;
-  output?: unknown;
+  output?: JobOutput;
 }
 
 interface QueueStatus {
@@ -143,6 +164,13 @@ export default function TestTriagePage() {
   const [pipelineStep, setPipelineStep] = useState<PipelineStep | null>(null);
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
+
+  // Debug state to track data flow
+  const [debugInfo, setDebugInfo] = useState<{
+    step4_received?: { textBodyLength: number; preview: string };
+    step5_setState?: { textBodyLength: number };
+    step6_render?: { hasCurrentParsed: boolean; textBodyLength: number };
+  }>({});
 
   // Get auth token for API calls
   const getAuthToken = useCallback(async () => {
@@ -324,6 +352,13 @@ export default function TestTriagePage() {
 
       const data: UploadResponse = await response.json();
 
+      // STEP 4: Log what the frontend received from the server
+      const step4Info = {
+        textBodyLength: data.data?.parsed?.textBody?.length ?? 0,
+        preview: data.data?.parsed?.textBody?.substring(0, 100) ?? '(empty or missing)',
+      };
+      console.log('[TestTriage Frontend] STEP 4 - Received response from server:', step4Info);
+
       if (!response.ok || !data.success) {
         throw new Error(data.error?.message || 'Upload failed');
       }
@@ -340,6 +375,19 @@ export default function TestTriagePage() {
         actioned: data.data.email.actioned,
         jobId: data.data.jobId,
       });
+
+      // STEP 5: Log what we're setting in state
+      const step5Info = {
+        textBodyLength: data.data.parsed.textBody?.length ?? 0,
+      };
+      console.log('[TestTriage Frontend] STEP 5 - Setting currentParsed state:', step5Info);
+
+      // Update debug info for display in UI
+      setDebugInfo({
+        step4_received: step4Info,
+        step5_setState: step5Info,
+      });
+
       setCurrentParsed(data.data.parsed);
       setPollingJobId(data.data.jobId);
 
@@ -624,6 +672,28 @@ export default function TestTriagePage() {
                 <AlertDescription className="font-mono text-xs">{pipelineError}</AlertDescription>
               </Alert>
             )}
+
+            {/* Debug Panel - Data Flow Tracking */}
+            <div className="mt-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-xs">
+              <h4 className="font-bold text-yellow-800 mb-2">🔍 Debug: Data Flow (check server logs for Steps 1-3)</h4>
+              <div className="space-y-1 font-mono text-yellow-900">
+                <p><strong>STEP 4 (Frontend received):</strong>{' '}
+                  {debugInfo.step4_received
+                    ? `textBodyLength=${debugInfo.step4_received.textBodyLength}, preview="${debugInfo.step4_received.preview}"`
+                    : '(waiting for upload)'}
+                </p>
+                <p><strong>STEP 5 (setState called):</strong>{' '}
+                  {debugInfo.step5_setState
+                    ? `textBodyLength=${debugInfo.step5_setState.textBodyLength}`
+                    : '(waiting)'}
+                </p>
+                <p><strong>STEP 6 (Render state):</strong>{' '}
+                  hasCurrentParsed={String(!!currentParsed)},
+                  textBodyLength={currentParsed?.textBody?.length ?? 0},
+                  textBody="{currentParsed?.textBody?.substring(0, 50) ?? '(null)'}"
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -762,12 +832,81 @@ export default function TestTriagePage() {
                   )}
 
                   {/* Parsed Content Preview */}
-                  {currentParsed && (
-                    <div className="mt-4">
-                      <h4 className="font-medium mb-2">Email Body Preview</h4>
-                      <pre className="p-3 rounded-lg bg-muted text-xs overflow-auto max-h-48">
-                        {currentParsed.textBody}
-                      </pre>
+                  <div className="mt-4">
+                    <h4 className="font-medium mb-2">Email Body Preview</h4>
+                    <pre className="p-3 rounded-lg bg-muted text-xs overflow-auto max-h-48">
+                      {currentParsed?.textBody || '(No email body content available)'}
+                    </pre>
+                  </div>
+
+                  {/* LLM Debug Panel */}
+                  {currentEmail.jobStatus?.output?.llmDebug && (
+                    <div className="mt-6 space-y-4">
+                      <Separator />
+                      <div>
+                        <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                          🤖 LLM Processing Debug
+                          <Badge variant="outline" className="font-normal">
+                            {currentEmail.jobStatus.output.llmDebug.model}
+                          </Badge>
+                          <Badge variant="secondary" className="font-normal">
+                            {currentEmail.jobStatus.output.llmDebug.llmDurationMs}ms
+                          </Badge>
+                        </h3>
+
+                        {/* Suggestion Summary */}
+                        {currentEmail.jobStatus.output.suggestion && (
+                          <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200">
+                            <h4 className="font-medium text-green-800 mb-2">Suggestion</h4>
+                            <div className="text-sm text-green-900 space-y-1">
+                              <p><strong>Action:</strong> {currentEmail.jobStatus.output.suggestion.action}</p>
+                              <p><strong>Confidence:</strong> {Math.round(currentEmail.jobStatus.output.suggestion.confidence * 100)}%</p>
+                              <p><strong>Reasoning:</strong> {currentEmail.jobStatus.output.suggestion.reasoning || '(none)'}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Full Prompt */}
+                        <details className="mb-4">
+                          <summary className="cursor-pointer font-medium text-sm py-2 hover:text-primary">
+                            📝 Full Prompt Sent to LLM ({currentEmail.jobStatus.output.llmDebug.fullPrompt.length} chars)
+                          </summary>
+                          <pre className="mt-2 p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+                            {currentEmail.jobStatus.output.llmDebug.fullPrompt}
+                          </pre>
+                        </details>
+
+                        {/* Raw Response */}
+                        <details className="mb-4">
+                          <summary className="cursor-pointer font-medium text-sm py-2 hover:text-primary">
+                            📤 Raw Response from Gemini ({currentEmail.jobStatus.output.llmDebug.rawResponse.length} chars)
+                          </summary>
+                          <pre className="mt-2 p-3 rounded-lg bg-purple-50 border border-purple-200 text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+                            {currentEmail.jobStatus.output.llmDebug.rawResponse}
+                          </pre>
+                        </details>
+
+                        {/* Parsed Suggestion */}
+                        <details className="mb-4">
+                          <summary className="cursor-pointer font-medium text-sm py-2 hover:text-primary">
+                            ✅ Parsed & Validated Suggestion
+                          </summary>
+                          <pre className="mt-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+                            {JSON.stringify(currentEmail.jobStatus.output.llmDebug.parsedSuggestion, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show message when job completed but no LLM debug (e.g., rule-based fallback) */}
+                  {currentEmail.jobStatus?.state === 'completed' &&
+                   currentEmail.jobStatus.output &&
+                   !currentEmail.jobStatus.output.llmDebug && (
+                    <div className="mt-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                      <p className="text-sm text-yellow-800">
+                        <strong>Note:</strong> No LLM debug info available. The suggestion may have been generated using rule-based fallback instead of LLM analysis.
+                      </p>
                     </div>
                   )}
                 </div>

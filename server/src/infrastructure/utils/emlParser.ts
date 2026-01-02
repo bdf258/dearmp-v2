@@ -64,6 +64,7 @@ export function parseEmlContent(emlContent: string): ParsedEmail {
 
   // Extract body content
   const bodyContent = lines.slice(bodyStartIndex).join('\n');
+
   const { htmlBody, textBody } = extractBodyContent(bodyContent, headers['content-type'] ?? '');
 
   // Parse addresses
@@ -126,8 +127,14 @@ function extractBodyContent(
       const partHeaders: Record<string, string> = {};
       let partBodyStart = 0;
 
-      // Parse part headers
-      for (let i = 0; i < partLines.length; i++) {
+      // Skip leading empty lines (boundary markers are followed by newlines)
+      let headerStartIndex = 0;
+      while (headerStartIndex < partLines.length && (partLines[headerStartIndex]?.trim() ?? '') === '') {
+        headerStartIndex++;
+      }
+
+      // Parse part headers (starting after leading empty lines)
+      for (let i = headerStartIndex; i < partLines.length; i++) {
         const line = partLines[i] ?? '';
         if (line.trim() === '') {
           partBodyStart = i + 1;
