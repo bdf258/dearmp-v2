@@ -227,7 +227,7 @@ function NoteItem({ note, profiles, onAddReply }: NoteItemProps) {
               {getUserName(note.created_by)}
             </span>
             <span className="text-muted-foreground">
-              {formatDate(note.created_at)}
+              {formatDate(note.created_at ?? new Date().toISOString())}
             </span>
           </div>
           <div
@@ -313,7 +313,7 @@ function ReplyItem({ reply, profiles }: ReplyItemProps) {
     <div className="space-y-1">
       <div className="flex items-center gap-2 text-sm">
         <span className="font-medium">{getUserName(reply.created_by)}</span>
-        <span className="text-muted-foreground">{formatDate(reply.created_at)}</span>
+        <span className="text-muted-foreground">{formatDate(reply.created_at ?? new Date().toISOString())}</span>
       </div>
       <div
         className="text-sm prose prose-sm max-w-none"
@@ -347,7 +347,7 @@ export function NotesSection({
       ...note,
       replies: noteReplies
         .filter((reply) => reply.note_id === note.id)
-        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+        .sort((a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()),
     }));
   }, [notes, noteReplies, caseId, campaignId, threadId]);
 

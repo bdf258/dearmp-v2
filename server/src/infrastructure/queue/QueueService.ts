@@ -8,6 +8,7 @@
 import { PgBossClient } from './PgBossClient';
 import {
   JobNames,
+  JobName,
   SyncConstituentsJobData,
   SyncCasesJobData,
   SyncEmailsJobData,
@@ -395,15 +396,15 @@ export class QueueService {
   /**
    * Cancel a specific job
    */
-  async cancelJob(jobId: string): Promise<void> {
-    await this.client.cancel(jobId);
+  async cancelJob(jobName: JobName, jobId: string): Promise<void> {
+    await this.client.cancel(jobName, jobId);
   }
 
   /**
    * Get job details
    */
-  async getJob(jobId: string) {
-    return this.client.getJobById(jobId);
+  async getJob(jobName: JobName, jobId: string) {
+    return this.client.getJobById(jobName, jobId);
   }
 
   /**

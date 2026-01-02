@@ -25,14 +25,49 @@
  * To start in dev mode: npm run worker:dev
  */
 
-// Domain Layer
-export * from './domain';
+// Domain Layer - entities and interfaces
+export * from './domain/entities';
+export * from './domain/value-objects';
+export * from './domain/events';
+export * from './domain/interfaces';
 
-// Application Layer
-export * from './application';
+// Application Layer - services and DTOs
+export * from './application/dtos';
+export * from './application/use-cases';
+export { SyncService, type ILLMAnalysisService } from './application/services';
 
-// Infrastructure Layer
-export * from './infrastructure';
+// Infrastructure Layer - implementations
+export {
+  LegacyApiClient,
+  type ICredentialsRepository,
+} from './infrastructure/api/LegacyApiClient';
+export * from './infrastructure/repositories';
+export * from './infrastructure/adapters';
+export {
+  PgBossClient,
+  createPgBossClient,
+  QueueService,
+  SyncJobHandler,
+  PushJobHandler,
+  TriageJobHandler,
+  ScheduledJobHandler,
+  JobNames,
+  type JobName,
+  type AllJobData,
+  type JobOptions,
+  type SyncJobHandlerDependencies,
+  type PushJobHandlerDependencies,
+  type TriageJobHandlerDependencies,
+  type ScheduledJobHandlerDependencies,
+  type ISyncStatusRepository,
+  type IAuditLogRepository,
+  type ITriageCacheRepository,
+  type IPollStatusRepository,
+  type SyncJobData,
+  type PushJobResult,
+  type TriageJobResult,
+} from './infrastructure/queue';
+export * from './infrastructure/llm';
 
 // Configuration
 export * from './config';

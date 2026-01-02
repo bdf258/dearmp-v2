@@ -168,16 +168,19 @@ async function main() {
   );
 
   // Protected routes (require authentication)
+  // Cast authMiddleware to satisfy Express types (it mutates req to add user/officeId)
+  const typedAuthMiddleware = authMiddleware as unknown as express.RequestHandler;
+
   if (queueService) {
     app.use(
       '/sync',
-      authMiddleware,
+      typedAuthMiddleware,
       createSyncRoutes({ supabase, queueService })
     );
 
     app.use(
       '/triage',
-      authMiddleware,
+      typedAuthMiddleware,
       createTriageRoutes({ supabase, queueService })
     );
   } else {
@@ -205,7 +208,7 @@ async function main() {
 
   app.use(
     '/reference',
-    authMiddleware,
+    typedAuthMiddleware,
     createReferenceDataRoutes({ supabase })
   );
 

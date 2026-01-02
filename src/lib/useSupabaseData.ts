@@ -74,7 +74,7 @@ interface UseSupabaseDataReturn {
 
   // Actions
   refreshData: () => Promise<void>;
-  createCase: (caseData: Omit<CaseInsert, 'office_id'>) => Promise<Case | null>;
+  createCase: (caseData: Omit<CaseInsert, 'office_id' | 'reference_number'>) => Promise<Case | null>;
   updateCase: (id: string, updates: Partial<Case>) => Promise<Case | null>;
   createConstituent: (data: Omit<ConstituentInsert, 'office_id'>) => Promise<Constituent | null>;
   createMessage: (data: Omit<MessageInsert, 'office_id'>) => Promise<Message | null>;
@@ -372,7 +372,7 @@ export function useSupabaseData(): UseSupabaseDataReturn {
   }, [user, fetchData]);
 
   // Actions
-  const createCase = async (caseData: Omit<CaseInsert, 'office_id'>): Promise<Case | null> => {
+  const createCase = async (caseData: Omit<CaseInsert, 'office_id' | 'reference_number'>): Promise<Case | null> => {
     const officeId = getMyOfficeId();
     if (!officeId) return null;
 

@@ -106,20 +106,17 @@ export class TriageJobHandler {
   async register(): Promise<void> {
     await this.client.work<TriageProcessEmailJobData>(
       JobNames.TRIAGE_PROCESS_EMAIL,
-      this.handleProcessEmail.bind(this),
-      { teamSize: 5, teamConcurrency: 2 }
+      this.handleProcessEmail.bind(this)
     );
 
     await this.client.work<TriageSubmitDecisionJobData>(
       JobNames.TRIAGE_SUBMIT_DECISION,
-      this.handleSubmitDecision.bind(this),
-      { teamSize: 3, teamConcurrency: 1 }
+      this.handleSubmitDecision.bind(this)
     );
 
     await this.client.work<TriageBatchPrefetchJobData>(
       JobNames.TRIAGE_BATCH_PREFETCH,
-      this.handleBatchPrefetch.bind(this),
-      { teamSize: 2, teamConcurrency: 1 }
+      this.handleBatchPrefetch.bind(this)
     );
 
     console.log('[TriageJobHandler] Registered all triage job handlers');
@@ -522,7 +519,7 @@ export class TriageJobHandler {
       );
     } else if (decision.constituentId) {
       // Use existing constituent
-      const constituent = await this.constituentRepo.findById(decision.constituentId);
+      const constituent = await this.constituentRepo.findById(office, decision.constituentId);
       constituentExternalId = constituent?.externalId?.toNumber();
     }
 
@@ -630,15 +627,15 @@ export class TriageJobHandler {
 
       // Schedule processing jobs for uncached emails
       const jobs = uncachedIds.map((emailId) => ({
-        name: JobNames.TRIAGE_PROCESS_EMAIL as const,
+        name: JobNames.TRIAGE_PROCESS_EMAIL,
         data: {
-          type: JobNames.TRIAGE_PROCESS_EMAIL as const,
+          type: JobNames.TRIAGE_PROCESS_EMAIL,
           officeId,
           emailId,
           emailExternalId: 0, // Would be looked up
           fromAddress: '', // Would be looked up
           correlationId: job.data.correlationId,
-        },
+        } as TriageProcessEmailJobData,
       }));
 
       await this.client.sendBatch(jobs);

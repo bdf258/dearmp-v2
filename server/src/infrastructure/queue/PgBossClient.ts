@@ -134,18 +134,18 @@ export class PgBossClient {
     jobs: Array<{ name: JobName; data: T; options?: JobOptions }>
   ): Promise<Array<string | null>> {
     const boss = this.getBoss();
-    const batchJobs = jobs.map((job) => ({
-      name: job.name,
-      data: job.data,
-      options: {
+
+    // Send jobs individually and collect results
+    const results: Array<string | null> = [];
+    for (const job of jobs) {
+      const mergedOptions = {
         ...DefaultJobOptions[job.name],
         ...job.options,
-      },
-    }));
-
-    // pg-boss insert returns array of job IDs
-    const results = await boss.insert(batchJobs);
-    return results.map((r) => r.id ?? null);
+      };
+      const jobId = await boss.send(job.name, job.data, mergedOptions);
+      results.push(jobId);
+    }
+    return results;
   }
 
   /**
@@ -181,10 +181,20 @@ export class PgBossClient {
   async work<T extends AllJobData>(
     name: JobName,
     handler: (job: PgBoss.Job<T>) => Promise<void>,
-    options?: PgBoss.WorkOptions
+    options?: { batchSize?: number; pollingIntervalSeconds?: number }
   ): Promise<string> {
     const boss = this.getBoss();
-    return boss.work(name, options ?? { teamSize: 1, teamConcurrency: 1 }, handler);
+    // Wrap handler to handle batch mode (pg-boss now passes arrays)
+    const batchHandler = async (jobs: PgBoss.Job<T>[]) => {
+      for (const job of jobs) {
+        await handler(job);
+      }
+    };
+    const workOptions: PgBoss.WorkOptions = options ? {
+      batchSize: options.batchSize ?? 1,
+      pollingIntervalSeconds: options.pollingIntervalSeconds,
+    } : { batchSize: 1 };
+    return boss.work(name, workOptions, batchHandler as any);
   }
 
   /**
@@ -200,40 +210,41 @@ export class PgBossClient {
    */
   async fetch<T extends AllJobData>(name: JobName): Promise<PgBoss.Job<T> | null> {
     const boss = this.getBoss();
-    return boss.fetch(name);
+    const jobs = await boss.fetch(name) as PgBoss.Job<T>[] | null;
+    return jobs && jobs.length > 0 ? jobs[0] : null;
   }
 
   /**
    * Complete a job successfully
    */
-  async complete(jobId: string, result?: object): Promise<void> {
+  async complete(name: JobName, jobId: string, result?: object): Promise<void> {
     const boss = this.getBoss();
-    await boss.complete(jobId, result);
+    await boss.complete(name, jobId, result);
   }
 
   /**
    * Fail a job
    */
-  async fail(jobId: string, error?: Error | string): Promise<void> {
+  async fail(name: JobName, jobId: string, error?: Error | string): Promise<void> {
     const boss = this.getBoss();
-    const errorData = error instanceof Error ? { message: error.message, stack: error.stack } : { message: error };
-    await boss.fail(jobId, errorData);
+    const errorData = error instanceof Error ? error : new Error(error ?? 'Unknown error');
+    await boss.fail(name, jobId, errorData);
   }
 
   /**
    * Cancel a job
    */
-  async cancel(jobId: string): Promise<void> {
+  async cancel(name: JobName, jobId: string): Promise<void> {
     const boss = this.getBoss();
-    await boss.cancel(jobId);
+    await boss.cancel(name, jobId);
   }
 
   /**
    * Resume a paused job
    */
-  async resume(jobId: string): Promise<void> {
+  async resume(name: JobName, jobId: string): Promise<void> {
     const boss = this.getBoss();
-    await boss.resume(jobId);
+    await boss.resume(name, jobId);
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -243,9 +254,9 @@ export class PgBossClient {
   /**
    * Get a job by ID
    */
-  async getJobById(jobId: string): Promise<PgBoss.Job<AllJobData> | null> {
+  async getJobById(name: JobName, jobId: string): Promise<PgBoss.Job<AllJobData> | null> {
     const boss = this.getBoss();
-    return boss.getJobById(jobId);
+    return boss.getJobById(name, jobId);
   }
 
   /**
