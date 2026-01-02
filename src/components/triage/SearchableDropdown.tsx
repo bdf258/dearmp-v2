@@ -21,7 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Check, ChevronDown, Plus, CheckCircle2, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, Plus, CheckCircle2, HelpCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface DropdownItem {
@@ -30,6 +30,8 @@ export interface DropdownItem {
   secondary?: string;
   badge?: ReactNode;
 }
+
+export type RecognitionStatus = 'confirmed' | 'ai_matched' | 'none';
 
 interface SearchableDropdownProps {
   label?: string;
@@ -40,12 +42,20 @@ interface SearchableDropdownProps {
   onSelect: (id: string | null) => void;
   onCreateNew?: () => void;
   createNewLabel?: string;
+  /** @deprecated Use recognitionStatus instead */
   isRecognized?: boolean;
+  recognitionStatus?: RecognitionStatus;
   disabled?: boolean;
   isLoading?: boolean;
   searchPlaceholder?: string;
   emptyMessage?: string;
   className?: string;
+  /** Remove border from the button for seamless integration */
+  borderless?: boolean;
+  /** Hide secondary text in the button display */
+  hideSecondary?: boolean;
+  /** Custom class for the label element */
+  labelClassName?: string;
 }
 
 export function SearchableDropdown({
@@ -58,12 +68,19 @@ export function SearchableDropdown({
   onCreateNew,
   createNewLabel = 'Create new',
   isRecognized,
+  recognitionStatus,
   disabled,
   isLoading,
   searchPlaceholder,
   emptyMessage = 'No results found.',
   className,
+  borderless,
+  hideSecondary,
+  labelClassName,
 }: SearchableDropdownProps) {
+  // Compute effective recognition status (support legacy isRecognized prop)
+  const effectiveStatus: RecognitionStatus = recognitionStatus
+    ?? (isRecognized ? 'confirmed' : 'none');
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -80,24 +97,34 @@ export function SearchableDropdown({
   const selectedItem = items.find((item) => item.id === selectedId);
 
   return (
-    <div className={cn('space-y-2', className)}>
-      {label && <label className="text-sm font-medium">{label}</label>}
-      <div className="flex items-center gap-2">
+    <div className={cn('space-y-2 min-w-0', className)}>
+      {label && <label className={cn('text-sm font-medium', labelClassName)}>{label}</label>}
+      <div className="flex items-center gap-2 min-w-0">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
-              variant="outline"
+              variant={borderless ? 'ghost' : 'outline'}
               role="combobox"
               aria-expanded={open}
               disabled={disabled || isLoading}
-              className="flex-1 justify-between h-10 min-w-0"
+              className={cn(
+                'flex-1 justify-between h-auto min-h-10 py-2 min-w-0',
+                borderless && 'border-0 hover:bg-transparent px-0'
+              )}
             >
-              <span className="flex items-center gap-2 truncate min-w-0">
+              <span className="flex items-center gap-2 min-w-0 flex-1">
                 {icon && <span className="shrink-0">{icon}</span>}
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : selectedItem ? (
-                  <span className="truncate">{selectedItem.name}</span>
+                  <span className="flex flex-col items-start min-w-0 flex-1">
+                    <span className="truncate w-full text-left">{selectedItem.name}</span>
+                    {!hideSecondary && selectedItem.secondary && (
+                      <span className="text-xs text-muted-foreground truncate w-full text-left">
+                        {selectedItem.secondary}
+                      </span>
+                    )}
+                  </span>
                 ) : (
                   <span className="text-muted-foreground truncate">{placeholder}</span>
                 )}
@@ -172,8 +199,11 @@ export function SearchableDropdown({
             </Command>
           </PopoverContent>
         </Popover>
-        {isRecognized && selectedId && (
+        {selectedId && effectiveStatus === 'confirmed' && (
           <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+        )}
+        {selectedId && effectiveStatus === 'ai_matched' && (
+          <HelpCircle className="h-5 w-5 text-orange-500 shrink-0" />
         )}
       </div>
     </div>

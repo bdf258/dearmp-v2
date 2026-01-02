@@ -18,6 +18,10 @@ interface PrioritySelectorProps {
   label?: string;
   className?: string;
   size?: 'sm' | 'default';
+  /** Remove border for seamless integration */
+  borderless?: boolean;
+  /** Custom class for the label element */
+  labelClassName?: string;
 }
 
 const priorities: { key: CasePriority; label: string; shortLabel: string; color: string }[] = [
@@ -34,6 +38,8 @@ export function PrioritySelector({
   label = 'Priority',
   className,
   size = 'default',
+  borderless,
+  labelClassName,
 }: PrioritySelectorProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [optimisticValue, setOptimisticValue] = useState<CasePriority | null>(null);
@@ -61,9 +67,10 @@ export function PrioritySelector({
 
   return (
     <div className={cn('space-y-2', className)}>
-      {label && <Label className="text-sm font-medium">{label}</Label>}
+      {label && <Label className={cn('text-sm font-medium', labelClassName)}>{label}</Label>}
       <div className={cn(
-        'flex border rounded-md overflow-hidden relative',
+        'flex rounded-md overflow-hidden relative',
+        !borderless && 'border',
         disabled && 'opacity-50 cursor-not-allowed'
       )}>
         {isUpdating && (

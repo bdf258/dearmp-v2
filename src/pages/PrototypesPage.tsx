@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Layers, Mail, FolderOpen, LayoutDashboard } from 'lucide-react';
+import { ArrowRight, Layers, Mail, FolderOpen, LayoutDashboard, Component } from 'lucide-react';
 
 interface PrototypeLink {
   path: string;
@@ -65,18 +65,26 @@ const prototypes: PrototypeLink[] = [
     description: 'Alternative dashboard layout and design',
     category: 'Dashboard',
   },
+  {
+    path: '/prototypes/components',
+    title: 'Component Library',
+    description: 'All triage workspace components in their various states (empty, AI, approved)',
+    category: 'Components',
+  },
 ];
 
 const categoryIcons: Record<string, React.ReactNode> = {
   Triage: <Mail className="h-4 w-4" />,
   Case: <FolderOpen className="h-4 w-4" />,
   Dashboard: <LayoutDashboard className="h-4 w-4" />,
+  Components: <Component className="h-4 w-4" />,
 };
 
 const categoryColors: Record<string, string> = {
   Triage: 'bg-blue-100 text-blue-700 border-blue-200',
   Case: 'bg-purple-100 text-purple-700 border-purple-200',
   Dashboard: 'bg-green-100 text-green-700 border-green-200',
+  Components: 'bg-orange-100 text-orange-700 border-orange-200',
 };
 
 export default function PrototypesPage() {

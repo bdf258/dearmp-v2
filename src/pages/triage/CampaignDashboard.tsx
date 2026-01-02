@@ -274,6 +274,10 @@ function CampaignInbox({
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<'approve' | 'reject' | 'confirm' | 'not_campaign' | null>(null);
 
+  // Track confirmed/rejected status for visual feedback (like DashboardPrototype)
+  const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
+  const [rejectedIds, setRejectedIds] = useState<Set<string>>(new Set());
+
   // Menubar state - Assignee & Tags for bulk operations
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string>('');
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -381,6 +385,8 @@ function CampaignInbox({
         constituentId: message.senderConstituent.id,
       });
       if (result.success) {
+        // Mark as confirmed for visual feedback
+        setConfirmedIds(prev => new Set(prev).add(messageId));
         toast.success('Message confirmed');
         // Move to next message
         const currentIndex = messages.findIndex(m => m.id === messageId);
@@ -402,6 +408,8 @@ function CampaignInbox({
     setActionInProgress('not_campaign');
     const result = await bulkDismissTriage([messageId], 'Not a campaign email');
     if (result.success) {
+      // Mark as rejected for visual feedback
+      setRejectedIds(prev => new Set(prev).add(messageId));
       toast.success('Message marked as not a campaign email');
       // Move to next message
       const currentIndex = messages.findIndex(m => m.id === messageId);
@@ -650,7 +658,11 @@ function CampaignInbox({
                       key={message.id}
                       className={cn(
                         'px-3 py-2 cursor-pointer transition-colors flex items-center gap-2',
-                        selectedMessageId === message.id
+                        confirmedIds.has(message.id)
+                          ? 'bg-green-100'
+                          : rejectedIds.has(message.id)
+                          ? 'bg-red-50 opacity-50'
+                          : selectedMessageId === message.id
                           ? 'bg-blue-100'
                           : 'hover:bg-muted'
                       )}

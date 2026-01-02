@@ -23,14 +23,36 @@ export function isAllowedOrigin(origin: string | null): boolean {
 
 /**
  * Get CORS headers for a specific origin
+ * Returns null if origin is not allowed, forcing the caller to handle rejection
  */
-export function getCorsHeaders(origin: string | null): Record<string, string> {
-  const allowedOrigin = origin && isAllowedOrigin(origin) ? origin : 'https://dearmp.uk';
+export function getCorsHeaders(origin: string | null): Record<string, string> | null {
+  // Reject requests without a valid origin header to prevent CORS bypass attacks
+  // where attackers omit the Origin header to get a default allowed origin
+  if (!origin || !isAllowedOrigin(origin)) {
+    return null;
+  }
   return {
-    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
     'Access-Control-Allow-Credentials': 'true',
+    'Vary': 'Origin',
+  };
+}
+
+/**
+ * Get CORS headers with fallback for non-browser clients (e.g., server-to-server)
+ * Use this only for endpoints that must support non-browser access
+ */
+export function getCorsHeadersWithFallback(origin: string | null): Record<string, string> {
+  const headers = getCorsHeaders(origin);
+  if (headers) return headers;
+  // For non-browser clients, return restrictive CORS that doesn't expose credentials
+  return {
+    'Access-Control-Allow-Origin': 'https://dearmp.uk',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+    'Access-Control-Allow-Credentials': 'false',  // No credentials for unknown origins
     'Vary': 'Origin',
   };
 }
@@ -46,12 +68,24 @@ export const corsHeaders = {
 
 /**
  * Create a JSON response with CORS headers
+ * Returns 403 if origin is not allowed
  */
 export function jsonResponse(data: unknown, status = 200, origin?: string | null): Response {
+  const corsHeaders = getCorsHeaders(origin ?? null);
+  if (!corsHeaders) {
+    // Origin not allowed - return forbidden
+    return new Response(JSON.stringify({ error: 'Origin not allowed', success: false }), {
+      status: 403,
+      headers: {
+        'Content-Type': 'application/json',
+        'Vary': 'Origin',
+      },
+    });
+  }
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      ...getCorsHeaders(origin ?? null),
+      ...corsHeaders,
       'Content-Type': 'application/json',
     },
   });
@@ -66,11 +100,19 @@ export function errorResponse(message: string, status = 400, origin?: string | n
 
 /**
  * Handle CORS preflight requests
+ * Returns 403 for disallowed origins
  */
 export function handleCors(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
     const origin = req.headers.get('Origin');
-    return new Response('ok', { headers: getCorsHeaders(origin) });
+    const corsHeaders = getCorsHeaders(origin);
+    if (!corsHeaders) {
+      return new Response('Forbidden', {
+        status: 403,
+        headers: { 'Vary': 'Origin' },
+      });
+    }
+    return new Response('ok', { headers: corsHeaders });
   }
   return null;
 }

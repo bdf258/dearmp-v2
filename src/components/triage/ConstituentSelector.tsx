@@ -7,7 +7,7 @@
 
 import { useMemo } from 'react';
 import { useSupabase } from '@/lib/SupabaseContext';
-import { SearchableDropdown, type DropdownItem } from './SearchableDropdown';
+import { SearchableDropdown, type DropdownItem, type RecognitionStatus } from './SearchableDropdown';
 import { User, Mail, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -15,10 +15,20 @@ interface ConstituentSelectorProps {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onCreateNew?: () => void;
+  /** @deprecated Use recognitionStatus instead */
   isRecognized?: boolean;
+  recognitionStatus?: RecognitionStatus;
   disabled?: boolean;
   label?: string;
   className?: string;
+  /** Remove border from the button for seamless integration */
+  borderless?: boolean;
+  /** Hide secondary text (email/address) in the button display */
+  hideSecondary?: boolean;
+  /** Custom placeholder text to override default */
+  placeholder?: string;
+  /** Custom class for the label element */
+  labelClassName?: string;
 }
 
 export function ConstituentSelector({
@@ -26,9 +36,14 @@ export function ConstituentSelector({
   onSelect,
   onCreateNew,
   isRecognized,
+  recognitionStatus,
   disabled,
   label = 'Constituent',
   className,
+  borderless,
+  hideSecondary,
+  placeholder = 'Select constituent',
+  labelClassName,
 }: ConstituentSelectorProps) {
   const { constituents, constituentContacts } = useSupabase();
 
@@ -40,10 +55,15 @@ export function ConstituentSelector({
       const email = primaryEmail?.value || contacts.find(cc => cc.type === 'email')?.value;
       const address = contacts.find(cc => cc.type === 'address')?.value;
 
+      // Build secondary text showing email and address
+      const parts: string[] = [];
+      if (email) parts.push(email);
+      if (address) parts.push(address);
+
       return {
         id: c.id,
         name: c.full_name,
-        secondary: email || address,
+        secondary: parts.join(' • '),
       };
     });
   }, [constituents, constituentContacts]);
@@ -52,17 +72,21 @@ export function ConstituentSelector({
     <SearchableDropdown
       label={label}
       icon={<User className="h-4 w-4 text-muted-foreground" />}
-      placeholder="Select constituent"
+      placeholder={placeholder}
       items={items}
       selectedId={selectedId}
       onSelect={onSelect}
       onCreateNew={onCreateNew}
       createNewLabel="Create new constituent"
       isRecognized={isRecognized}
+      recognitionStatus={recognitionStatus}
       disabled={disabled}
       searchPlaceholder="Search by name or email..."
       emptyMessage="No constituents found"
       className={className}
+      borderless={borderless}
+      hideSecondary={hideSecondary}
+      labelClassName={labelClassName}
     />
   );
 }

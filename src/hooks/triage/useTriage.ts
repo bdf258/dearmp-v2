@@ -14,6 +14,8 @@ import type {
   Constituent,
   Campaign,
   CasePriority,
+  CaseStatus,
+  CaseType,
 } from '@/lib/database.types';
 
 // ============= TYPES =============
@@ -73,7 +75,12 @@ export function useTriageQueue(filters?: TriageQueueFilters) {
 
     // Apply campaign filter
     if (filters?.campaignId) {
+      // When filtering by campaign, only show that campaign's messages
       filtered = filtered.filter(m => m.campaign_id === filters.campaignId);
+    } else {
+      // When no campaign filter, exclude messages that belong to campaigns
+      // Campaign messages should only appear in the campaign triage section
+      filtered = filtered.filter(m => !m.campaign_id);
     }
 
     // Enrich with recipient and constituent data
@@ -116,6 +123,12 @@ export function useTriageQueue(filters?: TriageQueueFilters) {
         constituentStatus,
         addressFromEmail,
       } as TriageMessage;
+    })
+    // Sort by received_at ascending (oldest first) so triage starts with oldest emails
+    .sort((a, b) => {
+      const dateA = new Date(a.received_at || 0).getTime();
+      const dateB = new Date(b.received_at || 0).getTime();
+      return dateA - dateB;
     });
   }, [messages, messageRecipients, constituents, constituentContacts, filters, getMyOfficeId]);
 
@@ -353,14 +366,22 @@ export function useTriageActions() {
   // Create new case and link message
   const createCaseForMessage = useCallback(async (
     messageId: string,
-    caseData: { title: string; description?: string; priority?: CasePriority; assigned_to?: string }
+    caseData: {
+      title: string;
+      description?: string;
+      priority?: CasePriority;
+      assigned_to?: string;
+      status?: CaseStatus;
+      case_type?: CaseType;
+      review_date?: string;
+    }
   ): Promise<{ success: boolean; caseId?: string; error?: string }> => {
     setIsProcessing(true);
     try {
       const userId = getCurrentUserId();
       const newCase = await createCase({
         ...caseData,
-        status: 'open',
+        status: caseData.status || 'open',
         created_by: userId || undefined,
       });
       if (!newCase) throw new Error('Failed to create case');

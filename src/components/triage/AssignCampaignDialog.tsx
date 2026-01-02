@@ -178,9 +178,14 @@ export function AssignCampaignDialog({
 
     setIsProcessing(true);
     try {
+      // Get fingerprint from the current message
+      const currentMessage = messages.find(m => m.id === messageId);
+      const fingerprint = currentMessage?.fingerprint_hash || undefined;
+
       const campaign = await createCampaign({
         name: newCampaignName.trim(),
         subject_pattern: messageSubject || undefined,
+        fingerprint_hash: fingerprint,
       });
 
       if (!campaign) {
@@ -195,7 +200,7 @@ export function AssignCampaignDialog({
       toast.error('Failed to create campaign');
       setIsProcessing(false);
     }
-  }, [newCampaignName, messageSubject, createCampaign, handleSelectCampaign]);
+  }, [newCampaignName, messageSubject, messageId, messages, createCampaign, handleSelectCampaign]);
 
   // Handle bulk assignment
   const handleBulkAssign = useCallback(async () => {

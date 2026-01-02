@@ -1,9 +1,20 @@
+import { useNavigate } from 'react-router-dom';
 import { useSupabase } from '@/lib/SupabaseContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { FileText, Users, Mail, Flag } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FileText, Users, Mail, Flag, Inbox } from 'lucide-react';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { cases, constituents, messages, campaigns, currentOfficeMode } = useSupabase();
+
+  // Count emails needing triage (inbound messages without case or campaign)
+  const emailsToTriage = messages.filter(m =>
+    m.direction === 'inbound' &&
+    !m.case_id &&
+    !m.campaign_id &&
+    (m.triage_status === 'pending' || m.triage_status === 'triaged' || m.triage_status === null)
+  ).length;
 
   const stats = [
     {
@@ -59,6 +70,30 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      {/* Start Triage Button */}
+      {emailsToTriage > 0 && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-full bg-primary/10 p-2">
+                <Inbox className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium">
+                  {emailsToTriage} {emailsToTriage === 1 ? 'email' : 'emails'} to triage
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Start with the oldest email first
+                </p>
+              </div>
+            </div>
+            <Button onClick={() => navigate('/triage/next')}>
+              Start Triage
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent Activity */}
       <div className="grid gap-4 md:grid-cols-2">

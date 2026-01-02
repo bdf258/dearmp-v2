@@ -22,6 +22,14 @@ interface CaseSelectorProps {
   disabled?: boolean;
   label?: string;
   className?: string;
+  /** Remove border from the button for seamless integration */
+  borderless?: boolean;
+  /** Hide secondary text in the button display */
+  hideSecondary?: boolean;
+  /** Custom placeholder text to override default */
+  placeholder?: string;
+  /** Custom class for the label element */
+  labelClassName?: string;
 }
 
 const statusColors: Record<string, string> = {
@@ -39,6 +47,10 @@ export function CaseSelector({
   disabled,
   label = 'Case',
   className,
+  borderless,
+  hideSecondary,
+  placeholder = 'Select or create case',
+  labelClassName,
 }: CaseSelectorProps) {
   const { cases, caseParties } = useSupabase();
 
@@ -61,27 +73,40 @@ export function CaseSelector({
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-    return sortedCases.map((c) => ({
-      id: c.id,
-      name: c.title,
-      secondary: c.reference_number ? `#${c.reference_number}` : undefined,
-      badge: (
-        <div className="flex gap-1">
-          {c.status && (
-            <Badge variant="outline" className={cn('text-xs py-0', statusColors[c.status])}>
-              {c.status}
-            </Badge>
-          )}
-        </div>
-      ),
-    }));
+    return sortedCases.map((c) => {
+      // Build secondary text with reference number and truncated description
+      const parts: string[] = [];
+      if (c.reference_number) parts.push(`#${c.reference_number}`);
+      if (c.description) {
+        // Truncate description to ~60 chars
+        const truncated = c.description.length > 60
+          ? c.description.slice(0, 60).trim() + '…'
+          : c.description;
+        parts.push(truncated);
+      }
+
+      return {
+        id: c.id,
+        name: c.title,
+        secondary: parts.join(' • ') || undefined,
+        badge: (
+          <div className="flex gap-1">
+            {c.status && (
+              <Badge variant="outline" className={cn('text-xs py-0', statusColors[c.status])}>
+                {c.status}
+              </Badge>
+            )}
+          </div>
+        ),
+      };
+    });
   }, [cases, caseParties, constituentId]);
 
   return (
     <SearchableDropdown
       label={label}
       icon={<Briefcase className="h-4 w-4 text-muted-foreground" />}
-      placeholder="Select or create case"
+      placeholder={placeholder}
       items={items}
       selectedId={selectedId}
       onSelect={onSelect}
@@ -91,6 +116,9 @@ export function CaseSelector({
       searchPlaceholder="Search cases..."
       emptyMessage="No cases found"
       className={className}
+      borderless={borderless}
+      hideSecondary={hideSecondary}
+      labelClassName={labelClassName}
     />
   );
 }
