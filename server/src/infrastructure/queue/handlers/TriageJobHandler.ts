@@ -132,11 +132,11 @@ export class TriageJobHandler {
   private async handleProcessEmail(
     job: PgBoss.Job<TriageProcessEmailJobData>
   ): Promise<void> {
-    const { officeId, emailId, emailExternalId, fromAddress, subject } = job.data;
+    const { officeId, emailId, emailExternalId, fromAddress, subject, isTestEmail } = job.data;
     const startTime = Date.now();
     const office = OfficeId.create(officeId);
 
-    console.log(`[TriageProcessEmail] Processing email ${emailId} from: ${fromAddress}`);
+    console.log(`[TriageProcessEmail] Processing email ${emailId} from: ${fromAddress}${isTestEmail ? ' (TEST)' : ''}`);
 
     const result: TriageJobResult = {
       success: false,
@@ -145,15 +145,25 @@ export class TriageJobHandler {
     };
 
     try {
-      // Step 1: Fetch the full email from repository
-      const email = await this.emailRepo.findByExternalId(office, ExternalId.create(emailExternalId));
-      const emailBody = email?.htmlBody || '';
+      // Step 1: Fetch the full email from repository (skip for test emails - they don't exist in legacy)
+      let emailBody = '';
+      let emailReceivedAt: Date | undefined;
+      if (!isTestEmail) {
+        const email = await this.emailRepo.findByExternalId(office, ExternalId.create(emailExternalId));
+        emailBody = email?.htmlBody || '';
+        emailReceivedAt = email?.receivedAt;
+      }
 
-      // Step 2: Find constituent matches via legacy API
-      const constituentMatches = await this.legacyApi.findConstituentMatches(
-        office,
-        { email: fromAddress }
-      );
+      // Step 2: Find constituent matches via legacy API (skip for test emails)
+      let constituentMatches: Awaited<ReturnType<typeof this.legacyApi.findConstituentMatches>> = [];
+      if (!isTestEmail) {
+        constituentMatches = await this.legacyApi.findConstituentMatches(
+          office,
+          { email: fromAddress }
+        );
+      } else {
+        console.log(`[TriageProcessEmail] Skipping legacy API for test email ${emailId}`);
+      }
 
       let matchedConstituent: TriageJobResult['matchedConstituent'];
       let matchedCases: Array<{ id: string; externalId: number; summary: string }> = [];
@@ -218,7 +228,7 @@ export class TriageJobHandler {
               subject: subject || '',
               body: this.extractPlainTextFromHtml(emailBody),
               senderEmail: fromAddress,
-              receivedAt: email?.receivedAt?.toISOString() || new Date().toISOString(),
+              receivedAt: emailReceivedAt?.toISOString() || new Date().toISOString(),
             },
             constituentContext,
             matchedCases

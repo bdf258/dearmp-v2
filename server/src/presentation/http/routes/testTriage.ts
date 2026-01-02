@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { AuthenticatedRequest, ApiResponse, ApiError } from '../types';
 import { requireCaseworker } from '../middleware';
-import { QueueService } from '../../../infrastructure/queue';
+import { QueueService, JobNames } from '../../../infrastructure/queue';
 import { parseEmlContent, ParsedEmail } from '../../../infrastructure/utils/emlParser';
 import { sanitizeEmailHtml } from '../utils';
 
@@ -79,7 +79,7 @@ export function createTestTriageRoutes({
       try {
         parsed = parseEmlContent(body.emlContent);
       } catch (parseError) {
-        throw ApiError.badRequest(
+        throw ApiError.validation(
           'Failed to parse EML content',
           { error: parseError instanceof Error ? parseError.message : 'Unknown parse error' }
         );
@@ -87,7 +87,7 @@ export function createTestTriageRoutes({
 
       // Validate parsed email has required fields
       if (!parsed.fromAddress) {
-        throw ApiError.badRequest('EML file must contain a From address');
+        throw ApiError.validation('EML file must contain a From address');
       }
 
       // Generate a unique external ID for this test email
@@ -115,18 +115,29 @@ export function createTestTriageRoutes({
       let emailRecord: TestEmailRecord;
 
       if (!body.skipDatabase) {
-        // Insert test email into database (legacy.emails table)
-        const { data: insertedEmail, error: insertError } = await supabase
-          .from('legacy.emails')
-          .insert(emailData)
-          .select('*')
-          .single();
+        // Insert test email using RPC function (since legacy schema isn't exposed via REST API)
+        // NOTE: We pass office_id explicitly because the server uses service role key,
+        // and auth.uid() returns NULL in that context. The authMiddleware has already
+        // validated that the user belongs to this office.
+        const { data: insertedEmails, error: insertError } = await supabase
+          .rpc('insert_legacy_test_email', {
+            p_office_id: officeId,
+            p_external_id: testExternalId,
+            p_subject: parsed.subject || null,
+            p_html_body: parsed.htmlBody || null,
+            p_from_address: parsed.fromAddress,
+            p_to_addresses: parsed.toAddresses.length > 0 ? parsed.toAddresses : null,
+            p_cc_addresses: parsed.ccAddresses.length > 0 ? parsed.ccAddresses : null,
+            p_bcc_addresses: parsed.bccAddresses.length > 0 ? parsed.bccAddresses : null,
+            p_received_at: parsed.receivedAt.toISOString(),
+          });
 
         if (insertError) {
           console.error('[TestTriage] Failed to insert test email:', insertError);
-          throw ApiError.internal('Failed to create test email record', { error: insertError.message });
+          throw ApiError.internal(`Failed to create test email record: ${insertError.message}`);
         }
 
+        const insertedEmail = Array.isArray(insertedEmails) ? insertedEmails[0] : insertedEmails;
         emailRecord = insertedEmail as TestEmailRecord;
         emailId = emailRecord.id;
 
@@ -153,29 +164,18 @@ export function createTestTriageRoutes({
       }
 
       // Queue the email for triage processing using the SAME pipeline as real emails
+      // (but skip legacy API calls for test emails)
       const jobId = await queueService.scheduleEmailProcessing(officeId, {
         emailId,
         emailExternalId: testExternalId,
         fromAddress: parsed.fromAddress,
         subject: parsed.subject,
+        isTestEmail: true,
       });
 
       console.log(`[TestTriage] Queued triage job ${jobId} for test email ${emailId}`);
 
-      // Log the test email creation in audit log
-      await supabase.from('legacy.sync_audit_log').insert({
-        office_id: officeId,
-        entity_type: 'test_email_triage',
-        operation: 'create',
-        new_data: {
-          emailId,
-          jobId,
-          subject: parsed.subject,
-          fromAddress: parsed.fromAddress,
-          isTest: true,
-          createdBy: authReq.user.id,
-        },
-      });
+      // Note: Audit logging skipped for test emails (legacy schema not exposed via REST API)
 
       const response: ApiResponse = {
         success: true,
@@ -228,26 +228,36 @@ export function createTestTriageRoutes({
       const { jobId } = req.params;
 
       if (!jobId) {
-        throw ApiError.badRequest('Job ID is required');
+        throw ApiError.validation('Job ID is required');
       }
 
       // Get job status from queue service
-      const job = await queueService.getJob(jobId);
+      const job = await queueService.getJob(JobNames.TRIAGE_PROCESS_EMAIL, jobId);
 
       if (!job) {
         throw ApiError.notFound('Job not found');
       }
 
+      // pg-boss JobWithMetadata uses camelCase properties
+      const jobWithMeta = job as unknown as {
+        state: string;
+        createdOn: Date;
+        startedOn: Date | null;
+        completedOn: Date | null;
+        retryCount: number;
+        output: unknown;
+      };
+
       const response: ApiResponse = {
         success: true,
         data: {
           jobId,
-          state: job.state,
-          createdAt: job.createdon,
-          startedAt: job.startedon,
-          completedAt: job.completedon,
-          retryCount: job.retrycount,
-          output: job.output,
+          state: jobWithMeta.state,
+          createdAt: jobWithMeta.createdOn?.toISOString?.() ?? null,
+          startedAt: jobWithMeta.startedOn?.toISOString?.() ?? null,
+          completedAt: jobWithMeta.completedOn?.toISOString?.() ?? null,
+          retryCount: jobWithMeta.retryCount ?? 0,
+          output: jobWithMeta.output,
         },
       };
 
@@ -266,45 +276,42 @@ export function createTestTriageRoutes({
    */
   const getEmailHandler: RequestHandler = async (req, res, next) => {
     try {
-      const authReq = req as AuthenticatedRequest;
       const { emailId } = req.params;
-      const officeId = authReq.officeId;
 
       if (!emailId) {
-        throw ApiError.badRequest('Email ID is required');
+        throw ApiError.validation('Email ID is required');
       }
 
-      const { data: email, error } = await supabase
-        .from('legacy.emails')
-        .select('*')
-        .eq('id', emailId)
-        .eq('office_id', officeId)
-        .single();
+      // Use existing RPC function since legacy schema isn't exposed via REST API
+      // NOTE: We pass office_id explicitly because the server uses service role key
+      const authReq = req as AuthenticatedRequest;
+      const officeId = authReq.officeId;
+      const { data: emails, error } = await supabase
+        .rpc('get_legacy_email_details', { p_office_id: officeId, p_email_id: emailId });
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
 
+      const email = Array.isArray(emails) ? emails[0] : emails;
       if (!email) {
         throw ApiError.notFound('Test email not found');
       }
 
-      const emailRecord = email as TestEmailRecord;
-
       const response: ApiResponse = {
         success: true,
         data: {
-          id: emailRecord.id,
-          officeId: emailRecord.office_id,
-          externalId: emailRecord.external_id,
-          subject: emailRecord.subject,
-          htmlBody: sanitizeEmailHtml(emailRecord.html_body),
-          fromAddress: emailRecord.from_address,
-          toAddresses: emailRecord.to_addresses,
-          ccAddresses: emailRecord.cc_addresses,
-          type: emailRecord.type,
-          actioned: emailRecord.actioned,
-          receivedAt: emailRecord.received_at,
-          createdAt: emailRecord.created_at,
-          isTestEmail: emailRecord.is_test_email || false,
+          id: email.id,
+          officeId: email.office_id,
+          externalId: email.external_id,
+          subject: email.subject,
+          htmlBody: sanitizeEmailHtml(email.html_body),
+          fromAddress: email.from_address,
+          toAddresses: email.to_addresses,
+          ccAddresses: email.cc_addresses,
+          type: email.type,
+          actioned: email.actioned,
+          receivedAt: email.received_at,
+          createdAt: email.created_at,
+          isTestEmail: true,
         },
       };
 
@@ -324,53 +331,31 @@ export function createTestTriageRoutes({
    */
   const deleteHandler: RequestHandler = async (req, res, next) => {
     try {
-      const authReq = req as AuthenticatedRequest;
       const { emailId } = req.params;
-      const officeId = authReq.officeId;
 
       if (!emailId) {
-        throw ApiError.badRequest('Email ID is required');
+        throw ApiError.validation('Email ID is required');
       }
 
-      // First verify this is a test email
-      const { data: email, error: fetchError } = await supabase
-        .from('legacy.emails')
-        .select('id, is_test_email')
-        .eq('id', emailId)
-        .eq('office_id', officeId)
-        .single();
+      // Use RPC function since legacy schema isn't exposed via REST API
+      // NOTE: We pass office_id explicitly because the server uses service role key
+      const authReq = req as AuthenticatedRequest;
+      const officeId = authReq.officeId;
+      const { data: results, error } = await supabase
+        .rpc('delete_legacy_test_email', { p_office_id: officeId, p_email_id: emailId });
 
-      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+      if (error) throw error;
 
-      if (!email) {
-        throw ApiError.notFound('Email not found');
+      const result = Array.isArray(results) ? results[0] : results;
+
+      if (!result?.success) {
+        if (result?.error === 'Email not found') {
+          throw ApiError.notFound('Email not found');
+        } else if (result?.error?.includes('non-test')) {
+          throw ApiError.forbidden('Cannot delete non-test emails through this endpoint');
+        }
+        throw ApiError.internal(result?.error || 'Failed to delete email');
       }
-
-      const emailRecord = email as { id: string; is_test_email: boolean };
-
-      if (!emailRecord.is_test_email) {
-        throw ApiError.forbidden('Cannot delete non-test emails through this endpoint');
-      }
-
-      // Delete the test email
-      const { error: deleteError } = await supabase
-        .from('legacy.emails')
-        .delete()
-        .eq('id', emailId)
-        .eq('office_id', officeId);
-
-      if (deleteError) throw deleteError;
-
-      // Log the deletion
-      await supabase.from('legacy.sync_audit_log').insert({
-        office_id: officeId,
-        entity_type: 'test_email_triage',
-        operation: 'delete',
-        new_data: {
-          emailId,
-          deletedBy: authReq.user.id,
-        },
-      });
 
       console.log(`[TestTriage] Deleted test email ${emailId}`);
 
@@ -397,22 +382,18 @@ export function createTestTriageRoutes({
    */
   const listHandler: RequestHandler = async (req, res, next) => {
     try {
+      // Use RPC function since legacy schema isn't exposed via REST API
+      // NOTE: We pass office_id explicitly because the server uses service role key
       const authReq = req as AuthenticatedRequest;
       const officeId = authReq.officeId;
-
       const { data: emails, error } = await supabase
-        .from('legacy.emails')
-        .select('*')
-        .eq('office_id', officeId)
-        .eq('is_test_email', true)
-        .order('created_at', { ascending: false })
-        .limit(50);
+        .rpc('get_legacy_test_emails', { p_office_id: officeId, p_limit: 50 });
 
       if (error) throw error;
 
       const response: ApiResponse = {
         success: true,
-        data: (emails || []).map((email: TestEmailRecord) => ({
+        data: (emails || []).map((email: { id: string; office_id: string; external_id: number; subject: string | null; from_address: string | null; actioned: boolean; received_at: string | null; created_at: string }) => ({
           id: email.id,
           officeId: email.office_id,
           externalId: email.external_id,
@@ -445,31 +426,30 @@ export function createTestTriageRoutes({
       const officeId = authReq.officeId;
 
       if (!emailId) {
-        throw ApiError.badRequest('Email ID is required');
+        throw ApiError.validation('Email ID is required');
       }
 
-      // Get the email
-      const { data: email, error } = await supabase
-        .from('legacy.emails')
-        .select('*')
-        .eq('id', emailId)
-        .eq('office_id', officeId)
-        .single();
+      // Get the email using RPC function
+      // NOTE: We pass office_id explicitly because the server uses service role key
+      const { data: emails, error } = await supabase
+        .rpc('get_legacy_email_details', { p_office_id: officeId, p_email_id: emailId });
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
 
+      const email = Array.isArray(emails) ? emails[0] : emails;
       if (!email) {
         throw ApiError.notFound('Email not found');
       }
 
-      const emailRecord = email as TestEmailRecord;
+      const emailRecord = email as { external_id: number; from_address: string | null; subject: string | null };
 
-      // Queue for reprocessing
+      // Queue for reprocessing (skip legacy API calls for test emails)
       const jobId = await queueService.scheduleEmailProcessing(officeId, {
         emailId,
         emailExternalId: emailRecord.external_id,
         fromAddress: emailRecord.from_address || '',
         subject: emailRecord.subject || undefined,
+        isTestEmail: true,
       });
 
       console.log(`[TestTriage] Re-queued triage job ${jobId} for email ${emailId}`);
@@ -490,6 +470,48 @@ export function createTestTriageRoutes({
   };
 
   router.post('/process/:emailId', requireCaseworker as RequestHandler, reprocessHandler);
+
+  /**
+   * GET /test-triage/queue-status
+   *
+   * Get the current status of the job queue to help diagnose processing issues.
+   * Returns queue health, pending job counts, and worker status.
+   */
+  const queueStatusHandler: RequestHandler = async (_req, res, next) => {
+    try {
+      // Check queue health
+      const healthCheck = await queueService.healthCheck();
+
+      // Get queue sizes for relevant queues
+      const queues: Record<string, number> = {};
+      try {
+        queues['triage:process-email'] = await queueService.getQueueSize('TRIAGE_PROCESS_EMAIL');
+        queues['triage:submit-decision'] = await queueService.getQueueSize('TRIAGE_SUBMIT_DECISION');
+      } catch {
+        // Queue size fetch failed - worker might not be connected
+      }
+
+      // Determine if worker is likely connected based on queue behavior
+      // If we can get queue sizes, the pg-boss system is working
+      const workerConnected = healthCheck.healthy && !healthCheck.error;
+
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          healthy: healthCheck.healthy,
+          workerConnected,
+          queues,
+          error: healthCheck.error,
+        },
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  router.get('/queue-status', requireCaseworker as RequestHandler, queueStatusHandler);
 
   return router;
 }

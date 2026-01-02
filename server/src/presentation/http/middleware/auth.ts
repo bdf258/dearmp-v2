@@ -36,14 +36,14 @@ export function createAuthMiddleware(supabase: SupabaseClient) {
         throw ApiError.unauthorized('Invalid or expired token');
       }
 
-      // Get user's office membership
-      const { data: membership, error: membershipError } = await supabase
-        .from('office_members')
+      // Get user's profile which contains office membership
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
         .select('office_id, role')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single();
 
-      if (membershipError || !membership) {
+      if (profileError || !profile || !profile.office_id) {
         throw ApiError.forbidden('User is not a member of any office');
       }
 
@@ -51,12 +51,12 @@ export function createAuthMiddleware(supabase: SupabaseClient) {
       const authenticatedUser: AuthenticatedUser = {
         id: user.id,
         email: user.email ?? '',
-        officeId: membership.office_id,
-        role: membership.role,
+        officeId: profile.office_id,
+        role: profile.role,
       };
 
       req.user = authenticatedUser;
-      req.officeId = membership.office_id;
+      req.officeId = profile.office_id;
 
       next();
     } catch (error) {

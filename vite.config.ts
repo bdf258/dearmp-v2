@@ -3,6 +3,10 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 
 // Content Security Policy for the application
+// NOTE: This config is ONLY used by the Vite dev server (development).
+// Production CSP should be configured at the web server/CDN level.
+const isDev = process.env.NODE_ENV !== 'production';
+
 const cspDirectives = {
   "default-src": ["'self'"],
   "script-src": ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // unsafe-eval needed for dev, remove in production
@@ -17,6 +21,12 @@ const cspDirectives = {
     "https://*.kep.la",
     "https://*.farier.com",
     "hk3mkc-5173.csb.app",
+    // Development-only: local server connections
+    ...(isDev ? [
+      "http://localhost:3001",
+      "http://127.0.0.1:3001",
+      "http://192.168.*:3001", // Local network IPs
+    ] : []),
   ],
   "frame-ancestors": ["'none'"],
   "form-action": ["'self'"],

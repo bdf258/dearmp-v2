@@ -164,6 +164,8 @@ export interface TriageProcessEmailJobData extends BaseJobData {
   emailId: string;
   fromAddress: string;
   subject?: string;
+  /** If true, skip legacy API calls (for testing the pipeline without hitting real API) */
+  isTestEmail?: boolean;
 }
 
 export interface TriageSubmitDecisionJobData extends BaseJobData {

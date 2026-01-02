@@ -259,6 +259,7 @@ export class QueueService {
       emailExternalId: number;
       fromAddress: string;
       subject?: string;
+      isTestEmail?: boolean;
     }
   ): Promise<string | null> {
     const data: TriageProcessEmailJobData = {
@@ -268,6 +269,7 @@ export class QueueService {
       emailExternalId: email.emailExternalId,
       fromAddress: email.fromAddress,
       subject: email.subject,
+      isTestEmail: email.isTestEmail,
       correlationId: crypto.randomUUID(),
     };
 

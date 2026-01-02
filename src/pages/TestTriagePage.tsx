@@ -89,6 +89,34 @@ interface JobStatus {
   output?: unknown;
 }
 
+interface QueueStatus {
+  healthy: boolean;
+  workerConnected: boolean;
+  queues: Record<string, number>;
+  error?: string;
+}
+
+// Pipeline step tracking
+type PipelineStep =
+  | 'uploading'
+  | 'parsing'
+  | 'saving'
+  | 'queued'
+  | 'worker_pickup'
+  | 'processing'
+  | 'completed'
+  | 'failed';
+
+const PIPELINE_STEPS: { key: PipelineStep; label: string; description: string }[] = [
+  { key: 'uploading', label: 'Uploading', description: 'Sending .eml file to server' },
+  { key: 'parsing', label: 'Parsing', description: 'Extracting email headers and body' },
+  { key: 'saving', label: 'Saving', description: 'Storing email in database' },
+  { key: 'queued', label: 'Queued', description: 'Job added to processing queue' },
+  { key: 'worker_pickup', label: 'Worker Pickup', description: 'Waiting for worker to pick up job' },
+  { key: 'processing', label: 'Processing', description: 'Finding constituents, generating suggestions' },
+  { key: 'completed', label: 'Completed', description: 'Triage processing complete' },
+];
+
 interface TestEmail {
   id: string;
   subject: string | null;
@@ -112,6 +140,9 @@ export default function TestTriagePage() {
   const [testEmails, setTestEmails] = useState<TestEmail[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [pollingJobId, setPollingJobId] = useState<string | null>(null);
+  const [pipelineStep, setPipelineStep] = useState<PipelineStep | null>(null);
+  const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
 
   // Get auth token for API calls
   const getAuthToken = useCallback(async () => {
@@ -120,6 +151,33 @@ export default function TestTriagePage() {
     }
     return session.access_token;
   }, [session]);
+
+  // Fetch queue status to check if worker is connected
+  const fetchQueueStatus = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+
+      const response = await fetch(`${API_BASE_URL}/test-triage/queue-status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        setQueueStatus({ healthy: false, workerConnected: false, queues: {}, error: 'Failed to fetch queue status' });
+        return;
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setQueueStatus(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch queue status:', error);
+      setQueueStatus({ healthy: false, workerConnected: false, queues: {}, error: String(error) });
+    }
+  }, [getAuthToken]);
 
   // Fetch test emails list
   const fetchTestEmails = useCallback(async () => {
@@ -182,27 +240,41 @@ export default function TestTriagePage() {
       if (status) {
         setCurrentEmail(prev => prev ? { ...prev, jobStatus: status } : null);
 
-        if (status.state === 'completed' || status.state === 'failed') {
+        // Update pipeline step based on job state
+        if (status.state === 'created') {
+          setPipelineStep('queued');
+        } else if (status.state === 'active') {
+          setPipelineStep('processing');
+        } else if (status.state === 'completed') {
+          setPipelineStep('completed');
           setPollingJobId(null);
-          if (status.state === 'completed') {
-            toast.success('Triage processing completed!');
-          } else {
-            toast.error('Triage processing failed');
-          }
+          toast.success('Triage processing completed!');
           fetchTestEmails();
+        } else if (status.state === 'failed') {
+          setPipelineStep('failed');
+          setPipelineError(status.output ? JSON.stringify(status.output) : 'Job failed');
+          setPollingJobId(null);
+          toast.error('Triage processing failed');
+          fetchTestEmails();
+        } else if (status.state === 'retry') {
+          setPipelineStep('worker_pickup');
         }
+      } else {
+        // Job not found yet - might still be queued
+        setPipelineStep('worker_pickup');
       }
-    }, 2000);
+    }, 1500);
 
     return () => clearInterval(pollInterval);
   }, [pollingJobId, fetchJobStatus, fetchTestEmails]);
 
-  // Load test emails on mount
+  // Load test emails and queue status on mount
   useEffect(() => {
     if (session) {
       fetchTestEmails();
+      fetchQueueStatus();
     }
-  }, [session, fetchTestEmails]);
+  }, [session, fetchTestEmails, fetchQueueStatus]);
 
   // Handle file upload
   const handleFileUpload = useCallback(async (file: File) => {
@@ -213,11 +285,18 @@ export default function TestTriagePage() {
 
     setIsUploading(true);
     setUploadError(null);
+    setPipelineError(null);
+    setPipelineStep('uploading');
 
     try {
       const token = await getAuthToken();
+
+      // Step 1: Reading file
+      setPipelineStep('parsing');
       const emlContent = await file.text();
 
+      // Step 2: Sending to server
+      setPipelineStep('uploading');
       const response = await fetch(`${API_BASE_URL}/test-triage/upload`, {
         method: 'POST',
         headers: {
@@ -233,6 +312,9 @@ export default function TestTriagePage() {
         throw new Error(data.error?.message || 'Upload failed');
       }
 
+      // Step 3: Saved and queued
+      setPipelineStep('queued');
+
       setCurrentEmail({
         id: data.data.email.id,
         subject: data.data.email.subject,
@@ -245,16 +327,21 @@ export default function TestTriagePage() {
       setCurrentParsed(data.data.parsed);
       setPollingJobId(data.data.jobId);
 
+      // Refresh queue status to see if worker picks it up
+      fetchQueueStatus();
+
       toast.success('Email uploaded and queued for processing');
       fetchTestEmails();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to upload email';
       setUploadError(message);
+      setPipelineStep('failed');
+      setPipelineError(message);
       toast.error(message);
     } finally {
       setIsUploading(false);
     }
-  }, [getAuthToken, fetchTestEmails]);
+  }, [getAuthToken, fetchTestEmails, fetchQueueStatus]);
 
   // Handle file input change
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -370,6 +457,113 @@ export default function TestTriagePage() {
           This uses the exact same server-side logic as real emails from the caseworker API.
         </p>
       </div>
+
+      {/* Queue Status Banner */}
+      {queueStatus && (
+        <Alert variant={queueStatus.healthy ? 'default' : 'destructive'}>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Queue Status</AlertTitle>
+          <AlertDescription className="flex flex-wrap gap-4">
+            <span>
+              <strong>Health:</strong>{' '}
+              {queueStatus.healthy ? (
+                <Badge variant="default" className="bg-green-500">Healthy</Badge>
+              ) : (
+                <Badge variant="destructive">Unhealthy</Badge>
+              )}
+            </span>
+            <span>
+              <strong>Worker:</strong>{' '}
+              {queueStatus.workerConnected ? (
+                <Badge variant="default" className="bg-green-500">Connected</Badge>
+              ) : (
+                <Badge variant="secondary">Not detected</Badge>
+              )}
+            </span>
+            {queueStatus.queues && Object.keys(queueStatus.queues).length > 0 && (
+              <span>
+                <strong>Pending jobs:</strong>{' '}
+                {Object.entries(queueStatus.queues).map(([queue, count]) => (
+                  <Badge key={queue} variant="outline" className="ml-1">
+                    {queue}: {count}
+                  </Badge>
+                ))}
+              </span>
+            )}
+            {queueStatus.error && (
+              <span className="text-destructive">{queueStatus.error}</span>
+            )}
+            <Button variant="ghost" size="sm" onClick={fetchQueueStatus} className="ml-auto">
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Refresh
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Pipeline Progress */}
+      {pipelineStep && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Processing Pipeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              {PIPELINE_STEPS.map((step, index) => {
+                const isActive = step.key === pipelineStep;
+                const isPast = PIPELINE_STEPS.findIndex(s => s.key === pipelineStep) > index;
+
+                return (
+                  <div key={step.key} className="flex items-center">
+                    <div className="flex flex-col items-center min-w-[80px]">
+                      <div
+                        className={`
+                          w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium
+                          ${isPast ? 'bg-green-500 text-white' : ''}
+                          ${isActive && pipelineStep !== 'failed' ? 'bg-blue-500 text-white animate-pulse' : ''}
+                          ${isActive && pipelineStep === 'failed' ? 'bg-red-500 text-white' : ''}
+                          ${!isPast && !isActive ? 'bg-muted text-muted-foreground' : ''}
+                        `}
+                      >
+                        {isPast ? (
+                          <CheckCircle className="h-4 w-4" />
+                        ) : isActive && pipelineStep !== 'failed' ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isActive && pipelineStep === 'failed' ? (
+                          <AlertCircle className="h-4 w-4" />
+                        ) : (
+                          index + 1
+                        )}
+                      </div>
+                      <span className={`text-xs mt-1 text-center ${isActive ? 'font-medium' : 'text-muted-foreground'}`}>
+                        {step.label}
+                      </span>
+                    </div>
+                    {index < PIPELINE_STEPS.length - 1 && (
+                      <div className={`w-8 h-0.5 mx-1 ${isPast ? 'bg-green-500' : 'bg-muted'}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {pipelineStep && !['completed', 'failed'].includes(pipelineStep) && (
+              <p className="text-sm text-muted-foreground mt-3">
+                {PIPELINE_STEPS.find(s => s.key === pipelineStep)?.description}
+              </p>
+            )}
+            {pipelineError && (
+              <Alert variant="destructive" className="mt-3">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription className="font-mono text-xs">{pipelineError}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Upload Section */}

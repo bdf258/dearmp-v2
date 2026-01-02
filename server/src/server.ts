@@ -80,6 +80,7 @@ const ALLOWED_ORIGINS = [
   ...(config.nodeEnv === 'development' ? [
     /^http:\/\/localhost(:\d+)?$/,
     /^http:\/\/127\.0\.0\.1(:\d+)?$/,
+    /^http:\/\/192\.168\.\d+\.\d+(:\d+)?$/, // Local network IPs for development
   ] : []),
 ];
 
@@ -188,7 +189,7 @@ async function main() {
     // Test triage routes (for uploading .eml files to test the triage pipeline)
     app.use(
       '/test-triage',
-      authMiddleware,
+      typedAuthMiddleware,
       createTestTriageRoutes({ supabase, queueService })
     );
   } else {
