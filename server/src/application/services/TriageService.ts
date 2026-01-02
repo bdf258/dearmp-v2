@@ -4,10 +4,9 @@ import {
   IEmailRepository,
   ICampaignRepository,
   ILegacyApiClient,
-  CampaignMatchResult,
 } from '../../domain/interfaces';
 import { OfficeId, ExternalId } from '../../domain/value-objects';
-import { Email, Constituent, Case, Campaign } from '../../domain/entities';
+import { Email, Constituent, Case } from '../../domain/entities';
 import {
   TriageEmailDto,
   TriageDecisionDto,
@@ -125,8 +124,8 @@ export class TriageService {
 
     // 1. Check local repository for exact email match
     const localMatches = await this.constituentRepository.findByEmail(officeId, senderEmail);
-    if (localMatches.length > 0) {
-      const match = localMatches[0];
+    const match = localMatches[0];
+    if (match) {
       return {
         constituent: {
           id: match.id!,
@@ -149,8 +148,8 @@ export class TriageService {
     // 2. Query legacy API for matches
     try {
       const legacyMatches = await this.legacyApiClient.findConstituentMatches(officeId, { email: senderEmail });
-      if (legacyMatches.length > 0) {
-        const bestMatch = legacyMatches[0]; // Already sorted by score
+      const bestMatch = legacyMatches[0]; // Already sorted by score
+      if (bestMatch) {
         return {
           constituent: {
             id: '', // Will be assigned when synced
@@ -390,7 +389,7 @@ export class TriageService {
    */
   async submitTriageDecision(
     officeId: OfficeId,
-    userId: string,
+    _userId: string,
     decision: TriageDecisionDto
   ): Promise<TriageResultDto> {
     const emailExternalId = ExternalId.fromTrusted(decision.emailExternalId);
@@ -552,7 +551,7 @@ export class TriageService {
    */
   private async generateRuleBasedSuggestion(
     email: Email,
-    constituentMatch: ConstituentMatchDto | null,
+    _constituentMatch: ConstituentMatchDto | null,
     existingCases: Case[],
     campaignMatches: CampaignMatchDto[]
   ): Promise<CaseSuggestionDto> {
@@ -563,8 +562,9 @@ export class TriageService {
     };
 
     // If there's a high-confidence campaign match, suggest that
-    if (campaignMatches.length > 0 && campaignMatches[0].confidence >= 0.8) {
-      suggestion.summary = `Campaign: ${campaignMatches[0].campaignName}`;
+    const firstCampaign = campaignMatches[0];
+    if (firstCampaign && firstCampaign.confidence >= 0.8) {
+      suggestion.summary = `Campaign: ${firstCampaign.campaignName}`;
       suggestion.urgency = 'low'; // Campaigns are usually lower urgency
     }
 

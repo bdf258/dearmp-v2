@@ -482,6 +482,12 @@ export class LegacyApiClient implements ILegacyApiClient {
     path: string,
     init: RequestInit
   ): Promise<T> {
+    // Safety guard: prevent all API calls when LEGACY_API_DISABLED is set
+    if (process.env.LEGACY_API_DISABLED === 'true') {
+      console.warn(`[LegacyApiClient] API calls disabled. Would have called: ${init.method} ${baseUrl}${path}`);
+      throw new Error('Legacy API calls are disabled (LEGACY_API_DISABLED=true)');
+    }
+
     return this.rateLimiter.execute(() =>
       this.backoff.execute(
         async (): Promise<T> => {

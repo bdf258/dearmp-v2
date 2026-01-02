@@ -47,14 +47,11 @@ export function createRateLimiter(config: RateLimitConfig = {}) {
     legacyHeaders: false, // Disable X-RateLimit-* headers
     handler: createRateLimitResponse,
     skip: config.skip,
-    keyGenerator: (req: Request): string => {
-      // Use user ID if authenticated, otherwise fall back to IP
-      const user = (req as Request & { user?: { id: string } }).user;
-      if (user?.id) {
-        return `user:${user.id}`;
-      }
-      // Fall back to IP address
-      return req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    // Don't use custom keyGenerator to avoid IPv6 issues
+    // Let express-rate-limit use its default IP-based key generator
+    validate: {
+      trustProxy: false,
+      xForwardedForHeader: false,
     },
   };
 

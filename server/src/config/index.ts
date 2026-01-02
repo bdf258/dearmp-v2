@@ -17,6 +17,9 @@ export interface Config {
   port: number;
   nodeEnv: 'development' | 'production' | 'test';
 
+  // Legacy API
+  legacyApiDisabled: boolean;
+
   // Sync
   syncPollIntervalMs: number;
   syncBatchSize: number;
@@ -55,6 +58,9 @@ export function loadConfig(): Config {
     // Server
     port: parseInt(process.env.PORT ?? '3001', 10),
     nodeEnv,
+
+    // Legacy API
+    legacyApiDisabled: process.env.LEGACY_API_DISABLED === 'true',
 
     // Sync
     syncPollIntervalMs: parseInt(process.env.SYNC_POLL_INTERVAL_MS ?? '300000', 10), // 5 minutes

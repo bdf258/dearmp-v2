@@ -40,6 +40,7 @@ console.log('║           DearMP Legacy Integration Worker                     
 console.log('╚════════════════════════════════════════════════════════════════╝');
 console.log(`Environment: ${config.nodeEnv}`);
 console.log(`Database: ${config.databaseUrl.replace(/:[^:@]+@/, ':****@')}`);
+console.log(`Legacy API: ${config.legacyApiDisabled ? 'DISABLED (safe mode)' : 'Enabled'}`);
 console.log(`LLM: ${config.geminiApiKey ? `Gemini (${config.geminiModel})` : 'Disabled (no API key)'}`);
 
 // ============================================================================

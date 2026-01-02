@@ -7,7 +7,6 @@ import {
 import { OfficeId, ExternalId } from '../../../domain/value-objects';
 import { Email, Constituent, Case } from '../../../domain/entities';
 import { TriageEmailDto, ConstituentMatchDto, CaseSuggestionDto, CaseDto } from '../../dtos';
-import { ILLMAnalysisService } from '../../services/TriageService';
 
 /**
  * Use Case: ProcessEmail
@@ -23,8 +22,7 @@ export class ProcessEmail {
     private readonly legacyApiClient: ILegacyApiClient,
     private readonly constituentRepository: IConstituentRepository,
     private readonly caseRepository: ICaseRepository,
-    private readonly emailRepository: IEmailRepository,
-    private readonly llmAnalysisService: ILLMAnalysisService
+    private readonly emailRepository: IEmailRepository
   ) {}
 
   /**
@@ -108,9 +106,10 @@ export class ProcessEmail {
 
     // Try local repository first (by email address)
     const localMatches = await this.constituentRepository.findByEmail(officeId, email.fromAddress);
-    if (localMatches.length > 0) {
+    const localMatch = localMatches[0];
+    if (localMatch) {
       return {
-        constituent: this.constituentToDto(localMatches[0]),
+        constituent: this.constituentToDto(localMatch),
         matchScore: 1.0,
         matchedOn: 'email',
       };
@@ -122,9 +121,9 @@ export class ProcessEmail {
       { email: email.fromAddress }
     );
 
-    if (legacyMatches.length > 0) {
+    const topMatch = legacyMatches[0];
+    if (topMatch) {
       // Sync the matched constituent to local repository
-      const topMatch = legacyMatches[0];
       const constituent = Constituent.fromLegacy(
         officeId,
         ExternalId.fromTrusted(topMatch.id),
@@ -157,26 +156,18 @@ export class ProcessEmail {
    * Run LLM analysis on the email
    */
   private async runLLMAnalysis(
-    officeId: OfficeId,
+    _officeId: OfficeId,
     email: Email,
-    constituent: { id: string } | undefined,
-    existingCases: CaseDto[]
+    _constituent: { id: string } | undefined,
+    _existingCases: CaseDto[]
   ): Promise<CaseSuggestionDto> {
-    // Convert DTOs back to domain entities for LLM analysis
-    // In a real implementation, you'd fetch the full entities
-    const constituentEntity = constituent
-      ? await this.constituentRepository.findById(officeId, constituent.id)
-      : null;
-
-    const caseEntities = await Promise.all(
-      existingCases.map(c => this.caseRepository.findById(officeId, c.id))
-    );
-
-    return this.llmAnalysisService.analyzeEmail(
-      email,
-      constituentEntity,
-      caseEntities.filter((c): c is Case => c !== null)
-    );
+    // Build triage context for LLM analysis
+    // For now, return a simple rule-based suggestion
+    // TODO: Build full TriageContextDto when LLM service is ready
+    return {
+      urgency: 'medium',
+      summary: email.subject || 'No subject',
+    };
   }
 
   /**
