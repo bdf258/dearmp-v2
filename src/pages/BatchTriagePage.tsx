@@ -118,8 +118,8 @@ export default function BatchTriagePage() {
         return b.messages.length - a.messages.length;
       }
       // Then by most recent message
-      const aLatest = Math.max(...a.messages.map(m => new Date(m.received_at).getTime()));
-      const bLatest = Math.max(...b.messages.map(m => new Date(m.received_at).getTime()));
+      const aLatest = Math.max(...a.messages.map(m => new Date(m.received_at ?? 0).getTime()));
+      const bLatest = Math.max(...b.messages.map(m => new Date(m.received_at ?? 0).getTime()));
       return bLatest - aLatest;
     });
   }, [triageMessages]);
@@ -312,7 +312,8 @@ export default function BatchTriagePage() {
     toast.success(`Group approved: ${groupIds.length} messages assigned to campaign`);
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Unknown';
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',

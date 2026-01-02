@@ -502,11 +502,12 @@ export function useTriageActions() {
       // Use the dismiss_triage RPC function for proper audit logging
       const { data, error } = await supabase.rpc('dismiss_triage', {
         p_message_ids: [messageId],
-        p_reason: reason || null,
+        p_reason: reason ?? undefined,
       });
 
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Failed to dismiss');
+      const result = data as { success?: boolean; error?: string } | null;
+      if (!result?.success) throw new Error(result?.error || 'Failed to dismiss');
 
       await refreshData();
       return { success: true };
@@ -527,18 +528,19 @@ export function useTriageActions() {
       // Use the dismiss_triage RPC function with multiple message IDs
       const { data, error } = await supabase.rpc('dismiss_triage', {
         p_message_ids: messageIds,
-        p_reason: reason || null,
+        p_reason: reason ?? undefined,
       });
 
       if (error) throw error;
 
-      const successCount = data?.dismissed_count || 0;
+      const result = data as { success?: boolean; dismissed_count?: number; error?: string } | null;
+      const successCount = result?.dismissed_count || 0;
       await refreshData();
 
       return {
-        success: data?.success || false,
+        success: result?.success || false,
         successCount,
-        error: data?.error,
+        error: result?.error,
       };
     } catch (err) {
       return { success: false, successCount: 0, error: err instanceof Error ? err.message : 'Unknown error' };
@@ -594,8 +596,8 @@ export function useTriageActions() {
         const { error: confirmError } = await supabase.rpc('confirm_triage', {
           p_message_ids: [messageId],
           p_case_id: caseId,
-          p_assignee_id: triageData.assigneeId || null,
-          p_tag_ids: triageData.tagIds || null,
+          p_assignee_id: triageData.assigneeId ?? undefined,
+          p_tag_ids: triageData.tagIds ?? undefined,
         });
         if (confirmError) throw confirmError;
       } else if (caseId) {
@@ -603,8 +605,8 @@ export function useTriageActions() {
         const { error: confirmError } = await supabase.rpc('confirm_triage', {
           p_message_ids: [messageId],
           p_case_id: caseId,
-          p_assignee_id: triageData.assigneeId || null,
-          p_tag_ids: triageData.tagIds || null,
+          p_assignee_id: triageData.assigneeId ?? undefined,
+          p_tag_ids: triageData.tagIds ?? undefined,
         });
         if (confirmError) throw confirmError;
 
@@ -831,7 +833,7 @@ export function useCampaignEmails(campaignId: string | null) {
         snippet: message.snippet || '',
         senderEmail,
         senderName,
-        receivedAt: message.received_at,
+        receivedAt: message.received_at ?? new Date().toISOString(),
         constituentStatus,
         constituentName,
         constituentId,
@@ -895,9 +897,9 @@ export function useCampaignEmails(campaignId: string | null) {
     try {
       const { error } = await supabase.rpc('confirm_triage', {
         p_message_ids: [emailId],
-        p_case_id: null,
-        p_assignee_id: null,
-        p_tag_ids: null,
+        p_case_id: undefined,
+        p_assignee_id: undefined,
+        p_tag_ids: undefined,
       });
 
       if (error) throw error;
@@ -940,9 +942,9 @@ export function useCampaignEmails(campaignId: string | null) {
       const ids = Array.from(selectedIds);
       const { error } = await supabase.rpc('confirm_triage', {
         p_message_ids: ids,
-        p_case_id: null,
-        p_assignee_id: null,
-        p_tag_ids: null,
+        p_case_id: undefined,
+        p_assignee_id: undefined,
+        p_tag_ids: undefined,
       });
 
       if (error) throw error;

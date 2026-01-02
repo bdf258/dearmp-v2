@@ -68,7 +68,7 @@ export default function ConstituentsPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">
-                    Added: {new Date(constituent.created_at).toLocaleDateString()}
+                    Added: {constituent.created_at ? new Date(constituent.created_at).toLocaleDateString() : 'Unknown'}
                   </p>
                 </div>
               </div>

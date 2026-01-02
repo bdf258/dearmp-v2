@@ -42,7 +42,7 @@ export default function MPApprovalPage() {
       content: br.body_markdown || '',
       context: 'Bulk response for campaign',
       created_by_user_id: br.created_by || '',
-      created_at: br.created_at,
+      created_at: br.created_at ?? new Date().toISOString(),
     }));
 
   const [approvalQueue, setApprovalQueue] = useState<ApprovalItem[]>(approvalItems);

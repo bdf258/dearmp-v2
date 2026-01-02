@@ -45,7 +45,7 @@ export default function PolicyEmailsPage() {
 
         if (existing) {
           existing.count += 1;
-          if (new Date(msg.received_at) > new Date(existing.latest_date)) {
+          if (msg.received_at && new Date(msg.received_at) > new Date(existing.latest_date)) {
             existing.latest_date = msg.received_at;
           }
         } else {
@@ -72,7 +72,7 @@ export default function PolicyEmailsPage() {
             subject: msg.subject || '(No subject)',
             theme,
             campaign_name: campaign?.name,
-            latest_date: msg.received_at,
+            latest_date: msg.received_at ?? new Date().toISOString(),
           });
         }
       });

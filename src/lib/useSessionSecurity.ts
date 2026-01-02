@@ -149,7 +149,7 @@ export function useSessionSecurity(userId: string | null): UseSessionSecurityRet
       const { data, error } = await supabase.rpc('record_session_context', {
         p_ip_address: ip,
         p_user_agent: userAgent,
-        p_country_code: null, // Could integrate a GeoIP service here
+        p_country_code: undefined, // Could integrate a GeoIP service here
       });
 
       if (error) {

@@ -217,7 +217,7 @@ export default function SettingsPage() {
   const handleStartEditTag = (tag: Tag) => {
     setEditingTag(tag);
     setEditTagName(tag.name);
-    setEditTagColor(tag.color);
+    setEditTagColor(tag.color ?? '#3b82f6');
   };
 
   const handleSaveEditTag = async () => {
@@ -972,7 +972,7 @@ export default function SettingsPage() {
                           <Label className="text-muted-foreground">Status</Label>
                           <p className="text-sm font-medium capitalize">{emailIntegration.is_connected ? 'Connected' : 'Disconnected'}</p>
                         </div>
-                        {emailIntegration.last_used_at && (
+                        {emailIntegration.last_used_at != null && (
                           <div>
                             <Label className="text-muted-foreground">Last Used</Label>
                             <p className="text-sm font-medium">
@@ -983,7 +983,7 @@ export default function SettingsPage() {
                         <div>
                           <Label className="text-muted-foreground">Last Updated</Label>
                           <p className="text-sm font-medium">
-                            {new Date(emailIntegration.updated_at).toLocaleString()}
+                            {emailIntegration.updated_at ? new Date(emailIntegration.updated_at).toLocaleString() : 'Unknown'}
                           </p>
                         </div>
                       </div>
@@ -1361,7 +1361,7 @@ export default function SettingsPage() {
                                 <div className="flex items-center gap-2">
                                   <div
                                     className="h-4 w-4 rounded"
-                                    style={{ backgroundColor: tag.color }}
+                                    style={{ backgroundColor: tag.color ?? undefined }}
                                   />
                                   <span className="text-sm font-medium">{tag.name}</span>
                                 </div>

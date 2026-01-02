@@ -292,7 +292,7 @@ export default function PolicyEmailGroupDetailPage() {
                       {message.subject || '(No subject)'}
                     </TableCell>
                     <TableCell>
-                      {new Date(message.received_at).toLocaleDateString()}
+                      {message.received_at ? new Date(message.received_at).toLocaleDateString() : 'Unknown'}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{message.channel}</Badge>

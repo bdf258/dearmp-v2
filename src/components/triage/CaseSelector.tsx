@@ -70,7 +70,7 @@ export function CaseSelector({
 
     // Sort by date (most recent first)
     const sortedCases = [...filteredCases].sort((a, b) => {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();
     });
 
     return sortedCases.map((c) => {
