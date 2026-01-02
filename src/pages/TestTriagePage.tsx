@@ -231,9 +231,15 @@ export default function TestTriagePage() {
     }
   }, [getAuthToken]);
 
+  // Track if job was ever seen as active (to differentiate "not started" from "already completed")
+  const jobWasActiveRef = useRef(false);
+
   // Poll job status until complete
   useEffect(() => {
-    if (!pollingJobId) return;
+    if (!pollingJobId) {
+      jobWasActiveRef.current = false;
+      return;
+    }
 
     const pollInterval = setInterval(async () => {
       const status = await fetchJobStatus(pollingJobId);
@@ -244,6 +250,7 @@ export default function TestTriagePage() {
         if (status.state === 'created') {
           setPipelineStep('queued');
         } else if (status.state === 'active') {
+          jobWasActiveRef.current = true;
           setPipelineStep('processing');
         } else if (status.state === 'completed') {
           setPipelineStep('completed');
@@ -260,8 +267,17 @@ export default function TestTriagePage() {
           setPipelineStep('worker_pickup');
         }
       } else {
-        // Job not found yet - might still be queued
-        setPipelineStep('worker_pickup');
+        // Job not found - pg-boss archives completed jobs quickly
+        // If job was previously active, it likely completed successfully
+        if (jobWasActiveRef.current) {
+          setPipelineStep('completed');
+          setPollingJobId(null);
+          toast.success('Triage processing completed!');
+          fetchTestEmails();
+        } else {
+          // Job not found yet - might still be queued or worker hasn't picked it up
+          setPipelineStep('worker_pickup');
+        }
       }
     }, 1500);
 
@@ -422,10 +438,57 @@ export default function TestTriagePage() {
     }
   }, [getAuthToken]);
 
-  // View email details
+  // View email details - fetch full email including body
   const handleViewEmail = useCallback(async (email: TestEmail) => {
+    // If clicking on the same email that's already selected (e.g., after fresh upload),
+    // don't clear the parsed data - just refresh job status
+    const isSameEmail = currentEmail?.id === email.id;
+
     setCurrentEmail(email);
-    setCurrentParsed(null);
+    if (!isSameEmail) {
+      setCurrentParsed(null);
+    }
+
+    try {
+      const token = await getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/test-triage/email/${email.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          // Update current email with full details including body
+          setCurrentEmail(prev => prev ? { ...prev, ...data.data } : null);
+          // Set parsed info for body preview
+          if (data.data.htmlBody) {
+            setCurrentParsed({
+              subject: data.data.subject || '',
+              fromAddress: data.data.fromAddress || '',
+              toAddresses: data.data.toAddresses || [],
+              receivedAt: data.data.receivedAt || '',
+              textBody: data.data.htmlBody.replace(/<[^>]*>/g, '').substring(0, 2000), // Strip HTML for preview
+            });
+          } else {
+            // No HTML body available - show placeholder message
+            setCurrentParsed({
+              subject: data.data.subject || '',
+              fromAddress: data.data.fromAddress || '',
+              toAddresses: data.data.toAddresses || [],
+              receivedAt: data.data.receivedAt || '',
+              textBody: '(Email body not available)',
+            });
+          }
+        }
+      } else {
+        console.error('Failed to fetch email details:', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error('Failed to fetch email details:', error);
+    }
 
     if (email.jobId) {
       const status = await fetchJobStatus(email.jobId);
@@ -433,7 +496,7 @@ export default function TestTriagePage() {
         setCurrentEmail(prev => prev ? { ...prev, jobStatus: status } : null);
       }
     }
-  }, [fetchJobStatus]);
+  }, [fetchJobStatus, getAuthToken, currentEmail?.id]);
 
   if (!session) {
     return (

@@ -173,6 +173,11 @@ export function createTestTriageRoutes({
         isTestEmail: true,
       });
 
+      if (!jobId) {
+        console.error(`[TestTriage] Failed to queue job for test email ${emailId} - jobId is null`);
+        throw ApiError.internal('Failed to queue email for processing. Check queue service connection.');
+      }
+
       console.log(`[TestTriage] Queued triage job ${jobId} for test email ${emailId}`);
 
       // Note: Audit logging skipped for test emails (legacy schema not exposed via REST API)

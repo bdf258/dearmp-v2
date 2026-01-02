@@ -83,6 +83,35 @@ export class PgBossClient {
     await this.boss.start();
     this.isStarted = true;
     console.log('[PgBoss] Started successfully');
+
+    // pg-boss v10+ requires queues to be created before sending jobs
+    await this.ensureQueuesExist();
+  }
+
+  /**
+   * Ensure all required queues exist (pg-boss v10+ requirement)
+   */
+  private async ensureQueuesExist(): Promise<void> {
+    const boss = this.getBoss();
+    const queueNames = Object.values(JobNames);
+
+    console.log(`[PgBoss] Ensuring ${queueNames.length} queues exist...`);
+
+    for (const queueName of queueNames) {
+      try {
+        await boss.createQueue(queueName);
+        console.log(`[PgBoss] Queue '${queueName}' ready`);
+      } catch (error) {
+        // Queue might already exist, which is fine
+        if (error instanceof Error && error.message.includes('already exists')) {
+          console.log(`[PgBoss] Queue '${queueName}' already exists`);
+        } else {
+          console.error(`[PgBoss] Failed to create queue '${queueName}':`, error);
+        }
+      }
+    }
+
+    console.log('[PgBoss] All queues initialized');
   }
 
   /**
@@ -124,7 +153,17 @@ export class PgBossClient {
       ...options,
     };
 
-    return boss.send(name, data, mergedOptions);
+    try {
+      console.log(`[PgBoss] Sending job to queue '${name}' with options:`, JSON.stringify(mergedOptions));
+      const jobId = await boss.send(name, data, mergedOptions);
+      if (!jobId) {
+        console.error(`[PgBoss] boss.send returned null for queue '${name}'. This usually means a singleton key conflict.`);
+      }
+      return jobId;
+    } catch (error) {
+      console.error(`[PgBoss] Error sending job to queue '${name}':`, error);
+      throw error;
+    }
   }
 
   /**

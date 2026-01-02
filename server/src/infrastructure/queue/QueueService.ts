@@ -273,7 +273,10 @@ export class QueueService {
       correlationId: crypto.randomUUID(),
     };
 
-    return this.client.send(JobNames.TRIAGE_PROCESS_EMAIL, data);
+    console.log(`[QueueService] Scheduling email processing for ${email.emailId}...`);
+    const jobId = await this.client.send(JobNames.TRIAGE_PROCESS_EMAIL, data);
+    console.log(`[QueueService] Job ${jobId ? 'created: ' + jobId : 'FAILED (null)'} for email ${email.emailId}`);
+    return jobId;
   }
 
   /**

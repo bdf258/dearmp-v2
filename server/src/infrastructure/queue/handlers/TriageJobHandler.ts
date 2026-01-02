@@ -9,6 +9,7 @@
  */
 
 import PgBoss from 'pg-boss';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { OfficeId, ExternalId } from '../../../domain/value-objects';
 import { ILegacyApiClient } from '../../../domain/interfaces';
 import { IConstituentRepository, ICaseRepository, IEmailRepository } from '../../../domain/interfaces';
@@ -38,6 +39,7 @@ export interface TriageJobHandlerDependencies {
   emailRepository: IEmailRepository;
   triageCacheRepository: ITriageCacheRepository;
   llmAnalysisService?: ILLMAnalysisService;
+  supabaseClient?: SupabaseClient; // For updating test email status
 }
 
 /**
@@ -83,6 +85,7 @@ export class TriageJobHandler {
   private readonly emailRepo: IEmailRepository;
   private readonly triageCache: ITriageCacheRepository;
   private readonly llmService?: ILLMAnalysisService;
+  private readonly supabase?: SupabaseClient;
 
   constructor(deps: TriageJobHandlerDependencies) {
     this.client = deps.pgBossClient;
@@ -92,6 +95,7 @@ export class TriageJobHandler {
     this.emailRepo = deps.emailRepository;
     this.triageCache = deps.triageCacheRepository;
     this.llmService = deps.llmAnalysisService;
+    this.supabase = deps.supabaseClient;
 
     if (this.llmService) {
       console.log('[TriageJobHandler] LLM analysis service enabled');
@@ -272,6 +276,17 @@ export class TriageJobHandler {
 
       result.success = true;
       result.durationMs = Date.now() - startTime;
+
+      // Step 6: Mark test emails as actioned (processed) so UI shows correct status
+      if (isTestEmail && this.supabase) {
+        try {
+          await this.supabase.rpc('mark_test_email_processed', { p_email_id: emailId });
+          console.log(`[TriageProcessEmail] Marked test email ${emailId} as processed`);
+        } catch (updateError) {
+          // Non-fatal - just log the error
+          console.warn(`[TriageProcessEmail] Failed to mark test email as processed:`, updateError);
+        }
+      }
 
       console.log(
         `[TriageProcessEmail] Completed processing ${emailId}: ` +

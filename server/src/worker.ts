@@ -348,6 +348,7 @@ async function main() {
     emailRepository: emailRepo,
     triageCacheRepository: triageCacheRepo,
     llmAnalysisService: llmService,
+    supabaseClient: supabase, // For updating test email status
   });
 
   const scheduledHandler = new ScheduledJobHandler({
