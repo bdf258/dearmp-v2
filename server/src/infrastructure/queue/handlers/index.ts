@@ -6,7 +6,7 @@
 
 export { SyncJobHandler, type SyncJobHandlerDependencies, type ISyncStatusRepository } from './SyncJobHandler';
 export { PushJobHandler, type PushJobHandlerDependencies, type IAuditLogRepository } from './PushJobHandler';
-export { TriageJobHandler, type TriageJobHandlerDependencies, type ITriageCacheRepository } from './TriageJobHandler';
+export { TriageJobHandler, type TriageJobHandlerDependencies, type ITriageCacheRepository, type TriageCacheData } from './TriageJobHandler';
 export {
   ScheduledJobHandler,
   type ScheduledJobHandlerDependencies,

@@ -216,18 +216,25 @@ export class PgBossClient {
 
   /**
    * Register a worker for a job type
+   * Handler can optionally return a value which will be stored as job output
    */
-  async work<T extends AllJobData>(
+  async work<T extends AllJobData, R = void>(
     name: JobName,
-    handler: (job: PgBoss.Job<T>) => Promise<void>,
+    handler: (job: PgBoss.Job<T>) => Promise<R>,
     options?: { batchSize?: number; pollingIntervalSeconds?: number }
   ): Promise<string> {
     const boss = this.getBoss();
     // Wrap handler to handle batch mode (pg-boss now passes arrays)
+    // pg-boss stores the return value as job output when handler returns non-void
     const batchHandler = async (jobs: PgBoss.Job<T>[]) => {
+      const results: R[] = [];
       for (const job of jobs) {
-        await handler(job);
+        const result = await handler(job);
+        results.push(result);
       }
+      // Return results array for pg-boss to store as output
+      // For single jobs (batchSize:1), this returns a single-element array
+      return results.length === 1 ? results[0] : results;
     };
     const workOptions: PgBoss.WorkOptions = options ? {
       batchSize: options.batchSize ?? 1,

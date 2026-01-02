@@ -226,7 +226,12 @@ export class GeminiLLMService implements ILLMAnalysisService {
    */
   async analyzeEmailWithDebug(context: TriageContextDto): Promise<LLMAnalysisResult> {
     const prompt = this.buildPrompt(context);
-    const jsonSchema = zodToJsonSchema(TriageSuggestionSchema, 'TriageSuggestion');
+    // Use $refStrategy: 'none' to generate inline schema without $ref references
+    // Gemini API doesn't support top-level $ref in responseSchema
+    const jsonSchema = zodToJsonSchema(TriageSuggestionSchema, {
+      $refStrategy: 'none',
+      target: 'openApi3',
+    });
 
     let lastError: Error | null = null;
     let rawResponse: string | undefined;

@@ -23,6 +23,7 @@ import {
   PushJobHandler,
   TriageJobHandler,
   ScheduledJobHandler,
+  TriageCacheData,
 } from './infrastructure/queue';
 import { LegacyApiClient, ICredentialsRepository } from './infrastructure/api/LegacyApiClient';
 import {
@@ -247,31 +248,62 @@ class SupabasePollStatusRepository {
   }
 }
 
-// Triage cache repository (using Supabase as a simple cache)
+// Triage cache repository using in-memory storage
+// In production, consider using Redis or a dedicated table for persistence across restarts
 class SupabaseTriageCacheRepository {
-  async set(
-    emailId: string,
-    data: {
-      matchedConstituent?: { id: string; externalId: number; name: string };
-      matchedCases?: Array<{ id: string; externalId: number; summary: string }>;
-      suggestion?: { action: string; confidence: number; reasoning: string };
-      processedAt: Date;
+  private cache: Map<string, TriageCacheData> = new Map();
+  private readonly MAX_CACHE_SIZE = 1000; // Prevent memory leaks
+  private readonly CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+  async set(emailId: string, data: TriageCacheData): Promise<void> {
+    // Evict old entries if cache is too large
+    if (this.cache.size >= this.MAX_CACHE_SIZE) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) {
+        this.cache.delete(oldestKey);
+      }
     }
-  ): Promise<void> {
-    // In production, consider using Redis for caching
-    // This is a simple implementation using a table
-    console.log(`[TriageCache] Caching result for email ${emailId}`);
+    this.cache.set(emailId, data);
+    console.log(`[TriageCache] Caching result for email ${emailId} (status: ${data.status})`);
   }
 
-  async get(emailId: string) {
-    console.log(`[TriageCache] Getting cached result for email ${emailId}`);
-    return null; // Would fetch from cache table
+  async get(emailId: string): Promise<TriageCacheData | null> {
+    const data = this.cache.get(emailId);
+    if (!data) {
+      console.log(`[TriageCache] Cache miss for email ${emailId}`);
+      return null;
+    }
+    // Check TTL
+    const age = Date.now() - data.processedAt.getTime();
+    if (age > this.CACHE_TTL_MS) {
+      this.cache.delete(emailId);
+      console.log(`[TriageCache] Cache expired for email ${emailId}`);
+      return null;
+    }
+    console.log(`[TriageCache] Cache hit for email ${emailId} (status: ${data.status})`);
+    return data;
   }
 
   async delete(emailId: string): Promise<void> {
-    console.log(`[TriageCache] Deleting cached result for email ${emailId}`);
+    this.cache.delete(emailId);
+    console.log(`[TriageCache] Deleted cached result for email ${emailId}`);
+  }
+
+  // Get for external access (used by HTTP server)
+  getSync(emailId: string): TriageCacheData | null {
+    const data = this.cache.get(emailId);
+    if (!data) return null;
+    const age = Date.now() - data.processedAt.getTime();
+    if (age > this.CACHE_TTL_MS) {
+      this.cache.delete(emailId);
+      return null;
+    }
+    return data;
   }
 }
+
+// Export the singleton instance for access from HTTP server
+export let triageCacheInstance: SupabaseTriageCacheRepository | null = null;
 
 // ============================================================================
 // MAIN WORKER STARTUP

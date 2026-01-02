@@ -538,5 +538,73 @@ export function createTestTriageRoutes({
 
   router.get('/queue-status', requireCaseworker as RequestHandler, queueStatusHandler);
 
+  /**
+   * GET /test-triage/suggestion/:emailId
+   *
+   * Get the triage suggestion for an email from the database.
+   * This is the persisted LLM analysis result.
+   */
+  const getSuggestionHandler: RequestHandler = async (req, res, next) => {
+    try {
+      const { emailId } = req.params;
+
+      if (!emailId) {
+        throw ApiError.validation('Email ID is required');
+      }
+
+      // Get the triage suggestion from the database
+      const { data, error } = await supabase.rpc('get_triage_suggestion', {
+        p_email_id: emailId,
+      });
+
+      if (error) {
+        console.error('[TestTriage] Failed to get triage suggestion:', error);
+        throw ApiError.internal(`Failed to get triage suggestion: ${error.message}`);
+      }
+
+      const suggestion = Array.isArray(data) ? data[0] : data;
+
+      if (!suggestion) {
+        throw ApiError.notFound('No triage suggestion found for this email');
+      }
+
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          id: suggestion.id,
+          emailId: suggestion.email_id,
+          createdAt: suggestion.created_at,
+          processingDurationMs: suggestion.processing_duration_ms,
+          model: suggestion.model,
+          emailType: suggestion.email_type,
+          emailTypeConfidence: suggestion.email_type_confidence,
+          classificationReasoning: suggestion.classification_reasoning,
+          recommendedAction: suggestion.recommended_action,
+          actionConfidence: suggestion.action_confidence,
+          actionReasoning: suggestion.action_reasoning,
+          suggestedCaseTypeId: suggestion.suggested_case_type_id,
+          suggestedCategoryId: suggestion.suggested_category_id,
+          suggestedAssigneeId: suggestion.suggested_assignee_id,
+          suggestedPriority: suggestion.suggested_priority,
+          suggestedTags: suggestion.suggested_tags,
+          matchedConstituentId: suggestion.matched_constituent_id,
+          matchedConstituentExternalId: suggestion.matched_constituent_external_id,
+          matchedCases: suggestion.matched_cases,
+          fullPrompt: suggestion.full_prompt,
+          rawResponse: suggestion.raw_response,
+          parsedResponse: suggestion.parsed_response,
+          userDecision: suggestion.user_decision,
+          userDecisionAt: suggestion.user_decision_at,
+        },
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  router.get('/suggestion/:emailId', requireCaseworker as RequestHandler, getSuggestionHandler);
+
   return router;
 }
