@@ -21,6 +21,7 @@ import {
   ConstituentContextDto,
   CaseContextDto,
   OfficeReferenceDataDto,
+  buildTriageContextPrompt,
 } from '../../../application/dtos';
 import {
   JobNames,
@@ -28,7 +29,9 @@ import {
   TriageSubmitDecisionJobData,
   TriageBatchPrefetchJobData,
   TriageJobResult,
+  LLMDebugInfo,
 } from '../types';
+import { GeminiLLMService, LLMAnalysisDebugInfo } from '../../llm';
 import { PgBossClient } from '../PgBossClient';
 
 export interface TriageJobHandlerDependencies {
@@ -43,34 +46,28 @@ export interface TriageJobHandlerDependencies {
 }
 
 /**
+ * Cached triage result data structure
+ */
+export interface TriageCacheData {
+  matchedConstituent?: { id: string; externalId: number; name: string };
+  matchedCases?: Array<{ id: string; externalId: number; summary: string }>;
+  suggestion?: {
+    action: string;
+    confidence: number;
+    reasoning: string;
+  };
+  llmDebug?: LLMDebugInfo;
+  processedAt: Date;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error?: string;
+}
+
+/**
  * Cache for storing pre-processed triage suggestions
  */
 export interface ITriageCacheRepository {
-  set(
-    emailId: string,
-    data: {
-      matchedConstituent?: { id: string; externalId: number; name: string };
-      matchedCases?: Array<{ id: string; externalId: number; summary: string }>;
-      suggestion?: {
-        action: string;
-        confidence: number;
-        reasoning: string;
-      };
-      processedAt: Date;
-    }
-  ): Promise<void>;
-
-  get(emailId: string): Promise<{
-    matchedConstituent?: { id: string; externalId: number; name: string };
-    matchedCases?: Array<{ id: string; externalId: number; summary: string }>;
-    suggestion?: {
-      action: string;
-      confidence: number;
-      reasoning: string;
-    };
-    processedAt: Date;
-  } | null>;
-
+  set(emailId: string, data: TriageCacheData): Promise<void>;
+  get(emailId: string): Promise<TriageCacheData | null>;
   delete(emailId: string): Promise<void>;
 }
 
@@ -108,7 +105,7 @@ export class TriageJobHandler {
    * Register all triage job handlers
    */
   async register(): Promise<void> {
-    await this.client.work<TriageProcessEmailJobData>(
+    await this.client.work<TriageProcessEmailJobData, TriageJobResult>(
       JobNames.TRIAGE_PROCESS_EMAIL,
       this.handleProcessEmail.bind(this)
     );
@@ -132,10 +129,11 @@ export class TriageJobHandler {
 
   /**
    * Process a single email to find constituent matches and generate suggestions
+   * Returns the result object which pg-boss stores as job output
    */
   private async handleProcessEmail(
     job: PgBoss.Job<TriageProcessEmailJobData>
-  ): Promise<void> {
+  ): Promise<TriageJobResult> {
     const { officeId, emailId, emailExternalId, fromAddress, subject, isTestEmail } = job.data;
     const startTime = Date.now();
     const office = OfficeId.create(officeId);
@@ -220,14 +218,16 @@ export class TriageJobHandler {
 
       // Step 4: Generate triage suggestion
       let suggestion: TriageJobResult['suggestion'];
+      let llmDebug: LLMDebugInfo | undefined;
 
       if (this.llmService) {
         // Use LLM for intelligent suggestion generation
         console.log(`[TriageProcessEmail] Using LLM analysis for ${emailId}`);
 
         try {
-          const llmSuggestion = await this.generateLLMSuggestion(
+          const llmResult = await this.generateLLMSuggestion(
             office,
+            emailId,
             {
               subject: subject || '',
               body: this.extractPlainTextFromHtml(emailBody),
@@ -235,8 +235,12 @@ export class TriageJobHandler {
               receivedAt: emailReceivedAt?.toISOString() || new Date().toISOString(),
             },
             constituentContext,
-            matchedCases
+            matchedCases,
+            isTestEmail // Include debug info for test emails
           );
+
+          const llmSuggestion = llmResult.suggestion;
+          llmDebug = llmResult.debugInfo;
 
           suggestion = {
             action: this.mapRecommendedAction(llmSuggestion.recommendedAction),
@@ -265,19 +269,64 @@ export class TriageJobHandler {
       }
 
       result.suggestion = suggestion;
+      if (isTestEmail && llmDebug) {
+        result.llmDebug = llmDebug;
+      }
 
-      // Step 5: Cache the result for quick UI access
+      // Step 5: Save triage suggestion to database for persistence
+      if (this.supabase) {
+        try {
+          // Cast parsedSuggestion to TriageSuggestionDto (it's typed as unknown in LLMDebugInfo)
+          const parsedSuggestion = llmDebug?.parsedSuggestion as TriageSuggestionDto | undefined;
+          await this.supabase.rpc('save_triage_suggestion', {
+            p_email_id: emailId,
+            p_office_id: officeId,
+            p_model: llmDebug?.model || 'rule-based',
+            p_email_type: parsedSuggestion?.emailType || null,
+            p_email_type_confidence: parsedSuggestion?.classificationConfidence || null,
+            p_classification_reasoning: parsedSuggestion?.classificationReasoning || null,
+            p_recommended_action: parsedSuggestion?.recommendedAction || suggestion.action,
+            p_action_confidence: parsedSuggestion?.actionConfidence || suggestion.confidence,
+            p_action_reasoning: parsedSuggestion?.actionReasoning || suggestion.reasoning,
+            p_suggested_case_type_id: parsedSuggestion?.suggestedCaseType?.id || null,
+            p_suggested_category_id: parsedSuggestion?.suggestedCategory?.id || null,
+            p_suggested_status_id: null, // Not in current DTO
+            p_suggested_assignee_id: parsedSuggestion?.suggestedAssignee?.id || null,
+            p_suggested_priority: parsedSuggestion?.suggestedPriority || null,
+            p_suggested_tags: parsedSuggestion?.suggestedTags ? JSON.stringify(parsedSuggestion.suggestedTags) : '[]',
+            p_matched_constituent_id: matchedConstituent?.id || null,
+            p_matched_constituent_external_id: matchedConstituent?.externalId || null,
+            p_matched_constituent_confidence: matchedConstituent ? 1.0 : null,
+            p_matched_cases: matchedCases.length > 0 ? JSON.stringify(matchedCases) : '[]',
+            p_matched_campaign_id: null, // Not implemented yet
+            p_suggested_existing_case_id: parsedSuggestion?.suggestedExistingCaseId || null,
+            p_suggested_existing_case_external_id: null, // Would need to look up
+            p_full_prompt: llmDebug?.fullPrompt || null,
+            p_raw_response: llmDebug?.rawResponse || null,
+            p_parsed_response: parsedSuggestion ? JSON.stringify(parsedSuggestion) : null,
+            p_processing_duration_ms: llmDebug?.llmDurationMs || null,
+          });
+          console.log(`[TriageProcessEmail] Saved triage suggestion to database for ${emailId}`);
+        } catch (saveError) {
+          // Non-fatal - log but don't fail the job
+          console.warn(`[TriageProcessEmail] Failed to save triage suggestion:`, saveError);
+        }
+      }
+
+      // Step 6: Cache the result for quick UI access (include llmDebug for test emails)
       await this.triageCache.set(emailId, {
         matchedConstituent,
         matchedCases,
         suggestion,
+        llmDebug: isTestEmail ? llmDebug : undefined,
         processedAt: new Date(),
+        status: 'completed',
       });
 
       result.success = true;
       result.durationMs = Date.now() - startTime;
 
-      // Step 6: Mark test emails as actioned (processed) so UI shows correct status
+      // Step 7: Mark test emails as actioned (processed) so UI shows correct status
       if (isTestEmail && this.supabase) {
         try {
           await this.supabase.rpc('mark_test_email_processed', { p_email_id: emailId });
@@ -293,9 +342,19 @@ export class TriageJobHandler {
           `matched=${!!matchedConstituent}, cases=${matchedCases.length}, ` +
           `suggestion=${suggestion.action} in ${result.durationMs}ms`
       );
+
+      return result;
     } catch (error) {
-      result.error = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      result.error = errorMessage;
       result.durationMs = Date.now() - startTime;
+
+      // Cache the failure for UI visibility
+      await this.triageCache.set(emailId, {
+        processedAt: new Date(),
+        status: 'failed',
+        error: errorMessage,
+      });
 
       console.error(`[TriageProcessEmail] Failed to process ${emailId}:`, error);
       throw error;
@@ -304,13 +363,16 @@ export class TriageJobHandler {
 
   /**
    * Generate suggestion using LLM service
+   * Caches the prompt immediately for UI visibility before calling the LLM
    */
   private async generateLLMSuggestion(
     office: OfficeId,
+    emailId: string,
     emailContent: EmailContentForAnalysis,
     constituentContext: ConstituentContextDto | undefined,
-    matchedCases: Array<{ id: string; externalId: number; summary: string }>
-  ): Promise<TriageSuggestionDto> {
+    matchedCases: Array<{ id: string; externalId: number; summary: string }>,
+    includeDebug: boolean = false
+  ): Promise<{ suggestion: TriageSuggestionDto; debugInfo?: LLMDebugInfo }> {
     if (!this.llmService) {
       throw new Error('LLM service not available');
     }
@@ -374,8 +436,41 @@ export class TriageJobHandler {
       referenceData,
     };
 
-    // Call LLM service
-    return this.llmService.analyzeEmail(triageContext);
+    // Pre-cache the prompt immediately so frontend can see it before LLM completes
+    if (includeDebug) {
+      const fullPrompt = buildTriageContextPrompt(triageContext);
+      await this.triageCache.set(emailId, {
+        processedAt: new Date(),
+        status: 'processing',
+        llmDebug: {
+          fullPrompt,
+          rawResponse: '(waiting for LLM response...)',
+          parsedSuggestion: {} as TriageSuggestionDto,
+          model: 'gemini-2.0-flash',
+          llmDurationMs: 0,
+        },
+      });
+      console.log(`[TriageProcessEmail] Pre-cached prompt for ${emailId} (${fullPrompt.length} chars)`);
+    }
+
+    // Call LLM service - use debug method for test emails
+    if (includeDebug && this.llmService instanceof GeminiLLMService) {
+      const result = await this.llmService.analyzeEmailWithDebug(triageContext);
+      return {
+        suggestion: result.suggestion,
+        debugInfo: result.debugInfo ? {
+          fullPrompt: result.debugInfo.fullPrompt,
+          rawResponse: result.debugInfo.rawResponse,
+          parsedSuggestion: result.debugInfo.parsedSuggestion,
+          model: result.debugInfo.model,
+          llmDurationMs: result.debugInfo.llmDurationMs,
+        } : undefined,
+      };
+    }
+
+    // Standard call without debug info
+    const suggestion = await this.llmService.analyzeEmail(triageContext);
+    return { suggestion };
   }
 
   /**

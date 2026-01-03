@@ -17,6 +17,7 @@ import {
   useTriageQueue,
   useTriageActions,
   useMessageBody,
+  useTriageSuggestion,
 } from '@/hooks/triage/useTriage';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -74,6 +75,8 @@ import {
   ScrollText,
   HeartHandshake,
   Pencil,
+  Sparkles,
+  Link2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Calendar } from '@/components/ui/calendar';
@@ -92,8 +95,15 @@ export function TriageWorkspace() {
 
   const { messages: allMessages, isLoading: dataLoading } = useTriageQueue();
   const { approveTriage, createConstituentWithContacts, createCaseForMessage, isProcessing } = useTriageActions();
-  const { campaigns, getTagsForEntity, updateMessage, constituents, constituentContacts, cases } = useSupabase();
+  const { campaigns, getTagsForEntity, updateMessage, constituents, constituentContacts, cases, profiles } = useSupabase();
   const { setProgress, setNavigation } = useTriageProgress();
+
+  // Fetch AI triage suggestion for this email
+  const { suggestion, isLoading: suggestionLoading, recordDecision } = useTriageSuggestion(messageId || null);
+
+  // Track which fields were AI-prefilled (to detect user modifications)
+  const [aiPrefilledFields, setAiPrefilledFields] = useState<Set<string>>(new Set());
+  const [userModifiedFields, setUserModifiedFields] = useState<Set<string>>(new Set());
 
   // Campaign assignment state
   const [showAssignCampaign, setShowAssignCampaign] = useState(false);
@@ -172,25 +182,92 @@ export function TriageWorkspace() {
     reviewDate: '',
   });
 
-  // Initialize triage state from message
+  // Helper to find profile by external ID (for legacy assignee IDs)
+  const findProfileByExternalId = useCallback((externalId: number | null) => {
+    if (!externalId) return null;
+    // Look for profile matching the external ID (if stored in metadata or matching pattern)
+    return profiles.find(p => p.id === String(externalId)) || null;
+  }, [profiles]);
+
+  // Helper to mark a field as user-modified
+  const markFieldModified = useCallback((fieldName: string) => {
+    if (aiPrefilledFields.has(fieldName)) {
+      setUserModifiedFields(prev => new Set(prev).add(fieldName));
+    }
+  }, [aiPrefilledFields]);
+
+  // Check if a field was AI-prefilled and not modified
+  const isAiPrefilled = useCallback((fieldName: string) => {
+    return aiPrefilledFields.has(fieldName) && !userModifiedFields.has(fieldName);
+  }, [aiPrefilledFields, userModifiedFields]);
+
+  // Initialize triage state from message and AI suggestion
   useEffect(() => {
     if (message) {
       // Get existing tags for this message
       const messageTags = getTagsForEntity('message', message.id);
+      const prefilledFields = new Set<string>();
+
+      // Start with message data as base
+      let constituentId = message.senderConstituent?.id || null;
+      let caseId = message.case_id || null;
+      let assigneeId: string | null = null;
+      let priority: CasePriority = 'medium';
+      let tagIds = messageTags.map(t => t.tag_id);
+
+      // If we have an AI suggestion, use it to prefill
+      if (suggestion && !suggestionLoading) {
+        // Constituent from AI
+        if (suggestion.matched_constituent_id) {
+          constituentId = suggestion.matched_constituent_id;
+          prefilledFields.add('constituentId');
+        }
+
+        // Case from AI (for "add to existing" action)
+        if (suggestion.recommended_action === 'add_to_existing' && suggestion.suggested_existing_case_id) {
+          caseId = suggestion.suggested_existing_case_id;
+          prefilledFields.add('caseId');
+        }
+
+        // Priority from AI
+        if (suggestion.suggested_priority) {
+          priority = suggestion.suggested_priority;
+          prefilledFields.add('priority');
+        }
+
+        // Tags from AI
+        if (suggestion.suggested_tags && suggestion.suggested_tags.length > 0) {
+          tagIds = suggestion.suggested_tags;
+          prefilledFields.add('tagIds');
+        }
+
+        // Assignee from AI (need to map external ID to profile ID)
+        if (suggestion.suggested_assignee_id) {
+          const profile = findProfileByExternalId(suggestion.suggested_assignee_id);
+          if (profile) {
+            assigneeId = profile.id;
+            prefilledFields.add('assigneeId');
+          }
+        }
+      }
 
       setTriageState({
-        constituentId: message.senderConstituent?.id || null,
-        caseId: message.case_id || null,
-        assigneeId: null,
-        priority: 'medium',
-        tagIds: messageTags.map(t => t.tag_id),
+        constituentId,
+        caseId,
+        assigneeId,
+        priority,
+        tagIds,
       });
+
+      setAiPrefilledFields(prefilledFields);
+      setUserModifiedFields(new Set());
 
       // Reset email note when message changes
       setEmailNote('');
       setIsEditingNote(false);
     }
-  }, [message?.id, message?.senderConstituent?.id, message?.case_id, getTagsForEntity]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Only re-run on specific property changes, not full message object
+  }, [message?.id, message?.senderConstituent?.id, message?.case_id, getTagsForEntity, suggestion, suggestionLoading, findProfileByExternalId]);
 
   // Update constituent details when constituent changes
   useEffect(() => {
@@ -250,6 +327,42 @@ export function TriageWorkspace() {
       });
     }
   }, [triageState.caseId, cases, isCreatingCase]);
+
+  // Prefill case details from AI suggestion when action is "create_case"
+  useEffect(() => {
+    if (suggestion && !suggestionLoading && message) {
+      if (suggestion.recommended_action === 'create_case' && !triageState.caseId) {
+        setIsCreatingCase(true);
+        const prefilledFields = new Set(aiPrefilledFields);
+
+        // Find profile for assignee
+        let assignedTo: string | null = null;
+        if (suggestion.suggested_assignee_id) {
+          const profile = findProfileByExternalId(suggestion.suggested_assignee_id);
+          if (profile) {
+            assignedTo = profile.id;
+            prefilledFields.add('caseAssignedTo');
+          }
+        }
+
+        setCaseDetails({
+          title: message.subject || '',
+          description: '',
+          priority: suggestion.suggested_priority || 'medium',
+          assignedTo,
+          status: 'open',
+          caseType: null, // TODO: Map suggested_case_type_id to CaseType
+          reviewDate: '',
+        });
+
+        if (suggestion.suggested_priority) {
+          prefilledFields.add('casePriority');
+        }
+
+        setAiPrefilledFields(prefilledFields);
+      }
+    }
+  }, [suggestion, suggestionLoading, message, triageState.caseId, aiPrefilledFields, findProfileByExternalId]);
 
   // Navigation handlers
   const goToPrevious = useCallback(() => {
@@ -351,6 +464,24 @@ export function TriageWorkspace() {
     });
 
     if (result.success) {
+      // Record user decision on AI suggestion if one exists
+      if (suggestion) {
+        const wasModified = userModifiedFields.size > 0;
+        const decision = wasModified ? 'modified' : 'accepted';
+        const modifications = wasModified ? {
+          modifiedFields: Array.from(userModifiedFields),
+          finalValues: {
+            constituentId,
+            caseId,
+            priority: triageState.priority,
+            tagIds: triageState.tagIds,
+            assigneeId: triageState.assigneeId,
+          },
+        } : undefined;
+
+        await recordDecision(decision, modifications);
+      }
+
       toast.success('Message triaged successfully');
       // Reset creating state for next message
       setIsCreatingConstituent(false);
@@ -364,7 +495,7 @@ export function TriageWorkspace() {
     } else {
       toast.error(result.error || 'Failed to triage message');
     }
-  }, [message, triageState, isCreatingConstituent, constituentDetails, createConstituentWithContacts, isCreatingCase, caseDetails, createCaseForMessage, approveTriage, messageIndex, allMessages.length, goToNext, goBack]);
+  }, [message, triageState, isCreatingConstituent, constituentDetails, createConstituentWithContacts, isCreatingCase, caseDetails, createCaseForMessage, approveTriage, messageIndex, allMessages.length, goToNext, goBack, suggestion, userModifiedFields, recordDecision]);
 
   // Handle campaign unlink
   const handleUnlinkCampaign = useCallback(async () => {
@@ -526,44 +657,98 @@ export function TriageWorkspace() {
 
       {/* Triage panel */}
       <div className="w-96 border-l flex flex-col bg-muted/30">
-        {/* Assign to Campaign button */}
+        {/* AI Suggestion Summary */}
+        {suggestion && (
+          <div className="p-4 border-b bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/30">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="h-4 w-4 text-violet-500" />
+              <span className="text-sm font-medium text-violet-700 dark:text-violet-300">AI Suggestion</span>
+              {suggestion.action_confidence && (
+                <Badge variant="secondary" className="ml-auto text-xs">
+                  {Math.round(suggestion.action_confidence * 100)}% confident
+                </Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {suggestion.email_type && (
+                <Badge variant="outline" className="text-xs capitalize">
+                  {suggestion.email_type.replace('_', ' ')}
+                  {suggestion.email_type_confidence && (
+                    <span className="ml-1 text-muted-foreground">
+                      ({Math.round(suggestion.email_type_confidence * 100)}%)
+                    </span>
+                  )}
+                </Badge>
+              )}
+              {suggestion.recommended_action && (
+                <Badge
+                  variant={suggestion.recommended_action === 'create_case' ? 'default' : 'secondary'}
+                  className="text-xs"
+                >
+                  {suggestion.recommended_action === 'create_case' && 'Create new case'}
+                  {suggestion.recommended_action === 'add_to_existing' && 'Add to existing case'}
+                  {suggestion.recommended_action === 'assign_campaign' && 'Assign to campaign'}
+                  {suggestion.recommended_action === 'mark_spam' && 'Mark as spam'}
+                  {suggestion.recommended_action === 'ignore' && 'Ignore'}
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+
         <ScrollArea className="flex-1">
           <div className="p-4">
             {/* Constituent section */}
             <div className="space-y-3">
-              <ConstituentSelector
-                selectedId={triageState.constituentId}
-                onSelect={(id) => {
-                  setTriageState(prev => ({ ...prev, constituentId: id }));
-                  setIsCreatingConstituent(false);
-                }}
-                onCreateNew={() => {
-                  setTriageState(prev => ({ ...prev, constituentId: null }));
-                  setIsCreatingConstituent(true);
-                  // Pre-fill with message sender info
-                  setConstituentDetails({
-                    title: '',
-                    name: message.senderName || '',
-                    address: message.addressFromEmail || '',
-                    email: message.senderEmail || '',
-                  });
-                }}
-                recognitionStatus={
-                  triageState.constituentId
-                    ? message.triage_status === 'confirmed'
-                      ? 'confirmed'
-                      : 'ai_matched'
-                    : 'none'
-                }
-                borderless
-                hideSecondary
-                placeholder={
-                  isCreatingConstituent
-                    ? constituentDetails.name.trim() || 'Creating constituent...'
-                    : 'Select constituent'
-                }
-                labelClassName="text-lg"
-              />
+              <div className="relative">
+                {isAiPrefilled('constituentId') && (
+                  <div className="absolute -left-2 top-1/2 -translate-y-1/2">
+                    <Sparkles className="h-3 w-3 text-violet-500" />
+                  </div>
+                )}
+                <ConstituentSelector
+                  selectedId={triageState.constituentId}
+                  onSelect={(id) => {
+                    setTriageState(prev => ({ ...prev, constituentId: id }));
+                    setIsCreatingConstituent(false);
+                    markFieldModified('constituentId');
+                  }}
+                  onCreateNew={() => {
+                    setTriageState(prev => ({ ...prev, constituentId: null }));
+                    setIsCreatingConstituent(true);
+                    markFieldModified('constituentId');
+                    // Pre-fill with message sender info
+                    setConstituentDetails({
+                      title: '',
+                      name: message.senderName || '',
+                      address: message.addressFromEmail || '',
+                      email: message.senderEmail || '',
+                    });
+                  }}
+                  recognitionStatus={
+                    triageState.constituentId
+                      ? isAiPrefilled('constituentId')
+                        ? 'ai_matched'
+                        : message.triage_status === 'confirmed'
+                          ? 'confirmed'
+                          : 'ai_matched'
+                      : 'none'
+                  }
+                  borderless
+                  hideSecondary
+                  placeholder={
+                    isCreatingConstituent
+                      ? constituentDetails.name.trim() || 'Creating constituent...'
+                      : 'Select constituent'
+                  }
+                  labelClassName="text-lg"
+                />
+                {isAiPrefilled('constituentId') && suggestion?.matched_constituent_confidence && (
+                  <span className="text-xs text-violet-600 dark:text-violet-400 ml-1">
+                    {Math.round(suggestion.matched_constituent_confidence * 100)}% match
+                  </span>
+                )}
+              </div>
 
               {/* Ghost inputs for constituent details */}
               <div className="space-y-1">
@@ -619,36 +804,83 @@ export function TriageWorkspace() {
             <div className="space-y-6 -mx-4 px-4 py-4 rounded-lg overflow-hidden">
               {/* Case section */}
               <div className="space-y-3 min-w-0">
-                <CaseSelector
-                  selectedId={triageState.caseId}
-                  onSelect={(id) => {
-                    setTriageState(prev => ({ ...prev, caseId: id }));
-                    setIsCreatingCase(false);
-                  }}
-                  onCreateNew={() => {
-                    setTriageState(prev => ({ ...prev, caseId: null }));
-                    setIsCreatingCase(true);
-                    // Pre-fill with message subject
-                    setCaseDetails({
-                      title: message.subject || '',
-                      description: '',
-                      priority: 'medium',
-                      assignedTo: null,
-                      status: 'open',
-                      caseType: null,
-                      reviewDate: '',
-                    });
-                  }}
-                  constituentId={triageState.constituentId}
-                  borderless
-                  hideSecondary
-                  placeholder={
-                    isCreatingCase
-                      ? caseDetails.title.trim() || 'Creating case...'
-                      : 'Select or create case'
-                  }
-                  labelClassName="text-lg"
-                />
+                <div className="relative">
+                  {isAiPrefilled('caseId') && (
+                    <div className="absolute -left-2 top-1/2 -translate-y-1/2">
+                      <Sparkles className="h-3 w-3 text-violet-500" />
+                    </div>
+                  )}
+                  <CaseSelector
+                    selectedId={triageState.caseId}
+                    onSelect={(id) => {
+                      setTriageState(prev => ({ ...prev, caseId: id }));
+                      setIsCreatingCase(false);
+                      markFieldModified('caseId');
+                    }}
+                    onCreateNew={() => {
+                      setTriageState(prev => ({ ...prev, caseId: null }));
+                      setIsCreatingCase(true);
+                      markFieldModified('caseId');
+                      // Pre-fill with message subject
+                      setCaseDetails({
+                        title: message.subject || '',
+                        description: '',
+                        priority: 'medium',
+                        assignedTo: null,
+                        status: 'open',
+                        caseType: null,
+                        reviewDate: '',
+                      });
+                    }}
+                    constituentId={triageState.constituentId}
+                    borderless
+                    hideSecondary
+                    placeholder={
+                      isCreatingCase
+                        ? caseDetails.title.trim() || 'Creating case...'
+                        : 'Select or create case'
+                    }
+                    labelClassName="text-lg"
+                  />
+                </div>
+
+                {/* AI Matched Cases - Quick select options */}
+                {suggestion?.matched_cases && suggestion.matched_cases.length > 0 && !triageState.caseId && !isCreatingCase && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Link2 className="h-3 w-3" />
+                      <span>Similar cases found:</span>
+                    </div>
+                    <div className="space-y-1">
+                      {suggestion.matched_cases.slice(0, 3).map((matchedCase) => (
+                        <Button
+                          key={matchedCase.id}
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-left h-auto py-2 px-3"
+                          onClick={() => {
+                            setTriageState(prev => ({ ...prev, caseId: matchedCase.id }));
+                            setIsCreatingCase(false);
+                          }}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm">{matchedCase.summary}</span>
+                              <Badge variant="secondary" className="text-xs shrink-0">
+                                {Math.round(matchedCase.relevanceScore * 100)}%
+                              </Badge>
+                            </div>
+                            {matchedCase.externalId && (
+                              <span className="text-xs text-muted-foreground">
+                                #{matchedCase.externalId}
+                              </span>
+                            )}
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Ghost inputs for case details */}
                 <div className="space-y-1">
@@ -809,11 +1041,18 @@ export function TriageWorkspace() {
                     </Select>
                   </TriageFieldRow>
                   {/* Tags */}
-                  <TriageFieldRow tooltip="Labels for filtering and organization" icon={Tag}>
+                  <TriageFieldRow
+                    tooltip="Labels for filtering and organization"
+                    icon={isAiPrefilled('tagIds') ? Sparkles : Tag}
+                    iconClassName={isAiPrefilled('tagIds') ? 'text-violet-500' : undefined}
+                  >
                     <div className="flex-1 min-w-0">
                       <TagPicker
                         selectedTagIds={triageState.tagIds}
-                        onChange={(tagIds) => setTriageState(prev => ({ ...prev, tagIds }))}
+                        onChange={(tagIds) => {
+                          setTriageState(prev => ({ ...prev, tagIds }));
+                          markFieldModified('tagIds');
+                        }}
                         label=""
                         borderless
                         placeholder="Tags"
@@ -850,11 +1089,19 @@ export function TriageWorkspace() {
                     </Popover>
                   </TriageFieldRow>
                   {/* Assignee - CaseworkerSelector already has its own icon */}
-                  <TriageFieldRow tooltip="Staff member handling this case" icon={User} showIcon={false}>
+                  <TriageFieldRow
+                    tooltip="Staff member handling this case"
+                    icon={isAiPrefilled('caseAssignedTo') ? Sparkles : User}
+                    iconClassName={isAiPrefilled('caseAssignedTo') ? 'text-violet-500' : undefined}
+                    showIcon={false}
+                  >
                     <div className="flex-1 min-w-0">
                       <CaseworkerSelector
                         selectedId={caseDetails.assignedTo}
-                        onSelect={(id) => setCaseDetails(prev => ({ ...prev, assignedTo: id }))}
+                        onSelect={(id) => {
+                          setCaseDetails(prev => ({ ...prev, assignedTo: id }));
+                          markFieldModified('caseAssignedTo');
+                        }}
                         showUnassignedOption
                         borderless
                         hideSecondary
@@ -864,11 +1111,18 @@ export function TriageWorkspace() {
                     </div>
                   </TriageFieldRow>
                   {/* Priority */}
-                  <TriageFieldRow tooltip="Case urgency level" icon={AlertCircle}>
+                  <TriageFieldRow
+                    tooltip="Case urgency level"
+                    icon={isAiPrefilled('casePriority') ? Sparkles : AlertCircle}
+                    iconClassName={isAiPrefilled('casePriority') ? 'text-violet-500' : undefined}
+                  >
                     <div className="flex-1 min-w-0">
                       <PrioritySelector
                         value={caseDetails.priority}
-                        onChange={(priority) => setCaseDetails(prev => ({ ...prev, priority }))}
+                        onChange={(priority) => {
+                          setCaseDetails(prev => ({ ...prev, priority }));
+                          markFieldModified('casePriority');
+                        }}
                         label=""
                         borderless
                         size="sm"

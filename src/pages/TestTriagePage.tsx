@@ -33,6 +33,7 @@ import {
   User,
   Calendar,
   Clock,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -79,6 +80,56 @@ interface UploadResponse {
   };
 }
 
+interface LLMDebugInfo {
+  fullPrompt: string;
+  rawResponse: string;
+  parsedSuggestion: unknown;
+  model: string;
+  llmDurationMs: number;
+}
+
+// Persisted triage suggestion from database
+// Note: JSONB fields may come as strings or parsed objects depending on the driver
+interface TriageSuggestion {
+  id: string;
+  emailId: string;
+  createdAt: string;
+  processingDurationMs: number | null;
+  model: string;
+  emailType: string | null;
+  emailTypeConfidence: number | null;
+  classificationReasoning: string | null;
+  recommendedAction: string | null;
+  actionConfidence: number | null;
+  actionReasoning: string | null;
+  suggestedCaseTypeId: number | null;
+  suggestedCategoryId: number | null;
+  suggestedAssigneeId: number | null;
+  suggestedPriority: string | null;
+  suggestedTags: string[] | string | null;
+  matchedConstituentId: string | null;
+  matchedConstituentExternalId: number | null;
+  matchedCases: Array<{ id: string; externalId: number; summary: string }> | string | null;
+  fullPrompt: string | null;
+  rawResponse: string | null;
+  parsedResponse: unknown | string | null;
+  userDecision: string | null;
+  userDecisionAt: string | null;
+}
+
+interface JobOutput {
+  success?: boolean;
+  emailId?: string;
+  suggestion?: {
+    action: string;
+    confidence: number;
+    reasoning: string;
+  };
+  llmDebug?: LLMDebugInfo;
+  error?: string;
+  durationMs?: number;
+}
+
 interface JobStatus {
   jobId: string;
   state: string;
@@ -86,7 +137,7 @@ interface JobStatus {
   startedAt?: string;
   completedAt?: string;
   retryCount: number;
-  output?: unknown;
+  output?: JobOutput;
 }
 
 interface QueueStatus {
@@ -143,6 +194,14 @@ export default function TestTriagePage() {
   const [pipelineStep, setPipelineStep] = useState<PipelineStep | null>(null);
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [triageSuggestion, setTriageSuggestion] = useState<TriageSuggestion | null>(null);
+
+  // Debug state to track data flow
+  const [debugInfo, setDebugInfo] = useState<{
+    step4_received?: { textBodyLength: number; preview: string };
+    step5_setState?: { textBodyLength: number };
+    step6_render?: { hasCurrentParsed: boolean; textBodyLength: number };
+  }>({});
 
   // Get auth token for API calls
   const getAuthToken = useCallback(async () => {
@@ -231,6 +290,35 @@ export default function TestTriagePage() {
     }
   }, [getAuthToken]);
 
+  // Fetch triage suggestion from database (persisted LLM analysis)
+  const fetchTriageSuggestion = useCallback(async (emailId: string): Promise<TriageSuggestion | null> => {
+    try {
+      const token = await getAuthToken();
+
+      const response = await fetch(`${API_BASE_URL}/test-triage/suggestion/${emailId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        // 404 is expected if no suggestion yet
+        if (response.status === 404) {
+          return null;
+        }
+        console.error('Failed to fetch triage suggestion:', response.status);
+        return null;
+      }
+
+      const data = await response.json();
+      return data.success ? data.data : null;
+    } catch (error) {
+      console.error('Failed to fetch triage suggestion:', error);
+      return null;
+    }
+  }, [getAuthToken]);
+
   // Track if job was ever seen as active (to differentiate "not started" from "already completed")
   const jobWasActiveRef = useRef(false);
 
@@ -257,6 +345,14 @@ export default function TestTriagePage() {
           setPollingJobId(null);
           toast.success('Triage processing completed!');
           fetchTestEmails();
+          // Fetch the persisted triage suggestion from the database
+          if (status.output?.emailId) {
+            const suggestion = await fetchTriageSuggestion(status.output.emailId);
+            if (suggestion) {
+              setTriageSuggestion(suggestion);
+              console.log('[TestTriage] Fetched triage suggestion from database:', suggestion.id);
+            }
+          }
         } else if (status.state === 'failed') {
           setPipelineStep('failed');
           setPipelineError(status.output ? JSON.stringify(status.output) : 'Job failed');
@@ -274,6 +370,14 @@ export default function TestTriagePage() {
           setPollingJobId(null);
           toast.success('Triage processing completed!');
           fetchTestEmails();
+          // Try to fetch the triage suggestion from the database using current email
+          if (currentEmail?.id) {
+            const suggestion = await fetchTriageSuggestion(currentEmail.id);
+            if (suggestion) {
+              setTriageSuggestion(suggestion);
+              console.log('[TestTriage] Fetched triage suggestion from database:', suggestion.id);
+            }
+          }
         } else {
           // Job not found yet - might still be queued or worker hasn't picked it up
           setPipelineStep('worker_pickup');
@@ -282,7 +386,7 @@ export default function TestTriagePage() {
     }, 1500);
 
     return () => clearInterval(pollInterval);
-  }, [pollingJobId, fetchJobStatus, fetchTestEmails]);
+  }, [pollingJobId, fetchJobStatus, fetchTestEmails, fetchTriageSuggestion, currentEmail?.id]);
 
   // Load test emails and queue status on mount
   useEffect(() => {
@@ -303,6 +407,7 @@ export default function TestTriagePage() {
     setUploadError(null);
     setPipelineError(null);
     setPipelineStep('uploading');
+    setTriageSuggestion(null); // Clear previous suggestion
 
     try {
       const token = await getAuthToken();
@@ -324,6 +429,13 @@ export default function TestTriagePage() {
 
       const data: UploadResponse = await response.json();
 
+      // STEP 4: Log what the frontend received from the server
+      const step4Info = {
+        textBodyLength: data.data?.parsed?.textBody?.length ?? 0,
+        preview: data.data?.parsed?.textBody?.substring(0, 100) ?? '(empty or missing)',
+      };
+      console.log('[TestTriage Frontend] STEP 4 - Received response from server:', step4Info);
+
       if (!response.ok || !data.success) {
         throw new Error(data.error?.message || 'Upload failed');
       }
@@ -340,6 +452,19 @@ export default function TestTriagePage() {
         actioned: data.data.email.actioned,
         jobId: data.data.jobId,
       });
+
+      // STEP 5: Log what we're setting in state
+      const step5Info = {
+        textBodyLength: data.data.parsed.textBody?.length ?? 0,
+      };
+      console.log('[TestTriage Frontend] STEP 5 - Setting currentParsed state:', step5Info);
+
+      // Update debug info for display in UI
+      setDebugInfo({
+        step4_received: step4Info,
+        step5_setState: step5Info,
+      });
+
       setCurrentParsed(data.data.parsed);
       setPollingJobId(data.data.jobId);
 
@@ -496,7 +621,16 @@ export default function TestTriagePage() {
         setCurrentEmail(prev => prev ? { ...prev, jobStatus: status } : null);
       }
     }
-  }, [fetchJobStatus, getAuthToken, currentEmail?.id]);
+
+    // Fetch the persisted triage suggestion from the database
+    const suggestion = await fetchTriageSuggestion(email.id);
+    if (suggestion) {
+      setTriageSuggestion(suggestion);
+      console.log('[TestTriage] Fetched triage suggestion for email:', email.id);
+    } else {
+      setTriageSuggestion(null);
+    }
+  }, [fetchJobStatus, fetchTriageSuggestion, getAuthToken, currentEmail?.id]);
 
   if (!session) {
     return (
@@ -624,6 +758,28 @@ export default function TestTriagePage() {
                 <AlertDescription className="font-mono text-xs">{pipelineError}</AlertDescription>
               </Alert>
             )}
+
+            {/* Debug Panel - Data Flow Tracking */}
+            <div className="mt-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-xs">
+              <h4 className="font-bold text-yellow-800 mb-2">🔍 Debug: Data Flow (check server logs for Steps 1-3)</h4>
+              <div className="space-y-1 font-mono text-yellow-900">
+                <p><strong>STEP 4 (Frontend received):</strong>{' '}
+                  {debugInfo.step4_received
+                    ? `textBodyLength=${debugInfo.step4_received.textBodyLength}, preview="${debugInfo.step4_received.preview}"`
+                    : '(waiting for upload)'}
+                </p>
+                <p><strong>STEP 5 (setState called):</strong>{' '}
+                  {debugInfo.step5_setState
+                    ? `textBodyLength=${debugInfo.step5_setState.textBodyLength}`
+                    : '(waiting)'}
+                </p>
+                <p><strong>STEP 6 (Render state):</strong>{' '}
+                  hasCurrentParsed={String(!!currentParsed)},
+                  textBodyLength={currentParsed?.textBody?.length ?? 0},
+                  textBody="{currentParsed?.textBody?.substring(0, 50) ?? '(null)'}"
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -690,6 +846,16 @@ export default function TestTriagePage() {
                   <div className="flex items-center justify-between">
                     <h3 className="font-medium">Uploaded Email</h3>
                     <div className="flex gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => {
+                          window.open(`/triage/messages/${currentEmail.id}`, '_blank');
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Triage View
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -762,14 +928,166 @@ export default function TestTriagePage() {
                   )}
 
                   {/* Parsed Content Preview */}
-                  {currentParsed && (
-                    <div className="mt-4">
-                      <h4 className="font-medium mb-2">Email Body Preview</h4>
-                      <pre className="p-3 rounded-lg bg-muted text-xs overflow-auto max-h-48">
-                        {currentParsed.textBody}
-                      </pre>
+                  <div className="mt-4">
+                    <h4 className="font-medium mb-2">Email Body Preview</h4>
+                    <pre className="p-3 rounded-lg bg-muted text-xs overflow-auto max-h-48">
+                      {currentParsed?.textBody || '(No email body content available)'}
+                    </pre>
+                  </div>
+
+                  {/* LLM Debug Panel - Shows data from triage_suggestions table */}
+                  <div className="mt-6 space-y-4">
+                    <Separator />
+                    <div>
+                      <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                        🤖 Triage Analysis (from Database)
+                        {triageSuggestion && (
+                          <>
+                            <Badge variant="outline" className="font-normal">
+                              {triageSuggestion.model}
+                            </Badge>
+                            {triageSuggestion.processingDurationMs && (
+                              <Badge variant="secondary" className="font-normal">
+                                {triageSuggestion.processingDurationMs}ms
+                              </Badge>
+                            )}
+                          </>
+                        )}
+                        {!triageSuggestion && currentEmail.jobStatus?.state && (
+                          <Badge variant="secondary" className="font-normal">
+                            {currentEmail.jobStatus.state === 'completed' ? 'Loading...' : `Status: ${currentEmail.jobStatus.state}`}
+                          </Badge>
+                        )}
+                        {!triageSuggestion && !currentEmail.jobStatus && (
+                          <Badge variant="outline" className="font-normal">
+                            Waiting for processing...
+                          </Badge>
+                        )}
+                      </h3>
+
+                      {/* Persisted Suggestion Summary - Primary display */}
+                      {triageSuggestion ? (
+                        <div className="mb-4 p-4 rounded-lg bg-green-50 border border-green-200">
+                          <h4 className="font-medium text-green-800 mb-3">📊 Triage Suggestion (from triage_suggestions table)</h4>
+                          <div className="grid grid-cols-2 gap-4 text-sm text-green-900">
+                            <div className="space-y-2">
+                              <p><strong>Email Type:</strong> {triageSuggestion.emailType || '(not set)'}</p>
+                              <p><strong>Type Confidence:</strong> {triageSuggestion.emailTypeConfidence ? `${Math.round(Number(triageSuggestion.emailTypeConfidence) * 100)}%` : '(not set)'}</p>
+                              <p><strong>Recommended Action:</strong> {triageSuggestion.recommendedAction || '(not set)'}</p>
+                              <p><strong>Action Confidence:</strong> {triageSuggestion.actionConfidence ? `${Math.round(Number(triageSuggestion.actionConfidence) * 100)}%` : '(not set)'}</p>
+                              <p><strong>Priority:</strong> {triageSuggestion.suggestedPriority || '(not set)'}</p>
+                            </div>
+                            <div className="space-y-2">
+                              <p><strong>Case Type ID:</strong> {triageSuggestion.suggestedCaseTypeId ?? '(not set)'}</p>
+                              <p><strong>Category ID:</strong> {triageSuggestion.suggestedCategoryId ?? '(not set)'}</p>
+                              <p><strong>Assignee ID:</strong> {triageSuggestion.suggestedAssigneeId ?? '(not set)'}</p>
+                              <p><strong>Matched Constituent:</strong> {triageSuggestion.matchedConstituentExternalId ?? '(none)'}</p>
+                              <p><strong>User Decision:</strong> {triageSuggestion.userDecision || 'pending'}</p>
+                            </div>
+                          </div>
+                          {triageSuggestion.actionReasoning && (
+                            <div className="mt-3 pt-3 border-t border-green-200">
+                              <p><strong>Reasoning:</strong> {triageSuggestion.actionReasoning}</p>
+                            </div>
+                          )}
+                          {triageSuggestion.classificationReasoning && triageSuggestion.classificationReasoning !== triageSuggestion.actionReasoning && (
+                            <div className="mt-2">
+                              <p><strong>Classification Reasoning:</strong> {triageSuggestion.classificationReasoning}</p>
+                            </div>
+                          )}
+                          {triageSuggestion.matchedCases && (() => {
+                            // matchedCases may come as JSON string from database
+                            const cases = typeof triageSuggestion.matchedCases === 'string'
+                              ? JSON.parse(triageSuggestion.matchedCases)
+                              : triageSuggestion.matchedCases;
+                            return Array.isArray(cases) && cases.length > 0 ? (
+                              <div className="mt-3 pt-3 border-t border-green-200">
+                                <p className="font-medium mb-1">Matched Cases:</p>
+                                <ul className="list-disc list-inside text-xs">
+                                  {cases.map((c: { externalId: number; summary: string }, i: number) => (
+                                    <li key={i}>#{c.externalId}: {c.summary}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ) : null;
+                          })()}
+                          <div className="mt-3 text-xs text-green-700">
+                            Saved at: {new Date(triageSuggestion.createdAt).toLocaleString()}
+                          </div>
+                        </div>
+                      ) : currentEmail.jobStatus?.output?.suggestion ? (
+                        // Fallback to job output if database suggestion not yet loaded
+                        <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                          <h4 className="font-medium text-yellow-800 mb-2">⏳ Job Output (loading from database...)</h4>
+                          <div className="text-sm text-yellow-900 space-y-1">
+                            <p><strong>Action:</strong> {currentEmail.jobStatus.output.suggestion.action}</p>
+                            <p><strong>Confidence:</strong> {Math.round(currentEmail.jobStatus.output.suggestion.confidence * 100)}%</p>
+                            <p><strong>Reasoning:</strong> {currentEmail.jobStatus.output.suggestion.reasoning || '(none)'}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mb-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
+                          <h4 className="font-medium text-gray-600 mb-2">Suggestion</h4>
+                          <p className="text-sm text-gray-500 italic">Waiting for LLM processing to complete...</p>
+                        </div>
+                      )}
+
+                      {/* Debug: Show raw job output for troubleshooting */}
+                      <details className="mb-4">
+                        <summary className="cursor-pointer font-medium text-sm py-2 hover:text-primary text-orange-600">
+                          🔧 Raw Job Status (for debugging)
+                        </summary>
+                        <pre className="mt-2 p-3 rounded-lg bg-orange-50 border border-orange-200 text-xs overflow-auto max-h-48 whitespace-pre-wrap">
+                          {JSON.stringify(currentEmail.jobStatus, null, 2) || '(no job status yet)'}
+                        </pre>
+                      </details>
+
+                      {/* Full Prompt - from database */}
+                      <details className="mb-4">
+                        <summary className="cursor-pointer font-medium text-sm py-2 hover:text-primary">
+                          📝 Full Prompt Sent to LLM {triageSuggestion?.fullPrompt && `(${triageSuggestion.fullPrompt.length} chars)`}
+                        </summary>
+                        <pre className="mt-2 p-3 rounded-lg bg-blue-50 border border-blue-200 text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+                          {triageSuggestion?.fullPrompt || currentEmail.jobStatus?.output?.llmDebug?.fullPrompt || '(not available yet)'}
+                        </pre>
+                      </details>
+
+                      {/* Raw Response - from database */}
+                      <details className="mb-4">
+                        <summary className="cursor-pointer font-medium text-sm py-2 hover:text-primary">
+                          📤 Raw Response from Gemini {triageSuggestion?.rawResponse && `(${triageSuggestion.rawResponse.length} chars)`}
+                        </summary>
+                        <pre className="mt-2 p-3 rounded-lg bg-purple-50 border border-purple-200 text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+                          {triageSuggestion?.rawResponse || currentEmail.jobStatus?.output?.llmDebug?.rawResponse || '(not available yet)'}
+                        </pre>
+                      </details>
+
+                      {/* Parsed Suggestion - from database */}
+                      <details className="mb-4">
+                        <summary className="cursor-pointer font-medium text-sm py-2 hover:text-primary">
+                          ✅ Parsed & Validated Suggestion
+                        </summary>
+                        <pre className="mt-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs overflow-auto max-h-96 whitespace-pre-wrap">
+                          {triageSuggestion?.parsedResponse
+                            ? (typeof triageSuggestion.parsedResponse === 'string'
+                                ? JSON.stringify(JSON.parse(triageSuggestion.parsedResponse), null, 2)
+                                : JSON.stringify(triageSuggestion.parsedResponse, null, 2))
+                            : currentEmail.jobStatus?.output?.llmDebug?.parsedSuggestion
+                            ? JSON.stringify(currentEmail.jobStatus.output.llmDebug.parsedSuggestion, null, 2)
+                            : '(not available yet)'}
+                        </pre>
+                      </details>
+
+                      {/* Show message when job completed but no suggestion in database */}
+                      {currentEmail.jobStatus?.state === 'completed' && !triageSuggestion && (
+                        <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200">
+                          <p className="text-sm text-yellow-800">
+                            <strong>Note:</strong> No triage suggestion found in database. The suggestion may have been generated using rule-based fallback, or saving to the database failed.
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             )}
@@ -846,6 +1164,19 @@ export default function TestTriagePage() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 shrink-0"
+                            title="Open in Triage View"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`/triage/messages/${email.id}`, '_blank');
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            title="Delete"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDelete(email.id);

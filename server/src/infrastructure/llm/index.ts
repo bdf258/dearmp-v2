@@ -1,1 +1,6 @@
-export { GeminiLLMService, type GeminiLLMServiceConfig } from './GeminiLLMService';
+export {
+  GeminiLLMService,
+  type GeminiLLMServiceConfig,
+  type LLMAnalysisDebugInfo,
+  type LLMAnalysisResult,
+} from './GeminiLLMService';

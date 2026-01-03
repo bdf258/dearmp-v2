@@ -298,6 +298,22 @@ export interface PushJobResult {
   durationMs: number;
 }
 
+/**
+ * LLM debug info for test triage page
+ */
+export interface LLMDebugInfo {
+  /** The full prompt sent to the LLM (system + context) */
+  fullPrompt: string;
+  /** The raw JSON response from the LLM */
+  rawResponse: string;
+  /** The parsed suggestion after validation */
+  parsedSuggestion: unknown;
+  /** Model used */
+  model: string;
+  /** Time taken for LLM call in ms */
+  llmDurationMs: number;
+}
+
 export interface TriageJobResult {
   success: boolean;
   emailId: string;
@@ -308,6 +324,8 @@ export interface TriageJobResult {
     confidence: number;
     reasoning: string;
   };
+  /** LLM debug info (only for test emails) */
+  llmDebug?: LLMDebugInfo;
   error?: string;
   durationMs: number;
 }

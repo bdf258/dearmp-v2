@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       attachments: {
@@ -81,6 +56,39 @@ export type Database = {
         ]
       }
       attachments_default: {
+        Row: {
+          created_at: string | null
+          file_size: number | null
+          filename: string
+          id: string
+          message_id: string
+          mime_type: string | null
+          office_id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string | null
+          file_size?: number | null
+          filename: string
+          id?: string
+          message_id: string
+          mime_type?: string | null
+          office_id: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string | null
+          file_size?: number | null
+          filename?: string
+          id?: string
+          message_id?: string
+          mime_type?: string | null
+          office_id?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
+      attachments_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
         Row: {
           created_at: string | null
           file_size: number | null
@@ -215,6 +223,51 @@ export type Database = {
         ]
       }
       audit_logs_default: {
+        Row: {
+          action: Database["public"]["Enums"]["audit_action"]
+          actor_id: string | null
+          alert_sent_at: string | null
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          office_id: string
+          requires_alert: boolean | null
+          severity: string | null
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["audit_action"]
+          actor_id?: string | null
+          alert_sent_at?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          office_id: string
+          requires_alert?: boolean | null
+          severity?: string | null
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["audit_action"]
+          actor_id?: string | null
+          alert_sent_at?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          office_id?: string
+          requires_alert?: boolean | null
+          severity?: string | null
+        }
+        Relationships: []
+      }
+      audit_logs_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
         Row: {
           action: Database["public"]["Enums"]["audit_action"]
           actor_id: string | null
@@ -1116,6 +1169,105 @@ export type Database = {
         }
         Relationships: []
       }
+      messages_office_218562c6_cfd7_40ae_8db0_edd0cb4abf87: {
+        Row: {
+          ai_processed_at: string | null
+          body_search_text: string | null
+          campaign_id: string | null
+          case_id: string | null
+          channel: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence: number | null
+          classification_reasoning: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          direction: Database["public"]["Enums"]["message_direction"]
+          email_type: string | null
+          fingerprint_hash: string | null
+          id: string
+          in_reply_to_header: string | null
+          is_campaign_email: boolean | null
+          is_policy_email: boolean | null
+          message_id_header: string | null
+          office_id: string
+          received_at: string | null
+          search_vector: unknown
+          sent_at: string | null
+          snippet: string | null
+          storage_path_html: string | null
+          storage_path_text: string | null
+          subject: string | null
+          thread_id: string | null
+          triage_metadata: Json | null
+          triage_status: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at: string | null
+          triaged_by: string | null
+        }
+        Insert: {
+          ai_processed_at?: string | null
+          body_search_text?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          direction: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
+          id?: string
+          in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
+          message_id_header?: string | null
+          office_id: string
+          received_at?: string | null
+          search_vector?: unknown
+          sent_at?: string | null
+          snippet?: string | null
+          storage_path_html?: string | null
+          storage_path_text?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
+        }
+        Update: {
+          ai_processed_at?: string | null
+          body_search_text?: string | null
+          campaign_id?: string | null
+          case_id?: string | null
+          channel?: Database["public"]["Enums"]["message_channel"] | null
+          classification_confidence?: number | null
+          classification_reasoning?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          direction?: Database["public"]["Enums"]["message_direction"]
+          email_type?: string | null
+          fingerprint_hash?: string | null
+          id?: string
+          in_reply_to_header?: string | null
+          is_campaign_email?: boolean | null
+          is_policy_email?: boolean | null
+          message_id_header?: string | null
+          office_id?: string
+          received_at?: string | null
+          search_vector?: unknown
+          sent_at?: string | null
+          snippet?: string | null
+          storage_path_html?: string | null
+          storage_path_text?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          triage_metadata?: Json | null
+          triage_status?: Database["public"]["Enums"]["triage_status"] | null
+          triaged_at?: string | null
+          triaged_by?: string | null
+        }
+        Relationships: []
+      }
       note_replies: {
         Row: {
           body: string
@@ -1711,6 +1863,119 @@ export type Database = {
           },
         ]
       }
+      triage_suggestions: {
+        Row: {
+          action_confidence: number | null
+          action_reasoning: string | null
+          classification_reasoning: string | null
+          created_at: string
+          email_id: string
+          email_type: string | null
+          email_type_confidence: number | null
+          full_prompt: string | null
+          id: string
+          matched_campaign_id: string | null
+          matched_cases: Json | null
+          matched_constituent_confidence: number | null
+          matched_constituent_external_id: number | null
+          matched_constituent_id: string | null
+          model: string
+          office_id: string
+          parsed_response: Json | null
+          processing_duration_ms: number | null
+          raw_response: string | null
+          recommended_action: string | null
+          suggested_assignee_id: number | null
+          suggested_case_type_id: number | null
+          suggested_category_id: number | null
+          suggested_existing_case_external_id: number | null
+          suggested_existing_case_id: string | null
+          suggested_priority: string | null
+          suggested_status_id: number | null
+          suggested_tags: Json | null
+          user_decision: string | null
+          user_decision_at: string | null
+          user_decision_by: string | null
+          user_modifications: Json | null
+        }
+        Insert: {
+          action_confidence?: number | null
+          action_reasoning?: string | null
+          classification_reasoning?: string | null
+          created_at?: string
+          email_id: string
+          email_type?: string | null
+          email_type_confidence?: number | null
+          full_prompt?: string | null
+          id?: string
+          matched_campaign_id?: string | null
+          matched_cases?: Json | null
+          matched_constituent_confidence?: number | null
+          matched_constituent_external_id?: number | null
+          matched_constituent_id?: string | null
+          model: string
+          office_id: string
+          parsed_response?: Json | null
+          processing_duration_ms?: number | null
+          raw_response?: string | null
+          recommended_action?: string | null
+          suggested_assignee_id?: number | null
+          suggested_case_type_id?: number | null
+          suggested_category_id?: number | null
+          suggested_existing_case_external_id?: number | null
+          suggested_existing_case_id?: string | null
+          suggested_priority?: string | null
+          suggested_status_id?: number | null
+          suggested_tags?: Json | null
+          user_decision?: string | null
+          user_decision_at?: string | null
+          user_decision_by?: string | null
+          user_modifications?: Json | null
+        }
+        Update: {
+          action_confidence?: number | null
+          action_reasoning?: string | null
+          classification_reasoning?: string | null
+          created_at?: string
+          email_id?: string
+          email_type?: string | null
+          email_type_confidence?: number | null
+          full_prompt?: string | null
+          id?: string
+          matched_campaign_id?: string | null
+          matched_cases?: Json | null
+          matched_constituent_confidence?: number | null
+          matched_constituent_external_id?: number | null
+          matched_constituent_id?: string | null
+          model?: string
+          office_id?: string
+          parsed_response?: Json | null
+          processing_duration_ms?: number | null
+          raw_response?: string | null
+          recommended_action?: string | null
+          suggested_assignee_id?: number | null
+          suggested_case_type_id?: number | null
+          suggested_category_id?: number | null
+          suggested_existing_case_external_id?: number | null
+          suggested_existing_case_id?: string | null
+          suggested_priority?: string | null
+          suggested_status_id?: number | null
+          suggested_tags?: Json | null
+          user_decision?: string | null
+          user_decision_at?: string | null
+          user_decision_by?: string | null
+          user_modifications?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "triage_suggestions_office_id_fkey"
+            columns: ["office_id"]
+            isOneToOne: false
+            referencedRelation: "offices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trusted_contexts: {
         Row: {
           context_type: string
@@ -1771,6 +2036,15 @@ export type Database = {
           success: boolean
         }[]
       }
+      confirm_legacy_triage: {
+        Args: { p_case_id?: string; p_email_ids: string[]; p_notes?: string }
+        Returns: {
+          case_id: string
+          confirmed_count: number
+          error: string
+          success: boolean
+        }[]
+      }
       confirm_triage: {
         Args: {
           p_assignee_id?: string
@@ -1802,10 +2076,32 @@ export type Database = {
           used_at: string | null
           used_by: string | null
         }
+        SetofOptions: {
+          from: "*"
+          to: "office_invitations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_office_partition: {
         Args: { p_office_id: string; p_table_name: string }
         Returns: undefined
+      }
+      delete_legacy_test_email: {
+        Args: { p_email_id: string; p_office_id: string }
+        Returns: {
+          deleted_id: string
+          error: string
+          success: boolean
+        }[]
+      }
+      dismiss_legacy_triage: {
+        Args: { p_email_ids: string[]; p_reason?: string }
+        Returns: {
+          dismissed_count: number
+          error: string
+          success: boolean
+        }[]
       }
       dismiss_triage: {
         Args: { p_message_ids: string[]; p_reason?: string }
@@ -1854,6 +2150,138 @@ export type Database = {
         Args: { p_constituent_id: string }
         Returns: string
       }
+      get_legacy_email_details:
+        | {
+            Args: { p_email_id: string }
+            Returns: {
+              actioned: boolean
+              bcc_addresses: Json
+              case_external_id: number
+              case_id: string
+              case_status: string
+              case_summary: string
+              case_type: string
+              cc_addresses: Json
+              constituent_external_id: number
+              constituent_first_name: string
+              constituent_id: string
+              constituent_last_name: string
+              constituent_title: string
+              created_at: string
+              external_id: number
+              from_address: string
+              html_body: string
+              id: string
+              office_id: string
+              received_at: string
+              sent_at: string
+              subject: string
+              to_addresses: Json
+              type: string
+            }[]
+          }
+        | {
+            Args: { p_email_id: string; p_office_id: string }
+            Returns: {
+              actioned: boolean
+              bcc_addresses: Json
+              case_external_id: number
+              case_id: string
+              case_status: string
+              case_summary: string
+              case_type: string
+              cc_addresses: Json
+              constituent_external_id: number
+              constituent_first_name: string
+              constituent_id: string
+              constituent_last_name: string
+              constituent_title: string
+              created_at: string
+              external_id: number
+              from_address: string
+              html_body: string
+              id: string
+              office_id: string
+              received_at: string
+              sent_at: string
+              subject: string
+              to_addresses: Json
+              type: string
+            }[]
+          }
+      get_legacy_reference_data: {
+        Args: { p_active_only?: boolean }
+        Returns: {
+          case_types: Json
+          caseworkers: Json
+          category_types: Json
+          contact_types: Json
+          flags: Json
+          status_types: Json
+          tags: Json
+        }[]
+      }
+      get_legacy_sync_status: {
+        Args: never
+        Returns: {
+          entity_type: string
+          last_sync_completed_at: string
+          last_sync_error: string
+          last_sync_started_at: string
+          last_sync_success: boolean
+          records_failed: number
+          records_synced: number
+          updated_at: string
+        }[]
+      }
+      get_legacy_test_emails: {
+        Args: { p_limit?: number; p_office_id: string }
+        Returns: {
+          actioned: boolean
+          created_at: string
+          external_id: number
+          from_address: string
+          id: string
+          office_id: string
+          received_at: string
+          subject: string
+        }[]
+      }
+      get_legacy_triage_queue: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_order_by?: string
+          p_order_dir?: string
+        }
+        Returns: {
+          actioned: boolean
+          case_external_id: number
+          case_id: string
+          constituent_external_id: number
+          constituent_id: string
+          constituent_name: string
+          created_at: string
+          external_id: number
+          from_address: string
+          id: string
+          office_id: string
+          received_at: string
+          snippet: string
+          subject: string
+          to_addresses: Json
+          total_count: number
+        }[]
+      }
+      get_legacy_triage_stats: {
+        Args: never
+        Returns: {
+          actioned_this_week: number
+          actioned_today_count: number
+          pending_count: number
+          total_this_week: number
+        }[]
+      }
       get_my_office_id: { Args: never; Returns: string }
       get_office_settings: {
         Args: { p_office_id: string }
@@ -1875,6 +2303,12 @@ export type Database = {
           round_robin_enabled: boolean | null
           signature_template: string | null
           updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "office_settings"
+          isOneToOne: true
+          isSetofReturn: false
         }
       }
       get_session_aal: { Args: never; Returns: string }
@@ -1909,6 +2343,41 @@ export type Database = {
         }[]
       }
       get_triage_stats: { Args: never; Returns: Json }
+      get_triage_suggestion: {
+        Args: { p_email_id: string }
+        Returns: {
+          action_confidence: number
+          action_reasoning: string
+          classification_reasoning: string
+          created_at: string
+          email_id: string
+          email_type: string
+          email_type_confidence: number
+          full_prompt: string
+          id: string
+          matched_campaign_id: string
+          matched_cases: Json
+          matched_constituent_confidence: number
+          matched_constituent_external_id: number
+          matched_constituent_id: string
+          model: string
+          office_id: string
+          parsed_response: Json
+          processing_duration_ms: number
+          raw_response: string
+          recommended_action: string
+          suggested_assignee_id: number
+          suggested_case_type_id: number
+          suggested_category_id: number
+          suggested_existing_case_external_id: number
+          suggested_existing_case_id: string
+          suggested_priority: string
+          suggested_status_id: number
+          suggested_tags: Json
+          user_decision: string
+          user_decision_at: string
+        }[]
+      }
       get_trusted_contexts: {
         Args: never
         Returns: {
@@ -1963,6 +2432,35 @@ export type Database = {
         }
         Returns: string
       }
+      insert_legacy_test_email: {
+        Args: {
+          p_bcc_addresses?: Json
+          p_cc_addresses?: Json
+          p_external_id: number
+          p_from_address: string
+          p_html_body: string
+          p_office_id: string
+          p_received_at?: string
+          p_subject: string
+          p_to_addresses: Json
+        }
+        Returns: {
+          actioned: boolean
+          bcc_addresses: Json
+          cc_addresses: Json
+          created_at: string
+          external_id: number
+          from_address: string
+          html_body: string
+          id: string
+          is_test_email: boolean
+          office_id: string
+          received_at: string
+          subject: string
+          to_addresses: Json
+          type: string
+        }[]
+      }
       mark_as_triaged: {
         Args: {
           p_confidence?: number
@@ -1973,6 +2471,10 @@ export type Database = {
           p_triaged_by: string
         }
         Returns: Json
+      }
+      mark_test_email_processed: {
+        Args: { p_email_id: string }
+        Returns: undefined
       }
       process_bulk_response_approval: {
         Args: { p_approver_user_id: string; p_bulk_response_id: string }
@@ -1987,6 +2489,69 @@ export type Database = {
         Returns: Json
       }
       requires_mfa_verification: { Args: never; Returns: boolean }
+      save_triage_suggestion: {
+        Args: {
+          p_action_confidence?: number
+          p_action_reasoning?: string
+          p_classification_reasoning?: string
+          p_email_id: string
+          p_email_type?: string
+          p_email_type_confidence?: number
+          p_full_prompt?: string
+          p_matched_campaign_id?: string
+          p_matched_cases?: Json
+          p_matched_constituent_confidence?: number
+          p_matched_constituent_external_id?: number
+          p_matched_constituent_id?: string
+          p_model: string
+          p_office_id: string
+          p_parsed_response?: Json
+          p_processing_duration_ms?: number
+          p_raw_response?: string
+          p_recommended_action?: string
+          p_suggested_assignee_id?: number
+          p_suggested_case_type_id?: number
+          p_suggested_category_id?: number
+          p_suggested_existing_case_external_id?: number
+          p_suggested_existing_case_id?: string
+          p_suggested_priority?: string
+          p_suggested_status_id?: number
+          p_suggested_tags?: Json
+        }
+        Returns: string
+      }
+      search_legacy_cases: {
+        Args: {
+          p_constituent_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_query?: string
+          p_status_ids?: string[]
+        }
+        Returns: {
+          assigned_to_name: string
+          case_type_name: string
+          constituent_name: string
+          created_at: string
+          external_id: number
+          id: string
+          status_name: string
+          summary: string
+          total_count: number
+        }[]
+      }
+      search_legacy_constituents: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          case_count: number
+          email: string
+          external_id: number
+          first_name: string
+          id: string
+          last_name: string
+          title: string
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       trust_current_context: { Args: never; Returns: Json }
@@ -2161,9 +2726,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       audit_action: [
@@ -2196,7 +2758,16 @@ export const Constants = {
       ],
       case_priority: ["low", "medium", "high", "urgent"],
       case_status: ["open", "pending", "closed", "archived"],
-      case_type: ["type_1", "type_2", "type_3", "type_4", "type_5", "type_6", "type_7", "type_8"],
+      case_type: [
+        "type_1",
+        "type_2",
+        "type_3",
+        "type_4",
+        "type_5",
+        "type_6",
+        "type_7",
+        "type_8",
+      ],
       contact_type: ["email", "phone", "address", "social"],
       message_channel: ["email", "phone", "letter", "meeting", "social_media"],
       message_direction: ["inbound", "outbound"],

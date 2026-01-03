@@ -90,6 +90,16 @@ export function createTestTriageRoutes({
         throw ApiError.validation('EML file must contain a From address');
       }
 
+      // Log parsed content for debugging
+      console.log(`[TestTriage] STEP 1 - parseEmlContent() returned:`, {
+        subject: parsed.subject,
+        from: parsed.fromAddress,
+        htmlBodyLength: parsed.htmlBody?.length ?? 0,
+        textBodyLength: parsed.textBody?.length ?? 0,
+        textBodyPreview: parsed.textBody?.substring(0, 100) ?? '(empty)',
+        hasBody: !!(parsed.htmlBody || parsed.textBody),
+      });
+
       // Generate a unique external ID for this test email
       // Use negative numbers to distinguish from real emails and avoid conflicts
       const testExternalId = -Math.floor(Date.now() / 1000);
@@ -142,6 +152,46 @@ export function createTestTriageRoutes({
         emailId = emailRecord.id;
 
         console.log(`[TestTriage] Created test email ${emailId} with external_id ${testExternalId}`);
+
+        // ALSO insert into public.messages table so triage UI can find it
+        // The triage workspace reads from public.messages, not legacy.emails
+        const { error: messagesError } = await supabase
+          .from('messages')
+          .insert({
+            id: emailId,
+            office_id: officeId,
+            direction: 'inbound' as const,
+            channel: 'email' as const,
+            subject: parsed.subject || null,
+            snippet: (parsed.textBody || '').substring(0, 500),
+            body_search_text: parsed.textBody || null,
+            received_at: parsed.receivedAt.toISOString(),
+            triage_status: 'pending' as const,
+          });
+
+        if (messagesError) {
+          console.error('[TestTriage] Failed to insert into public.messages:', messagesError);
+          // Don't fail - legacy email was created, triage processing can still work
+          // But log the warning so we know the triage view won't work
+          console.warn('[TestTriage] Triage view may not work for this email');
+        } else {
+          console.log(`[TestTriage] Also inserted into public.messages for triage UI`);
+
+          // Insert message_recipients for the 'from' address
+          const { error: recipientsError } = await supabase
+            .from('message_recipients')
+            .insert({
+              message_id: emailId,
+              office_id: officeId,
+              recipient_type: 'from',
+              email_address: parsed.fromAddress,
+              name: parsed.fromName || null,
+            });
+
+          if (recipientsError) {
+            console.error('[TestTriage] Failed to insert message_recipients:', recipientsError);
+          }
+        }
       } else {
         // Generate a UUID for tracking without database insertion
         emailId = crypto.randomUUID();
@@ -182,6 +232,15 @@ export function createTestTriageRoutes({
 
       // Note: Audit logging skipped for test emails (legacy schema not exposed via REST API)
 
+      // Build textBody for response
+      const responseTextBody = parsed.textBody.substring(0, 500) + (parsed.textBody.length > 500 ? '...' : '');
+
+      console.log(`[TestTriage] STEP 2 - Building response.data.parsed.textBody:`, {
+        originalLength: parsed.textBody.length,
+        truncatedLength: responseTextBody.length,
+        preview: responseTextBody.substring(0, 100) || '(empty)',
+      });
+
       const response: ApiResponse = {
         success: true,
         data: {
@@ -207,12 +266,13 @@ export function createTestTriageRoutes({
             fromName: parsed.fromName,
             toAddresses: parsed.toAddresses,
             receivedAt: parsed.receivedAt.toISOString(),
-            textBody: parsed.textBody.substring(0, 500) + (parsed.textBody.length > 500 ? '...' : ''),
+            textBody: responseTextBody,
           },
           message: 'Test email uploaded and queued for triage processing',
         },
       };
 
+      console.log(`[TestTriage] STEP 3 - Sending response to frontend`);
       res.status(202).json(response);
     } catch (error) {
       next(error);
@@ -362,7 +422,30 @@ export function createTestTriageRoutes({
         throw ApiError.internal(result?.error || 'Failed to delete email');
       }
 
-      console.log(`[TestTriage] Deleted test email ${emailId}`);
+      console.log(`[TestTriage] Deleted test email ${emailId} from legacy.emails`);
+
+      // Also clean up from public.messages and message_recipients
+      const { error: recipientsError } = await supabase
+        .from('message_recipients')
+        .delete()
+        .eq('message_id', emailId)
+        .eq('office_id', officeId);
+
+      if (recipientsError) {
+        console.warn('[TestTriage] Failed to delete message_recipients:', recipientsError);
+      }
+
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', emailId)
+        .eq('office_id', officeId);
+
+      if (messagesError) {
+        console.warn('[TestTriage] Failed to delete from public.messages:', messagesError);
+      } else {
+        console.log(`[TestTriage] Also deleted from public.messages`);
+      }
 
       const response: ApiResponse = {
         success: true,
@@ -517,6 +600,74 @@ export function createTestTriageRoutes({
   };
 
   router.get('/queue-status', requireCaseworker as RequestHandler, queueStatusHandler);
+
+  /**
+   * GET /test-triage/suggestion/:emailId
+   *
+   * Get the triage suggestion for an email from the database.
+   * This is the persisted LLM analysis result.
+   */
+  const getSuggestionHandler: RequestHandler = async (req, res, next) => {
+    try {
+      const { emailId } = req.params;
+
+      if (!emailId) {
+        throw ApiError.validation('Email ID is required');
+      }
+
+      // Get the triage suggestion from the database
+      const { data, error } = await supabase.rpc('get_triage_suggestion', {
+        p_email_id: emailId,
+      });
+
+      if (error) {
+        console.error('[TestTriage] Failed to get triage suggestion:', error);
+        throw ApiError.internal(`Failed to get triage suggestion: ${error.message}`);
+      }
+
+      const suggestion = Array.isArray(data) ? data[0] : data;
+
+      if (!suggestion) {
+        throw ApiError.notFound('No triage suggestion found for this email');
+      }
+
+      const response: ApiResponse = {
+        success: true,
+        data: {
+          id: suggestion.id,
+          emailId: suggestion.email_id,
+          createdAt: suggestion.created_at,
+          processingDurationMs: suggestion.processing_duration_ms,
+          model: suggestion.model,
+          emailType: suggestion.email_type,
+          emailTypeConfidence: suggestion.email_type_confidence,
+          classificationReasoning: suggestion.classification_reasoning,
+          recommendedAction: suggestion.recommended_action,
+          actionConfidence: suggestion.action_confidence,
+          actionReasoning: suggestion.action_reasoning,
+          suggestedCaseTypeId: suggestion.suggested_case_type_id,
+          suggestedCategoryId: suggestion.suggested_category_id,
+          suggestedAssigneeId: suggestion.suggested_assignee_id,
+          suggestedPriority: suggestion.suggested_priority,
+          suggestedTags: suggestion.suggested_tags,
+          matchedConstituentId: suggestion.matched_constituent_id,
+          matchedConstituentExternalId: suggestion.matched_constituent_external_id,
+          matchedCases: suggestion.matched_cases,
+          fullPrompt: suggestion.full_prompt,
+          rawResponse: suggestion.raw_response,
+          parsedResponse: suggestion.parsed_response,
+          userDecision: suggestion.user_decision,
+          userDecisionAt: suggestion.user_decision_at,
+        },
+      };
+
+      res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  router.get('/suggestion/:emailId', requireCaseworker as RequestHandler, getSuggestionHandler);
 
   return router;
 }
