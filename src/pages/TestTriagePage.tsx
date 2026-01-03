@@ -33,6 +33,7 @@ import {
   User,
   Calendar,
   Clock,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -846,6 +847,16 @@ export default function TestTriagePage() {
                     <h3 className="font-medium">Uploaded Email</h3>
                     <div className="flex gap-2">
                       <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => {
+                          window.open(`/triage/messages/${currentEmail.id}`, '_blank');
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Triage View
+                      </Button>
+                      <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleReprocess(currentEmail.id)}
@@ -1153,6 +1164,19 @@ export default function TestTriagePage() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 shrink-0"
+                            title="Open in Triage View"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`/triage/messages/${email.id}`, '_blank');
+                            }}
+                          >
+                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            title="Delete"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDelete(email.id);

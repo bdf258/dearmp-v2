@@ -23,6 +23,8 @@ interface TriageFieldRowProps {
   children: ReactNode;
   /** Additional class names for the row container */
   className?: string;
+  /** Additional class names for the icon */
+  iconClassName?: string;
   /** Whether to show the icon (default: true) */
   showIcon?: boolean;
 }
@@ -32,6 +34,7 @@ export function TriageFieldRow({
   icon: Icon,
   children,
   className,
+  iconClassName,
   showIcon = true,
 }: TriageFieldRowProps) {
   return (
@@ -45,7 +48,7 @@ export function TriageFieldRow({
         <TooltipProvider delayDuration={300}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Icon className="h-4 w-4 text-muted-foreground shrink-0 cursor-help" />
+              <Icon className={cn("h-4 w-4 text-muted-foreground shrink-0 cursor-help", iconClassName)} />
             </TooltipTrigger>
             <TooltipContent>
               <p>{tooltip}</p>

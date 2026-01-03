@@ -110,10 +110,15 @@ docker-compose up --build
 | `npm run build` | Build for production |
 | `npm run preview` | Preview production build |
 | `npm run lint` | Run ESLint |
+| `npm run test` | Run tests with Vitest (watch mode) |
+| `npm run test:run` | Run tests once |
+| `npm run test:ui` | Run tests with Vitest UI |
+| `npm run test:coverage` | Run tests with coverage report |
 | `npm run supabase:start` | Start local Supabase instance |
 | `npm run supabase:stop` | Stop local Supabase |
 | `npm run supabase:db:push` | Apply database migrations |
 | `npm run supabase:db:reset` | Reset database |
+| `npm run supabase:functions:serve` | Serve edge functions locally |
 | `npm run supabase:functions:deploy` | Deploy edge functions |
 
 ## Project Structure

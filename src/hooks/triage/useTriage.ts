@@ -9,6 +9,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSupabase } from '@/lib/SupabaseContext';
 import { supabase } from '@/lib/supabase';
 import type {
+  Json,
   Message,
   MessageRecipient,
   Constituent,
@@ -21,6 +22,50 @@ import type {
 // ============= TYPES =============
 
 export type ConstituentStatus = 'known' | 'has_address' | 'no_address';
+
+export type EmailType = 'casework' | 'policy' | 'campaign' | 'spam' | 'personal' | 'other';
+export type RecommendedAction = 'create_case' | 'add_to_existing' | 'assign_campaign' | 'mark_spam' | 'ignore';
+export type UserDecision = 'accepted' | 'modified' | 'rejected' | 'pending';
+
+export interface MatchedCase {
+  id: string;
+  externalId?: number;
+  summary: string;
+  relevanceScore: number;
+}
+
+export interface TriageSuggestion {
+  id: string;
+  email_id: string;
+  office_id: string;
+  created_at: string;
+  processing_duration_ms: number | null;
+  model: string;
+  email_type: EmailType | null;
+  email_type_confidence: number | null;
+  classification_reasoning: string | null;
+  recommended_action: RecommendedAction | null;
+  action_confidence: number | null;
+  action_reasoning: string | null;
+  suggested_case_type_id: number | null;
+  suggested_category_id: number | null;
+  suggested_status_id: number | null;
+  suggested_assignee_id: number | null;
+  suggested_priority: CasePriority | null;
+  suggested_tags: string[];
+  matched_constituent_id: string | null;
+  matched_constituent_external_id: number | null;
+  matched_constituent_confidence: number | null;
+  matched_cases: MatchedCase[];
+  matched_campaign_id: string | null;
+  suggested_existing_case_id: string | null;
+  suggested_existing_case_external_id: number | null;
+  full_prompt: string | null;
+  raw_response: string | null;
+  parsed_response: Record<string, unknown> | null;
+  user_decision: UserDecision | null;
+  user_decision_at: string | null;
+}
 
 export interface TriageMessage extends Message {
   recipients: MessageRecipient[];
@@ -705,6 +750,124 @@ export function useMessageBody(messageId: string | null) {
   });
 
   return { body, isLoading, error, refetch: fetchBody };
+}
+
+// ============= TRIAGE SUGGESTION HOOK =============
+
+/**
+ * useTriageSuggestion
+ *
+ * Fetches the latest AI-generated triage suggestion for a specific email.
+ * Used to prefill triage form fields and show AI confidence levels.
+ */
+export function useTriageSuggestion(emailId: string | null) {
+  const [suggestion, setSuggestion] = useState<TriageSuggestion | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSuggestion = useCallback(async () => {
+    if (!emailId) {
+      setSuggestion(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const { data, error: rpcError } = await supabase.rpc('get_triage_suggestion', {
+        p_email_id: emailId,
+      });
+
+      if (rpcError) throw rpcError;
+
+      if (data && Array.isArray(data) && data.length > 0) {
+        const row = data[0] as Record<string, any>;
+        setSuggestion({
+          id: row.id,
+          email_id: row.email_id,
+          office_id: row.office_id,
+          created_at: row.created_at,
+          processing_duration_ms: row.processing_duration_ms,
+          model: row.model,
+          email_type: row.email_type as EmailType | null,
+          email_type_confidence: row.email_type_confidence ? Number(row.email_type_confidence) : null,
+          classification_reasoning: row.classification_reasoning,
+          recommended_action: row.recommended_action as RecommendedAction | null,
+          action_confidence: row.action_confidence ? Number(row.action_confidence) : null,
+          action_reasoning: row.action_reasoning,
+          suggested_case_type_id: row.suggested_case_type_id,
+          suggested_category_id: row.suggested_category_id,
+          suggested_status_id: row.suggested_status_id,
+          suggested_assignee_id: row.suggested_assignee_id,
+          suggested_priority: row.suggested_priority as CasePriority | null,
+          suggested_tags: (row.suggested_tags as string[]) || [],
+          matched_constituent_id: row.matched_constituent_id,
+          matched_constituent_external_id: row.matched_constituent_external_id,
+          matched_constituent_confidence: row.matched_constituent_confidence ? Number(row.matched_constituent_confidence) : null,
+          matched_cases: (row.matched_cases as MatchedCase[]) || [],
+          matched_campaign_id: row.matched_campaign_id,
+          suggested_existing_case_id: row.suggested_existing_case_id,
+          suggested_existing_case_external_id: row.suggested_existing_case_external_id,
+          full_prompt: row.full_prompt,
+          raw_response: row.raw_response,
+          parsed_response: row.parsed_response as Record<string, unknown> | null,
+          user_decision: row.user_decision as UserDecision | null,
+          user_decision_at: row.user_decision_at,
+        });
+      } else {
+        setSuggestion(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load suggestion');
+      setSuggestion(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [emailId]);
+
+  // Auto-fetch when emailId changes
+  useEffect(() => {
+    fetchSuggestion();
+  }, [fetchSuggestion]);
+
+  // Record user decision on the suggestion
+  const recordDecision = useCallback(async (
+    decision: UserDecision,
+    modifications?: Record<string, unknown>
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!suggestion) return { success: false, error: 'No suggestion to update' };
+
+    try {
+      const { error: updateError } = await supabase.from('triage_suggestions')
+        .update({
+          user_decision: decision,
+          user_decision_at: new Date().toISOString(),
+          user_modifications: (modifications as Json) || null,
+        })
+        .eq('id', suggestion.id);
+
+      if (updateError) throw updateError;
+
+      setSuggestion(prev => prev ? {
+        ...prev,
+        user_decision: decision,
+        user_decision_at: new Date().toISOString(),
+      } : null);
+
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to record decision' };
+    }
+  }, [suggestion]);
+
+  return {
+    suggestion,
+    isLoading,
+    error,
+    refetch: fetchSuggestion,
+    recordDecision,
+  };
 }
 
 // ============= CAMPAIGN EMAIL TYPES =============

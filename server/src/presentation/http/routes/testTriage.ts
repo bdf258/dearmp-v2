@@ -152,6 +152,46 @@ export function createTestTriageRoutes({
         emailId = emailRecord.id;
 
         console.log(`[TestTriage] Created test email ${emailId} with external_id ${testExternalId}`);
+
+        // ALSO insert into public.messages table so triage UI can find it
+        // The triage workspace reads from public.messages, not legacy.emails
+        const { error: messagesError } = await supabase
+          .from('messages')
+          .insert({
+            id: emailId,
+            office_id: officeId,
+            direction: 'inbound' as const,
+            channel: 'email' as const,
+            subject: parsed.subject || null,
+            snippet: (parsed.textBody || '').substring(0, 500),
+            body_search_text: parsed.textBody || null,
+            received_at: parsed.receivedAt.toISOString(),
+            triage_status: 'pending' as const,
+          });
+
+        if (messagesError) {
+          console.error('[TestTriage] Failed to insert into public.messages:', messagesError);
+          // Don't fail - legacy email was created, triage processing can still work
+          // But log the warning so we know the triage view won't work
+          console.warn('[TestTriage] Triage view may not work for this email');
+        } else {
+          console.log(`[TestTriage] Also inserted into public.messages for triage UI`);
+
+          // Insert message_recipients for the 'from' address
+          const { error: recipientsError } = await supabase
+            .from('message_recipients')
+            .insert({
+              message_id: emailId,
+              office_id: officeId,
+              recipient_type: 'from',
+              email_address: parsed.fromAddress,
+              name: parsed.fromName || null,
+            });
+
+          if (recipientsError) {
+            console.error('[TestTriage] Failed to insert message_recipients:', recipientsError);
+          }
+        }
       } else {
         // Generate a UUID for tracking without database insertion
         emailId = crypto.randomUUID();
@@ -382,7 +422,30 @@ export function createTestTriageRoutes({
         throw ApiError.internal(result?.error || 'Failed to delete email');
       }
 
-      console.log(`[TestTriage] Deleted test email ${emailId}`);
+      console.log(`[TestTriage] Deleted test email ${emailId} from legacy.emails`);
+
+      // Also clean up from public.messages and message_recipients
+      const { error: recipientsError } = await supabase
+        .from('message_recipients')
+        .delete()
+        .eq('message_id', emailId)
+        .eq('office_id', officeId);
+
+      if (recipientsError) {
+        console.warn('[TestTriage] Failed to delete message_recipients:', recipientsError);
+      }
+
+      const { error: messagesError } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', emailId)
+        .eq('office_id', officeId);
+
+      if (messagesError) {
+        console.warn('[TestTriage] Failed to delete from public.messages:', messagesError);
+      } else {
+        console.log(`[TestTriage] Also deleted from public.messages`);
+      }
 
       const response: ApiResponse = {
         success: true,
