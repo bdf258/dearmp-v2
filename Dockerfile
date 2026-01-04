@@ -1,7 +1,19 @@
-# Build stage - v2 cache bust
+# Build stage
 FROM node:20-alpine AS builder
 
 WORKDIR /app
+
+# Build arguments for Vite (must be available at build time)
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ARG VITE_SERVER_API_URL
+ARG VITE_OUTLOOK_WORKER_URL
+
+# Set as environment variables for the build
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+ENV VITE_SERVER_API_URL=$VITE_SERVER_API_URL
+ENV VITE_OUTLOOK_WORKER_URL=$VITE_OUTLOOK_WORKER_URL
 
 # Copy package files
 COPY package*.json ./

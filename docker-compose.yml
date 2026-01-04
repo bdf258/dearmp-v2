@@ -4,6 +4,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+        - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+        - VITE_SERVER_API_URL=${VITE_SERVER_API_URL}
+        - VITE_OUTLOOK_WORKER_URL=${VITE_OUTLOOK_WORKER_URL}
     restart: unless-stopped
     environment:
       - NODE_ENV=production
