@@ -29,7 +29,8 @@ The current triage system passes all tags to the LLM for recommendation. With th
 │                                            ┌──────────────────────────────┐  │
 │                                            │     LLM Triage Analysis      │  │
 │                                            │  (Gemini 2.0 Flash)          │  │
-│                                            │  - Receives top 20 tags only │  │
+│                                            │  - Receives top 20 tags      │  │
+│                                            │  - Each with usage_hint      │  │
 │                                            │  - Makes final selection     │  │
 │                                            └──────────────┬───────────────┘  │
 │                                                           │                  │
@@ -51,27 +52,36 @@ The current triage system passes all tags to the LLM for recommendation. With th
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-### 2. Add Embedding Column to Tags Table
+### 2. Add Embedding and Usage Hint Columns to Tags Table
 
 ```sql
 -- Migration: YYYYMMDD000002_add_tag_embeddings.sql
 
--- Add embedding column (1536 dimensions for text-embedding-3-small, 768 for Gemini)
+-- Add embedding column (768 dimensions for Gemini text-embedding-004)
 ALTER TABLE tags ADD COLUMN embedding vector(768);
 
--- Create index for fast similarity search
-CREATE INDEX idx_tags_embedding ON tags
-  USING ivfflat (embedding vector_cosine_ops)
-  WITH (lists = 100);
+-- Add user-editable usage hint for LLM context (max 150 chars)
+-- This tells the LLM how/when to use this tag
+ALTER TABLE tags ADD COLUMN usage_hint TEXT;
+ALTER TABLE tags ADD CONSTRAINT tags_usage_hint_length CHECK (char_length(usage_hint) <= 150);
 
--- Add metadata for embedding versioning
+COMMENT ON COLUMN tags.usage_hint IS 'User-editable description (max 150 chars) explaining when to apply this tag. Shown to LLM during triage.';
+
+-- Create HNSW index for fast similarity search
+-- HNSW works well with any dataset size (unlike IVFFlat which needs 1000+ vectors)
+CREATE INDEX idx_tags_embedding ON tags
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+
+-- Add metadata for embedding tracking
 ALTER TABLE tags ADD COLUMN embedding_model TEXT;
 ALTER TABLE tags ADD COLUMN embedding_updated_at TIMESTAMPTZ;
 
--- Composite text field for better embeddings
+-- Composite text field for generating embeddings
+-- Uses CONCAT_WS to properly handle NULLs without extra spaces
 ALTER TABLE tags ADD COLUMN search_text TEXT
   GENERATED ALWAYS AS (
-    name || ' ' || COALESCE(description, '') || ' ' || COALESCE(array_to_string(auto_assign_keywords, ' '), '')
+    TRIM(CONCAT_WS(' ', name, description, array_to_string(auto_assign_keywords, ' ')))
   ) STORED;
 ```
 
@@ -95,24 +105,54 @@ CREATE TABLE tag_embedding_queue (
 CREATE INDEX idx_tag_embedding_queue_pending
   ON tag_embedding_queue(priority DESC, created_at ASC)
   WHERE processed_at IS NULL;
+
+-- Enable RLS
+ALTER TABLE tag_embedding_queue ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role has full access to tag_embedding_queue"
+  ON tag_embedding_queue FOR ALL USING (true);
 ```
 
 ### 4. Create Email Embedding Cache Table
+
+**IMPORTANT**: The `messages` table is partitioned by `office_id` with a composite primary key `(office_id, id)`. Foreign keys to partitioned tables must include all partition key columns.
 
 ```sql
 -- Migration: YYYYMMDD000004_email_embedding_cache.sql
 
 CREATE TABLE email_embeddings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  office_id UUID NOT NULL,
+  message_id UUID NOT NULL,
   embedding vector(768) NOT NULL,
   embedding_model TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  -- Composite FK to partitioned messages table
+  FOREIGN KEY (office_id, message_id) REFERENCES messages(office_id, id) ON DELETE CASCADE,
   UNIQUE(message_id)
 );
 
 -- Index for lookups
 CREATE INDEX idx_email_embeddings_message_id ON email_embeddings(message_id);
+CREATE INDEX idx_email_embeddings_office_id ON email_embeddings(office_id);
+
+-- Enable RLS
+ALTER TABLE email_embeddings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Email embeddings office policy"
+  ON email_embeddings
+  FOR ALL
+  TO authenticated
+  USING (office_id = get_my_office_id())
+  WITH CHECK (office_id = get_my_office_id());
+
+-- Service role bypass
+CREATE POLICY "Service role has full access to email_embeddings"
+  ON email_embeddings
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
 ```
 
 ### 5. Vector Search Function
@@ -131,6 +171,7 @@ RETURNS TABLE (
   name TEXT,
   color TEXT,
   description TEXT,
+  usage_hint TEXT,
   similarity FLOAT
 )
 LANGUAGE plpgsql
@@ -142,6 +183,7 @@ BEGIN
     t.name,
     t.color,
     t.description,
+    t.usage_hint,
     1 - (t.embedding <=> query_embedding) AS similarity
   FROM tags t
   WHERE
@@ -149,6 +191,55 @@ BEGIN
     AND t.embedding IS NOT NULL
     AND 1 - (t.embedding <=> query_embedding) >= similarity_threshold
   ORDER BY t.embedding <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
+
+-- Keyword-based fallback search function
+-- Used when vector search fails or returns insufficient results
+CREATE OR REPLACE FUNCTION search_tags_by_keywords(
+  search_text TEXT,
+  target_office_id UUID,
+  match_count INTEGER DEFAULT 20
+)
+RETURNS TABLE (
+  tag_id UUID,
+  name TEXT,
+  color TEXT,
+  description TEXT,
+  usage_hint TEXT,
+  relevance FLOAT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  search_terms TEXT[];
+BEGIN
+  -- Split search text into words
+  search_terms := regexp_split_to_array(lower(search_text), '\s+');
+
+  RETURN QUERY
+  SELECT
+    t.id,
+    t.name,
+    t.color,
+    t.description,
+    t.usage_hint,
+    -- Calculate relevance based on keyword matches
+    (
+      SELECT COUNT(*)::FLOAT / array_length(search_terms, 1)
+      FROM unnest(search_terms) term
+      WHERE
+        lower(t.name) LIKE '%' || term || '%'
+        OR lower(COALESCE(t.description, '')) LIKE '%' || term || '%'
+        OR EXISTS (
+          SELECT 1 FROM unnest(t.auto_assign_keywords) kw
+          WHERE lower(kw) LIKE '%' || term || '%'
+        )
+    ) AS relevance
+  FROM tags t
+  WHERE t.office_id = target_office_id
+  ORDER BY relevance DESC
   LIMIT match_count;
 END;
 $$;
@@ -162,6 +253,7 @@ $$;
 
 ```typescript
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { Logger } from 'winston';
 
 export interface EmbeddingResult {
   embedding: number[];
@@ -177,9 +269,11 @@ export interface IEmbeddingService {
 export class GeminiEmbeddingService implements IEmbeddingService {
   private client: GoogleGenerativeAI;
   private model: string = 'text-embedding-004';
+  private logger: Logger;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, logger: Logger) {
     this.client = new GoogleGenerativeAI(apiKey);
+    this.logger = logger;
   }
 
   async embedText(text: string): Promise<EmbeddingResult> {
@@ -194,17 +288,33 @@ export class GeminiEmbeddingService implements IEmbeddingService {
   }
 
   async embedBatch(texts: string[]): Promise<EmbeddingResult[]> {
-    // Gemini supports batch embedding
-    const embeddingModel = this.client.getGenerativeModel({ model: this.model });
-    const results = await Promise.all(
-      texts.map(text => embeddingModel.embedContent(text))
-    );
+    // Process in smaller batches with delays to avoid rate limits
+    // Gemini rate limit: ~60 RPM for embedding
+    const BATCH_SIZE = 10;
+    const DELAY_MS = 1000;
+    const results: EmbeddingResult[] = [];
 
-    return results.map(result => ({
-      embedding: result.embedding.values,
-      model: this.model,
-      tokenCount: result.embedding.values.length
-    }));
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+      const batch = texts.slice(i, i + BATCH_SIZE);
+
+      this.logger.debug('Processing embedding batch', {
+        batchIndex: Math.floor(i / BATCH_SIZE),
+        batchSize: batch.length,
+        totalTexts: texts.length
+      });
+
+      const batchResults = await Promise.all(
+        batch.map(text => this.embedText(text))
+      );
+      results.push(...batchResults);
+
+      // Add delay between batches to respect rate limits
+      if (i + BATCH_SIZE < texts.length) {
+        await new Promise(r => setTimeout(r, DELAY_MS));
+      }
+    }
+
+    return results;
   }
 }
 ```
@@ -215,17 +325,27 @@ export class GeminiEmbeddingService implements IEmbeddingService {
 
 ```typescript
 import { SupabaseClient } from '@supabase/supabase-js';
+import { Logger } from 'winston';
 
 export interface SimilarTag {
   id: string;
   name: string;
   color: string | null;
   description: string | null;
+  usageHint: string | null;
   similarity: number;
 }
 
+export interface TagForEmbedding {
+  id: string;
+  searchText: string;
+}
+
 export class TagVectorRepository {
-  constructor(private supabase: SupabaseClient) {}
+  constructor(
+    private supabase: SupabaseClient,
+    private logger: Logger
+  ) {}
 
   async updateTagEmbedding(
     tagId: string,
@@ -258,13 +378,47 @@ export class TagVectorRepository {
     });
 
     if (error) throw error;
-    return data;
+
+    return (data || []).map((row: any) => ({
+      id: row.tag_id,
+      name: row.name,
+      color: row.color,
+      description: row.description,
+      usageHint: row.usage_hint,
+      similarity: row.similarity
+    }));
+  }
+
+  /**
+   * Fallback keyword search when vector search fails or returns too few results
+   */
+  async searchTagsByKeywords(
+    searchText: string,
+    officeId: string,
+    limit: number = 20
+  ): Promise<SimilarTag[]> {
+    const { data, error } = await this.supabase.rpc('search_tags_by_keywords', {
+      search_text: searchText,
+      target_office_id: officeId,
+      match_count: limit
+    });
+
+    if (error) throw error;
+
+    return (data || []).map((row: any) => ({
+      id: row.tag_id,
+      name: row.name,
+      color: row.color,
+      description: row.description,
+      usageHint: row.usage_hint,
+      similarity: row.relevance
+    }));
   }
 
   async getTagsWithoutEmbeddings(
     officeId: string,
     limit: number = 100
-  ): Promise<Array<{ id: string; search_text: string }>> {
+  ): Promise<TagForEmbedding[]> {
     const { data, error } = await this.supabase
       .from('tags')
       .select('id, search_text')
@@ -273,10 +427,40 @@ export class TagVectorRepository {
       .limit(limit);
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(row => ({
+      id: row.id,
+      searchText: row.search_text
+    }));
+  }
+
+  async getTagsNeedingReembedding(
+    officeId: string,
+    limit: number = 100
+  ): Promise<TagForEmbedding[]> {
+    // Get tags that have been updated since their embedding was generated
+    const { data, error } = await this.supabase
+      .from('tags')
+      .select('id, search_text, updated_at, embedding_updated_at')
+      .eq('office_id', officeId)
+      .not('embedding', 'is', null)
+      .limit(limit);
+
+    if (error) throw error;
+
+    // Filter to tags where updated_at > embedding_updated_at
+    return (data || [])
+      .filter(row => {
+        if (!row.embedding_updated_at) return true;
+        return new Date(row.updated_at) > new Date(row.embedding_updated_at);
+      })
+      .map(row => ({
+        id: row.id,
+        searchText: row.search_text
+      }));
   }
 
   async cacheEmailEmbedding(
+    officeId: string,
     messageId: string,
     embedding: number[],
     model: string
@@ -284,6 +468,7 @@ export class TagVectorRepository {
     const { error } = await this.supabase
       .from('email_embeddings')
       .upsert({
+        office_id: officeId,
         message_id: messageId,
         embedding: `[${embedding.join(',')}]`,
         embedding_model: model
@@ -301,6 +486,32 @@ export class TagVectorRepository {
 
     if (error || !data) return null;
     return data.embedding;
+  }
+
+  async getEmbeddingStats(officeId: string): Promise<{
+    total: number;
+    embedded: number;
+    pending: number;
+  }> {
+    const { data: totalData } = await this.supabase
+      .from('tags')
+      .select('id', { count: 'exact', head: true })
+      .eq('office_id', officeId);
+
+    const { data: embeddedData } = await this.supabase
+      .from('tags')
+      .select('id', { count: 'exact', head: true })
+      .eq('office_id', officeId)
+      .not('embedding', 'is', null);
+
+    const total = (totalData as any)?.count ?? 0;
+    const embedded = (embeddedData as any)?.count ?? 0;
+
+    return {
+      total,
+      embedded,
+      pending: total - embedded
+    };
   }
 }
 ```
@@ -326,7 +537,11 @@ export interface TagRecommendationResult {
   candidateTags: SimilarTag[];
   embeddingCached: boolean;
   searchTimeMs: number;
+  fallbackUsed: boolean;
+  fallbackReason?: string;
 }
+
+const MIN_VECTOR_RESULTS = 5; // Minimum results before falling back to keyword search
 
 export class TagRecommendationService {
   constructor(
@@ -337,47 +552,116 @@ export class TagRecommendationService {
 
   async getRecommendedTags(input: TagRecommendationInput): Promise<TagRecommendationResult> {
     const startTime = Date.now();
+    let fallbackUsed = false;
+    let fallbackReason: string | undefined;
 
-    // 1. Check for cached email embedding
-    let embedding = await this.tagVectorRepo.getEmailEmbedding(input.messageId);
-    let embeddingCached = !!embedding;
+    try {
+      // 1. Check for cached email embedding
+      let embedding = await this.tagVectorRepo.getEmailEmbedding(input.messageId);
+      let embeddingCached = !!embedding;
 
-    if (!embedding) {
-      // 2. Generate embedding from email content
-      const contentToEmbed = this.prepareEmailContent(input);
-      const result = await this.embeddingService.embedText(contentToEmbed);
-      embedding = result.embedding;
+      if (!embedding) {
+        // 2. Generate embedding from email content
+        const contentToEmbed = this.prepareEmailContent(input);
 
-      // 3. Cache the embedding for future use
-      await this.tagVectorRepo.cacheEmailEmbedding(
-        input.messageId,
+        this.logger.debug('Generating email embedding', {
+          messageId: input.messageId,
+          contentLength: contentToEmbed.length
+        });
+
+        const result = await this.embeddingService.embedText(contentToEmbed);
+        embedding = result.embedding;
+
+        // 3. Cache the embedding for future use (emails are static)
+        await this.tagVectorRepo.cacheEmailEmbedding(
+          input.officeId,
+          input.messageId,
+          embedding,
+          result.model
+        );
+      }
+
+      // 4. Search for similar tags using vector similarity
+      let candidateTags = await this.tagVectorRepo.searchSimilarTags(
         embedding,
-        result.model
+        input.officeId,
+        20, // Top 20 tags
+        0.25 // Similarity threshold
       );
+
+      // 5. If insufficient results, supplement with keyword matching
+      if (candidateTags.length < MIN_VECTOR_RESULTS) {
+        fallbackUsed = true;
+        fallbackReason = `Vector search returned only ${candidateTags.length} results (threshold: ${MIN_VECTOR_RESULTS})`;
+
+        this.logger.info('Supplementing with keyword search', {
+          messageId: input.messageId,
+          vectorResultCount: candidateTags.length,
+          reason: fallbackReason
+        });
+
+        const keywordTags = await this.tagVectorRepo.searchTagsByKeywords(
+          input.subject, // Search subject for keywords
+          input.officeId,
+          20 - candidateTags.length
+        );
+
+        // Merge and dedupe (vector results take priority)
+        const existingIds = new Set(candidateTags.map(t => t.id));
+        for (const tag of keywordTags) {
+          if (!existingIds.has(tag.id)) {
+            candidateTags.push(tag);
+          }
+        }
+      }
+
+      const searchTimeMs = Date.now() - startTime;
+
+      this.logger.info('Tag recommendation search completed', {
+        messageId: input.messageId,
+        officeId: input.officeId,
+        candidateCount: candidateTags.length,
+        searchTimeMs,
+        embeddingCached,
+        fallbackUsed,
+        topTagSimilarity: candidateTags[0]?.similarity,
+        lowTagSimilarity: candidateTags[candidateTags.length - 1]?.similarity
+      });
+
+      return {
+        candidateTags,
+        embeddingCached,
+        searchTimeMs,
+        fallbackUsed,
+        fallbackReason
+      };
+
+    } catch (error) {
+      // If embedding fails entirely, fall back to keyword-only search
+      const searchTimeMs = Date.now() - startTime;
+
+      this.logger.error('Tag recommendation embedding failed, using keyword fallback', {
+        messageId: input.messageId,
+        officeId: input.officeId,
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        searchTimeMs
+      });
+
+      const keywordTags = await this.tagVectorRepo.searchTagsByKeywords(
+        input.subject, // Fall back to subject keywords
+        input.officeId,
+        20
+      );
+
+      return {
+        candidateTags: keywordTags,
+        embeddingCached: false,
+        searchTimeMs: Date.now() - startTime,
+        fallbackUsed: true,
+        fallbackReason: `Embedding failed: ${error instanceof Error ? error.message : String(error)}`
+      };
     }
-
-    // 4. Search for similar tags
-    const candidateTags = await this.tagVectorRepo.searchSimilarTags(
-      embedding,
-      input.officeId,
-      20, // Top 20 tags
-      0.25 // Similarity threshold
-    );
-
-    const searchTimeMs = Date.now() - startTime;
-
-    this.logger.info('Tag recommendation search completed', {
-      messageId: input.messageId,
-      candidateCount: candidateTags.length,
-      searchTimeMs,
-      embeddingCached
-    });
-
-    return {
-      candidateTags,
-      embeddingCached,
-      searchTimeMs
-    };
   }
 
   private prepareEmailContent(input: TagRecommendationInput): string {
@@ -396,74 +680,206 @@ export class TagRecommendationService {
 
 **File: `/server/src/infrastructure/queue/handlers/TriageJobHandler.ts`**
 
-Changes needed:
+Changes needed to integrate tag recommendations:
 
 ```typescript
 // Add to constructor dependencies
 private tagRecommendationService: TagRecommendationService;
 
 // Modify processEmail method
-async processEmail(job: Job<TriageJobData>): Promise<void> {
-  const { messageId, officeId } = job.data;
+async processEmail(job: Job<TriageProcessEmailJobData>): Promise<TriageJobResult> {
+  const { emailId, officeId } = job.data;
+  const startTime = Date.now();
 
-  // ... existing code to fetch email ...
+  try {
+    // ... existing code to fetch email and build context ...
 
-  // NEW: Get recommended tags via vector search
-  const tagRecommendation = await this.tagRecommendationService.getRecommendedTags({
-    messageId,
-    officeId,
-    subject: email.subject,
-    body: email.body,
-    senderEmail: email.sender_email
-  });
+    // NEW: Get recommended tags via vector search
+    let tagContext: Array<{ id: string; name: string; description: string | null; usageHint: string | null }>;
+    let tagRecommendationMeta: { searchTimeMs: number; fallbackUsed: boolean; fallbackReason?: string } | undefined;
 
-  // Prepare tag context for LLM (only top 20 relevant tags)
-  const tagContext = tagRecommendation.candidateTags.map(t => ({
+    try {
+      const tagRecommendation = await this.tagRecommendationService.getRecommendedTags({
+        messageId: emailId,
+        officeId,
+        subject: email.subject || '',
+        body: email.body || '',
+        senderEmail: email.fromAddress
+      });
+
+      // Prepare tag context for LLM (only top 20 relevant tags with usage hints)
+      tagContext = tagRecommendation.candidateTags.map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        usageHint: t.usageHint
+      }));
+
+      tagRecommendationMeta = {
+        searchTimeMs: tagRecommendation.searchTimeMs,
+        fallbackUsed: tagRecommendation.fallbackUsed,
+        fallbackReason: tagRecommendation.fallbackReason
+      };
+
+      this.logger.info('Tag recommendation for triage', {
+        emailId,
+        tagCount: tagContext.length,
+        ...tagRecommendationMeta
+      });
+
+    } catch (error) {
+      // Log detailed error but continue with keyword fallback
+      this.logger.error('Tag recommendation failed in triage', {
+        emailId,
+        officeId,
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
+
+      // Fallback: get most frequently used tags for this office
+      tagContext = await this.getMostUsedTags(officeId, 20);
+      tagRecommendationMeta = {
+        searchTimeMs: 0,
+        fallbackUsed: true,
+        fallbackReason: `Exception: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+
+    // Pass filtered tags to LLM instead of all tags
+    // Update the context to include only recommended tags
+    const triageContext = {
+      ...baseContext,
+      referenceData: {
+        ...baseContext.referenceData,
+        tags: tagContext // Only 20 tags instead of thousands
+      }
+    };
+
+    const triageResult = await this.llmService.analyzeEmail(triageContext);
+
+    // ... rest of existing code ...
+  } catch (error) {
+    // ... existing error handling ...
+  }
+}
+
+// Helper to get frequently used tags as ultimate fallback
+private async getMostUsedTags(
+  officeId: string,
+  limit: number
+): Promise<Array<{ id: string; name: string; description: string | null; usageHint: string | null }>> {
+  const { data } = await this.supabase
+    .from('tags')
+    .select('id, name, description, usage_hint')
+    .eq('office_id', officeId)
+    .limit(limit);
+
+  return (data || []).map(t => ({
     id: t.id,
     name: t.name,
-    description: t.description
+    description: t.description,
+    usageHint: t.usage_hint
   }));
-
-  // Pass filtered tags to LLM instead of all tags
-  const triageResult = await this.llmService.analyzeEmail({
-    email,
-    availableTags: tagContext, // Only 20 tags instead of thousands
-    // ... other params
-  });
-
-  // ... rest of existing code ...
 }
 ```
 
-### 5. New Job Types for Embedding Management
+### 5. Update Job Types
 
 **File: `/server/src/infrastructure/queue/types.ts`**
 
-Add new job types:
+Add to the existing `JobNames` constant:
 
 ```typescript
-export enum JobName {
+export const JobNames = {
   // ... existing jobs ...
 
   // Embedding jobs
-  EMBEDDING_GENERATE_TAG = 'embedding:generate-tag',
-  EMBEDDING_GENERATE_BATCH = 'embedding:generate-batch',
-  EMBEDDING_BACKFILL = 'embedding:backfill',
+  EMBEDDING_GENERATE_TAG: 'embedding:generate-tag',
+  EMBEDDING_GENERATE_BATCH: 'embedding:generate-batch',
+  EMBEDDING_BACKFILL: 'embedding:backfill',
+  EMBEDDING_REFRESH: 'embedding:refresh',
+
+  // Scheduled embedding maintenance
+  SCHEDULED_EMBEDDING_REFRESH: 'scheduled:embedding-refresh',
+} as const;
+```
+
+Add corresponding job data interfaces:
+
+```typescript
+// ============================================================================
+// EMBEDDING JOB DATA
+// ============================================================================
+
+export interface EmbeddingGenerateTagJobData extends BaseJobData {
+  type: typeof JobNames.EMBEDDING_GENERATE_TAG;
+  tagId: string;
 }
 
-export interface EmbeddingJobData {
-  [JobName.EMBEDDING_GENERATE_TAG]: {
-    tagId: string;
-    officeId: string;
-  };
-  [JobName.EMBEDDING_GENERATE_BATCH]: {
-    officeId: string;
-    batchSize: number;
-  };
-  [JobName.EMBEDDING_BACKFILL]: {
-    officeId: string;
-  };
+export interface EmbeddingGenerateBatchJobData extends BaseJobData {
+  type: typeof JobNames.EMBEDDING_GENERATE_BATCH;
+  batchSize: number;
 }
+
+export interface EmbeddingBackfillJobData extends BaseJobData {
+  type: typeof JobNames.EMBEDDING_BACKFILL;
+}
+
+export interface EmbeddingRefreshJobData extends BaseJobData {
+  type: typeof JobNames.EMBEDDING_REFRESH;
+}
+
+export interface ScheduledEmbeddingRefreshJobData extends BaseJobData {
+  type: typeof JobNames.SCHEDULED_EMBEDDING_REFRESH;
+}
+
+// Add to union types
+export type EmbeddingJobDataUnion =
+  | EmbeddingGenerateTagJobData
+  | EmbeddingGenerateBatchJobData
+  | EmbeddingBackfillJobData
+  | EmbeddingRefreshJobData
+  | ScheduledEmbeddingRefreshJobData;
+
+export type AllJobData =
+  | SyncJobDataUnion
+  | PushJobDataUnion
+  | TriageJobDataUnion
+  | ScheduledJobDataUnion
+  | MaintenanceJobDataUnion
+  | EmbeddingJobDataUnion; // Add this
+
+// Add default options for embedding jobs
+export const DefaultJobOptions: Record<string, JobOptions> = {
+  // ... existing options ...
+
+  [JobNames.EMBEDDING_GENERATE_TAG]: {
+    retryLimit: 3,
+    retryDelay: 30,
+    retryBackoff: true,
+    expireInSeconds: 120,
+  },
+  [JobNames.EMBEDDING_GENERATE_BATCH]: {
+    retryLimit: 2,
+    retryDelay: 60,
+    expireInSeconds: 600, // 10 minutes for batch
+  },
+  [JobNames.EMBEDDING_BACKFILL]: {
+    retryLimit: 1,
+    expireInSeconds: 3600, // 1 hour
+    singletonSeconds: 3500, // Prevent overlapping
+  },
+  [JobNames.EMBEDDING_REFRESH]: {
+    retryLimit: 1,
+    expireInSeconds: 1800, // 30 minutes
+    singletonSeconds: 1700,
+  },
+  [JobNames.SCHEDULED_EMBEDDING_REFRESH]: {
+    retryLimit: 1,
+    expireInSeconds: 1800,
+    singletonSeconds: 1400, // 23+ minutes (for 25-min schedule)
+  },
+};
 ```
 
 ### 6. New Embedding Job Handler
@@ -475,38 +891,71 @@ import { Job } from 'pg-boss';
 import { IEmbeddingService } from '../../embedding/EmbeddingService';
 import { TagVectorRepository } from '../../repositories/TagVectorRepository';
 import { Logger } from 'winston';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 export class EmbeddingJobHandler {
   constructor(
     private embeddingService: IEmbeddingService,
     private tagVectorRepo: TagVectorRepository,
+    private supabase: SupabaseClient,
     private logger: Logger
   ) {}
 
+  /**
+   * Generate embedding for a single tag
+   */
   async handleGenerateTag(job: Job<{ tagId: string; officeId: string }>): Promise<void> {
-    const { tagId } = job.data;
+    const { tagId, officeId } = job.data;
+
+    this.logger.info('Generating embedding for tag', { tagId, officeId });
 
     // Fetch tag with search_text
-    const tag = await this.getTag(tagId);
-    if (!tag) {
-      this.logger.warn('Tag not found for embedding', { tagId });
+    const { data: tag, error } = await this.supabase
+      .from('tags')
+      .select('id, search_text, name')
+      .eq('id', tagId)
+      .single();
+
+    if (error || !tag) {
+      this.logger.warn('Tag not found for embedding', { tagId, error: error?.message });
       return;
     }
 
-    // Generate embedding
-    const result = await this.embeddingService.embedText(tag.search_text);
+    if (!tag.search_text || tag.search_text.trim() === '') {
+      this.logger.warn('Tag has empty search_text, skipping', { tagId, name: tag.name });
+      return;
+    }
 
-    // Store embedding
-    await this.tagVectorRepo.updateTagEmbedding(tagId, result.embedding, result.model);
+    try {
+      // Generate embedding
+      const result = await this.embeddingService.embedText(tag.search_text);
 
-    this.logger.info('Tag embedding generated', { tagId, model: result.model });
+      // Store embedding
+      await this.tagVectorRepo.updateTagEmbedding(tagId, result.embedding, result.model);
+
+      this.logger.info('Tag embedding generated', { tagId, name: tag.name, model: result.model });
+    } catch (error) {
+      this.logger.error('Failed to generate tag embedding', {
+        tagId,
+        name: tag.name,
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
+      throw error; // Re-throw to trigger job retry
+    }
   }
 
+  /**
+   * Backfill embeddings for all tags without embeddings in an office
+   */
   async handleBackfill(job: Job<{ officeId: string }>): Promise<void> {
     const { officeId } = job.data;
     const batchSize = 50;
 
+    this.logger.info('Starting embedding backfill', { officeId });
+
     let processed = 0;
+    let failed = 0;
     let hasMore = true;
 
     while (hasMore) {
@@ -517,14 +966,86 @@ export class EmbeddingJobHandler {
         break;
       }
 
-      // Process in batches
+      this.logger.info('Processing backfill batch', {
+        officeId,
+        batchSize: tags.length,
+        processedSoFar: processed
+      });
+
+      try {
+        // Process in batches with rate limiting
+        const embeddings = await this.embeddingService.embedBatch(
+          tags.map(t => t.searchText)
+        );
+
+        // Update all tags
+        await Promise.all(
+          tags.map((tag, i) =>
+            this.tagVectorRepo.updateTagEmbedding(
+              tag.id,
+              embeddings[i].embedding,
+              embeddings[i].model
+            )
+          )
+        );
+
+        processed += tags.length;
+      } catch (error) {
+        failed += tags.length;
+        this.logger.error('Backfill batch failed', {
+          officeId,
+          batchSize: tags.length,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        // Continue with next batch rather than failing entirely
+      }
+
+      this.logger.info('Backfill progress', { officeId, processed, failed });
+    }
+
+    this.logger.info('Backfill complete', { officeId, totalProcessed: processed, totalFailed: failed });
+  }
+
+  /**
+   * Refresh embeddings for tags that have been updated
+   * Called every 25 minutes by scheduled job
+   */
+  async handleRefresh(job: Job<{ officeId: string }>): Promise<void> {
+    const { officeId } = job.data;
+    const batchSize = 50;
+
+    this.logger.info('Starting embedding refresh', { officeId });
+
+    // Get tags needing re-embedding (updated since last embed)
+    const tagsNeedingUpdate = await this.tagVectorRepo.getTagsNeedingReembedding(officeId, batchSize);
+
+    // Also get any new tags without embeddings
+    const newTags = await this.tagVectorRepo.getTagsWithoutEmbeddings(officeId, batchSize);
+
+    const allTags = [...tagsNeedingUpdate, ...newTags];
+
+    if (allTags.length === 0) {
+      this.logger.info('No tags need embedding refresh', { officeId });
+      return;
+    }
+
+    this.logger.info('Refreshing embeddings', {
+      officeId,
+      needingUpdate: tagsNeedingUpdate.length,
+      newTags: newTags.length,
+      total: allTags.length
+    });
+
+    let processed = 0;
+    let failed = 0;
+
+    try {
       const embeddings = await this.embeddingService.embedBatch(
-        tags.map(t => t.search_text)
+        allTags.map(t => t.searchText)
       );
 
-      // Update all tags
       await Promise.all(
-        tags.map((tag, i) =>
+        allTags.map((tag, i) =>
           this.tagVectorRepo.updateTagEmbedding(
             tag.id,
             embeddings[i].embedding,
@@ -533,11 +1054,65 @@ export class EmbeddingJobHandler {
         )
       );
 
-      processed += tags.length;
-      this.logger.info('Backfill progress', { officeId, processed });
+      processed = allTags.length;
+    } catch (error) {
+      failed = allTags.length;
+      this.logger.error('Embedding refresh failed', {
+        officeId,
+        error: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
     }
 
-    this.logger.info('Backfill complete', { officeId, totalProcessed: processed });
+    this.logger.info('Embedding refresh complete', { officeId, processed, failed });
+  }
+
+  /**
+   * Scheduled job that runs every 25 minutes for all offices
+   */
+  async handleScheduledRefresh(job: Job<Record<string, never>>): Promise<void> {
+    this.logger.info('Starting scheduled embedding refresh for all offices');
+
+    // Get all active offices
+    const { data: offices, error } = await this.supabase
+      .from('offices')
+      .select('id, name');
+
+    if (error) {
+      this.logger.error('Failed to fetch offices for embedding refresh', { error: error.message });
+      throw error;
+    }
+
+    if (!offices || offices.length === 0) {
+      this.logger.info('No offices found for embedding refresh');
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const office of offices) {
+      try {
+        await this.handleRefresh({
+          ...job,
+          data: { officeId: office.id }
+        } as Job<{ officeId: string }>);
+        successCount++;
+      } catch (error) {
+        failCount++;
+        this.logger.error('Embedding refresh failed for office', {
+          officeId: office.id,
+          officeName: office.name,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    this.logger.info('Scheduled embedding refresh complete', {
+      totalOffices: offices.length,
+      successCount,
+      failCount
+    });
   }
 }
 ```
@@ -551,7 +1126,7 @@ export class EmbeddingJobHandler {
 CREATE OR REPLACE FUNCTION queue_tag_embedding()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Queue embedding generation when tag is created or search_text changes
+  -- Queue embedding generation when tag is created or relevant fields change
   INSERT INTO tag_embedding_queue (tag_id, office_id, priority)
   VALUES (NEW.id, NEW.office_id,
     CASE
@@ -568,7 +1143,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create trigger
+-- Create trigger for tag changes that affect embeddings
 CREATE TRIGGER trigger_tag_embedding_queue
 AFTER INSERT OR UPDATE OF name, description, auto_assign_keywords
 ON tags
@@ -583,24 +1158,47 @@ EXECUTE FUNCTION queue_tag_embedding();
 ```typescript
 import { Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
+import PgBoss from 'pg-boss';
+import { TagVectorRepository } from '../../../infrastructure/repositories/TagVectorRepository';
+import { JobNames } from '../../../infrastructure/queue/types';
 
-export function createEmbeddingRoutes(/* dependencies */): Router {
+export function createEmbeddingRoutes(
+  boss: PgBoss,
+  tagVectorRepo: TagVectorRepository
+): Router {
   const router = Router();
 
   // Trigger backfill for an office
   router.post('/embeddings/backfill', authMiddleware, async (req, res) => {
     const { officeId } = req.body;
 
-    await boss.send(JobName.EMBEDDING_BACKFILL, { officeId });
+    if (!officeId) {
+      return res.status(400).json({ success: false, error: 'officeId required' });
+    }
+
+    await boss.send(JobNames.EMBEDDING_BACKFILL, { officeId });
 
     res.json({ success: true, message: 'Backfill job queued' });
+  });
+
+  // Trigger refresh for an office
+  router.post('/embeddings/refresh', authMiddleware, async (req, res) => {
+    const { officeId } = req.body;
+
+    if (!officeId) {
+      return res.status(400).json({ success: false, error: 'officeId required' });
+    }
+
+    await boss.send(JobNames.EMBEDDING_REFRESH, { officeId });
+
+    res.json({ success: true, message: 'Refresh job queued' });
   });
 
   // Get embedding status for an office
   router.get('/embeddings/status/:officeId', authMiddleware, async (req, res) => {
     const { officeId } = req.params;
 
-    const stats = await getEmbeddingStats(officeId);
+    const stats = await tagVectorRepo.getEmbeddingStats(officeId);
 
     res.json({
       success: true,
@@ -608,7 +1206,9 @@ export function createEmbeddingRoutes(/* dependencies */): Router {
         totalTags: stats.total,
         embeddedTags: stats.embedded,
         pendingTags: stats.pending,
-        percentComplete: Math.round((stats.embedded / stats.total) * 100)
+        percentComplete: stats.total > 0
+          ? Math.round((stats.embedded / stats.total) * 100)
+          : 100
       }
     });
   });
@@ -619,7 +1219,7 @@ export function createEmbeddingRoutes(/* dependencies */): Router {
 
 ## Worker Changes
 
-### 1. Register Embedding Handler
+### 1. Register Embedding Handler and Scheduled Job
 
 **File: `/server/src/worker.ts`**
 
@@ -628,25 +1228,42 @@ export function createEmbeddingRoutes(/* dependencies */): Router {
 import { EmbeddingJobHandler } from './infrastructure/queue/handlers/EmbeddingJobHandler';
 import { GeminiEmbeddingService } from './infrastructure/embedding/EmbeddingService';
 import { TagVectorRepository } from './infrastructure/repositories/TagVectorRepository';
+import { JobNames } from './infrastructure/queue/types';
 
 // In worker initialization
-const embeddingService = new GeminiEmbeddingService(config.geminiApiKey);
-const tagVectorRepo = new TagVectorRepository(supabase);
+const embeddingService = new GeminiEmbeddingService(config.geminiApiKey, logger);
+const tagVectorRepo = new TagVectorRepository(supabase, logger);
 const embeddingHandler = new EmbeddingJobHandler(
   embeddingService,
   tagVectorRepo,
+  supabase,
   logger
 );
 
 // Register handlers
-await boss.work(JobName.EMBEDDING_GENERATE_TAG, embeddingHandler.handleGenerateTag);
-await boss.work(JobName.EMBEDDING_BACKFILL, embeddingHandler.handleBackfill);
+await boss.work(
+  JobNames.EMBEDDING_GENERATE_TAG,
+  embeddingHandler.handleGenerateTag.bind(embeddingHandler)
+);
+await boss.work(
+  JobNames.EMBEDDING_BACKFILL,
+  embeddingHandler.handleBackfill.bind(embeddingHandler)
+);
+await boss.work(
+  JobNames.EMBEDDING_REFRESH,
+  embeddingHandler.handleRefresh.bind(embeddingHandler)
+);
+await boss.work(
+  JobNames.SCHEDULED_EMBEDDING_REFRESH,
+  embeddingHandler.handleScheduledRefresh.bind(embeddingHandler)
+);
 
-// Add scheduled job to process embedding queue
+// Schedule embedding refresh every 25 minutes
+// This keeps embeddings up to date as tags are added/modified from legacy DB sync
 await boss.schedule(
-  'embedding:process-queue',
-  '*/5 * * * *', // Every 5 minutes
-  { batchSize: 50 }
+  JobNames.SCHEDULED_EMBEDDING_REFRESH,
+  '*/25 * * * *', // Every 25 minutes
+  {}
 );
 ```
 
@@ -668,6 +1285,7 @@ export interface Tag {
   color: string | null;
   description: string | null;
   auto_assign_keywords: string[] | null;
+  usage_hint: string | null;  // NEW - user-editable, max 150 chars
   embedding: number[] | null;  // NEW
   embedding_model: string | null;  // NEW
   embedding_updated_at: string | null;  // NEW
@@ -675,7 +1293,78 @@ export interface Tag {
 }
 ```
 
-### 2. Admin: Embedding Status Dashboard
+### 2. Tag Settings: Usage Hint Editor
+
+Add to the tag editing UI (e.g., in settings or tag management):
+
+**File: `/src/components/settings/TagUsageHintEditor.tsx`**
+
+```tsx
+import React, { useState } from 'react';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+
+interface TagUsageHintEditorProps {
+  tagId: string;
+  tagName: string;
+  currentHint: string | null;
+  onSave: (tagId: string, hint: string) => Promise<void>;
+}
+
+const MAX_HINT_LENGTH = 150;
+
+export function TagUsageHintEditor({
+  tagId,
+  tagName,
+  currentHint,
+  onSave
+}: TagUsageHintEditorProps) {
+  const [hint, setHint] = useState(currentHint || '');
+  const [saving, setSaving] = useState(false);
+
+  const remainingChars = MAX_HINT_LENGTH - hint.length;
+  const isOverLimit = remainingChars < 0;
+
+  const handleSave = async () => {
+    if (isOverLimit) return;
+    setSaving(true);
+    try {
+      await onSave(tagId, hint);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label htmlFor={`hint-${tagId}`}>
+          Usage hint for "{tagName}"
+        </Label>
+        <Badge variant={isOverLimit ? 'destructive' : 'secondary'}>
+          {remainingChars} chars remaining
+        </Badge>
+      </div>
+      <Textarea
+        id={`hint-${tagId}`}
+        value={hint}
+        onChange={(e) => setHint(e.target.value)}
+        onBlur={handleSave}
+        placeholder="Describe when this tag should be applied (e.g., 'Use for emails about housing issues including council housing, homelessness, and private rentals')"
+        className="resize-none"
+        rows={2}
+        disabled={saving}
+      />
+      <p className="text-xs text-muted-foreground">
+        This hint helps the AI understand when to suggest this tag during email triage.
+      </p>
+    </div>
+  );
+}
+```
+
+### 3. Admin: Embedding Status Dashboard
 
 **File: `/src/components/admin/EmbeddingStatusCard.tsx`**
 
@@ -683,7 +1372,7 @@ export interface Tag {
 import React, { useEffect, useState } from 'react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { useSupabase } from '@/lib/SupabaseContext';
+import { RefreshCw } from 'lucide-react';
 
 interface EmbeddingStats {
   totalTags: number;
@@ -695,12 +1384,24 @@ interface EmbeddingStats {
 export function EmbeddingStatusCard({ officeId }: { officeId: string }) {
   const [stats, setStats] = useState<EmbeddingStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchStats = async () => {
     const response = await fetch(`/api/embeddings/status/${officeId}`);
     const data = await response.json();
     setStats(data.data);
     setLoading(false);
+  };
+
+  const triggerRefresh = async () => {
+    setRefreshing(true);
+    await fetch('/api/embeddings/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ officeId })
+    });
+    setRefreshing(false);
+    fetchStats();
   };
 
   const triggerBackfill = async () => {
@@ -722,7 +1423,17 @@ export function EmbeddingStatusCard({ officeId }: { officeId: string }) {
 
   return (
     <div className="p-4 border rounded-lg">
-      <h3 className="font-medium mb-2">Tag Embedding Status</h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-medium">Tag Embedding Status</h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={triggerRefresh}
+          disabled={refreshing}
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
       <Progress value={stats.percentComplete} className="mb-2" />
       <p className="text-sm text-muted-foreground">
         {stats.embeddedTags} / {stats.totalTags} tags embedded ({stats.percentComplete}%)
@@ -737,7 +1448,7 @@ export function EmbeddingStatusCard({ officeId }: { officeId: string }) {
 }
 ```
 
-### 3. No Changes to TagPicker
+### 4. No Changes to TagPicker
 
 The TagPicker component does not need changes - it continues to work with the existing `suggestedTags` from triage suggestions. The vector search happens server-side before LLM processing.
 
@@ -751,7 +1462,7 @@ The TagPicker component does not need changes - it continues to work with the ex
 # Existing
 GEMINI_API_KEY=your_gemini_api_key
 
-# New (optional - uses Gemini by default)
+# New (optional - uses defaults if not specified)
 EMBEDDING_MODEL=text-embedding-004
 EMBEDDING_DIMENSIONS=768
 TAG_SEARCH_LIMIT=20
@@ -760,64 +1471,93 @@ TAG_SIMILARITY_THRESHOLD=0.25
 
 ### 2. Server Config
 
-**File: `/server/src/config.ts`**
+**File: `/server/src/config/index.ts`**
+
+Add to the `Config` interface:
 
 ```typescript
-export const config = {
+export interface Config {
   // ... existing config ...
 
-  embedding: {
-    model: process.env.EMBEDDING_MODEL || 'text-embedding-004',
-    dimensions: parseInt(process.env.EMBEDDING_DIMENSIONS || '768'),
-    tagSearchLimit: parseInt(process.env.TAG_SEARCH_LIMIT || '20'),
-    similarityThreshold: parseFloat(process.env.TAG_SIMILARITY_THRESHOLD || '0.25'),
-  }
-};
+  // Embedding
+  embeddingModel: string;
+  embeddingDimensions: number;
+  tagSearchLimit: number;
+  tagSimilarityThreshold: number;
+}
+```
+
+Add to the `loadConfig()` function:
+
+```typescript
+export function loadConfig(): Config {
+  // ... existing config ...
+
+  return {
+    // ... existing properties ...
+
+    // Embedding
+    embeddingModel: process.env.EMBEDDING_MODEL ?? 'text-embedding-004',
+    embeddingDimensions: parseInt(process.env.EMBEDDING_DIMENSIONS ?? '768', 10),
+    tagSearchLimit: parseInt(process.env.TAG_SEARCH_LIMIT ?? '20', 10),
+    tagSimilarityThreshold: parseFloat(process.env.TAG_SIMILARITY_THRESHOLD ?? '0.25'),
+  };
+}
 ```
 
 ## Migration Plan
 
 ### Phase 1: Database Setup
 1. Enable pgvector extension in Supabase
-2. Run migrations to add embedding columns and functions
-3. Create indexes for vector search
+2. Run migrations to add embedding columns, usage_hint, and functions
+3. Create HNSW indexes for vector search
 
 ### Phase 2: Backend Infrastructure
 1. Implement EmbeddingService
-2. Implement TagVectorRepository
+2. Implement TagVectorRepository with fallback methods
 3. Implement EmbeddingJobHandler
 4. Register new job types in worker
+5. Set up 25-minute scheduled refresh job
 
 ### Phase 3: Integration
-1. Implement TagRecommendationService
+1. Implement TagRecommendationService with fallback logic
 2. Modify TriageJobHandler to use tag recommendations
-3. Update LLM prompt to work with filtered tag set
+3. Update LLM prompt to work with filtered tag set (including usage_hint)
 
 ### Phase 4: Backfill & Testing
 1. Run backfill job for all existing tags
 2. Test with sample emails
 3. Monitor embedding quality and search relevance
+4. Verify fallback behavior when embeddings fail
 
-### Phase 5: Frontend (Optional)
-1. Add embedding status dashboard for admins
-2. Add manual tag embedding refresh capability
+### Phase 5: Frontend
+1. Add usage_hint editor to tag settings
+2. Add embedding status dashboard for admins
+3. Add manual tag embedding refresh capability
 
 ## Performance Considerations
 
 ### Embedding Generation
 - Gemini text-embedding-004 supports batch requests
-- Process tags in batches of 50 to avoid rate limits
-- Cache email embeddings to avoid regeneration on retry
+- Process tags in batches of 10 with 1-second delays to avoid rate limits
+- Cache email embeddings permanently (emails are static records)
+- 25-minute scheduled refresh keeps embeddings current without timeout issues
 
 ### Vector Search
-- IVFFlat index with 100 lists for ~10,000 tags
-- For >100,000 tags, consider HNSW index
+- HNSW index works well at any scale (unlike IVFFlat which needs 1000+ vectors)
 - Search completes in <10ms for typical office sizes
+- Falls back to keyword search if vector search returns <5 results
+
+### Fallback Strategy
+1. If embedding generation fails → use keyword matching on subject
+2. If vector search returns <5 results → supplement with keyword matches
+3. If both fail → use most frequently used tags for the office
+4. All fallback scenarios are logged with detailed error information
 
 ### Memory & Storage
 - 768-dimension vector = ~3KB per tag
 - 10,000 tags = ~30MB storage
-- Email embeddings cached separately, cleaned after 30 days
+- Email embeddings cached permanently (static records)
 
 ## Cost Analysis
 
@@ -838,7 +1578,8 @@ export const config = {
 1. **Embedding coverage**: % of tags with embeddings
 2. **Search latency**: Time for vector search (p50, p95, p99)
 3. **Hit rate**: % of emails with >5 relevant tags found
-4. **LLM accuracy**: Tag acceptance rate from recommendations
+4. **Fallback rate**: % of searches using keyword fallback
+5. **LLM accuracy**: Tag acceptance rate from recommendations
 
 ### Logging
 ```typescript
@@ -850,8 +1591,22 @@ export const config = {
   candidateCount: number,
   searchTimeMs: number,
   embeddingCached: boolean,
+  fallbackUsed: boolean,
+  fallbackReason?: string,
   topTagSimilarity: number,
   lowTagSimilarity: number
+}
+
+// Error logging for failures
+{
+  event: 'tag_recommendation_error',
+  messageId: string,
+  officeId: string,
+  error: string,
+  errorStack: string,
+  searchTimeMs: number,
+  fallbackUsed: true,
+  fallbackReason: string
 }
 ```
 
@@ -900,9 +1655,9 @@ For offices that receive attachments, embed document content alongside email tex
 | Component | Files to Create | Files to Modify |
 |-----------|----------------|-----------------|
 | **Database** | 6 migration files | - |
-| **Server** | `EmbeddingService.ts`, `TagVectorRepository.ts`, `TagRecommendationService.ts`, `EmbeddingJobHandler.ts`, `embeddingRoutes.ts` | `worker.ts`, `TriageJobHandler.ts`, `types.ts`, `config.ts` |
-| **Worker** | - | `worker.ts` (register handlers) |
-| **Frontend** | `EmbeddingStatusCard.tsx` (optional) | `database.types.ts` (auto-generated) |
+| **Server** | `EmbeddingService.ts`, `TagVectorRepository.ts`, `TagRecommendationService.ts`, `EmbeddingJobHandler.ts`, `embeddingRoutes.ts` | `worker.ts`, `TriageJobHandler.ts`, `types.ts`, `config/index.ts` |
+| **Worker** | - | `worker.ts` (register handlers + 25-min schedule) |
+| **Frontend** | `TagUsageHintEditor.tsx`, `EmbeddingStatusCard.tsx` (optional) | `database.types.ts` (auto-generated) |
 
 ## Appendix: Full Migration SQL
 
@@ -912,19 +1667,23 @@ For offices that receive attachments, embed document content alongside email tex
 -- 1. Enable pgvector
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- 2. Add columns to tags
+-- 2. Add columns to tags (including usage_hint)
 ALTER TABLE tags ADD COLUMN embedding vector(768);
+ALTER TABLE tags ADD COLUMN usage_hint TEXT;
+ALTER TABLE tags ADD CONSTRAINT tags_usage_hint_length CHECK (char_length(usage_hint) <= 150);
 ALTER TABLE tags ADD COLUMN embedding_model TEXT;
 ALTER TABLE tags ADD COLUMN embedding_updated_at TIMESTAMPTZ;
 ALTER TABLE tags ADD COLUMN search_text TEXT
   GENERATED ALWAYS AS (
-    name || ' ' || COALESCE(description, '') || ' ' || COALESCE(array_to_string(auto_assign_keywords, ' '), '')
+    TRIM(CONCAT_WS(' ', name, description, array_to_string(auto_assign_keywords, ' ')))
   ) STORED;
 
--- 3. Create embedding index
+COMMENT ON COLUMN tags.usage_hint IS 'User-editable description (max 150 chars) explaining when to apply this tag. Shown to LLM during triage.';
+
+-- 3. Create HNSW embedding index (works well at any scale)
 CREATE INDEX idx_tags_embedding ON tags
-  USING ivfflat (embedding vector_cosine_ops)
-  WITH (lists = 100);
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
 
 -- 4. Create queue table
 CREATE TABLE tag_embedding_queue (
@@ -942,19 +1701,42 @@ CREATE INDEX idx_tag_embedding_queue_pending
   ON tag_embedding_queue(priority DESC, created_at ASC)
   WHERE processed_at IS NULL;
 
--- 5. Create email embeddings cache
+ALTER TABLE tag_embedding_queue ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Service role has full access to tag_embedding_queue"
+  ON tag_embedding_queue FOR ALL USING (true);
+
+-- 5. Create email embeddings cache (with composite FK to partitioned messages)
 CREATE TABLE email_embeddings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+  office_id UUID NOT NULL,
+  message_id UUID NOT NULL,
   embedding vector(768) NOT NULL,
   embedding_model TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  FOREIGN KEY (office_id, message_id) REFERENCES messages(office_id, id) ON DELETE CASCADE,
   UNIQUE(message_id)
 );
 
 CREATE INDEX idx_email_embeddings_message_id ON email_embeddings(message_id);
+CREATE INDEX idx_email_embeddings_office_id ON email_embeddings(office_id);
 
--- 6. Create search function
+ALTER TABLE email_embeddings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Email embeddings office policy"
+  ON email_embeddings
+  FOR ALL
+  TO authenticated
+  USING (office_id = get_my_office_id())
+  WITH CHECK (office_id = get_my_office_id());
+
+CREATE POLICY "Service role has full access to email_embeddings"
+  ON email_embeddings
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+-- 6. Create vector search function
 CREATE OR REPLACE FUNCTION search_similar_tags(
   query_embedding vector(768),
   target_office_id UUID,
@@ -966,6 +1748,7 @@ RETURNS TABLE (
   name TEXT,
   color TEXT,
   description TEXT,
+  usage_hint TEXT,
   similarity FLOAT
 )
 LANGUAGE plpgsql
@@ -977,6 +1760,7 @@ BEGIN
     t.name,
     t.color,
     t.description,
+    t.usage_hint,
     1 - (t.embedding <=> query_embedding) AS similarity
   FROM tags t
   WHERE
@@ -988,7 +1772,53 @@ BEGIN
 END;
 $$;
 
--- 7. Create trigger for auto-queuing
+-- 7. Create keyword fallback search function
+CREATE OR REPLACE FUNCTION search_tags_by_keywords(
+  search_text TEXT,
+  target_office_id UUID,
+  match_count INTEGER DEFAULT 20
+)
+RETURNS TABLE (
+  tag_id UUID,
+  name TEXT,
+  color TEXT,
+  description TEXT,
+  usage_hint TEXT,
+  relevance FLOAT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  search_terms TEXT[];
+BEGIN
+  search_terms := regexp_split_to_array(lower(search_text), '\s+');
+
+  RETURN QUERY
+  SELECT
+    t.id,
+    t.name,
+    t.color,
+    t.description,
+    t.usage_hint,
+    (
+      SELECT COUNT(*)::FLOAT / GREATEST(array_length(search_terms, 1), 1)
+      FROM unnest(search_terms) term
+      WHERE
+        lower(t.name) LIKE '%' || term || '%'
+        OR lower(COALESCE(t.description, '')) LIKE '%' || term || '%'
+        OR EXISTS (
+          SELECT 1 FROM unnest(t.auto_assign_keywords) kw
+          WHERE lower(kw) LIKE '%' || term || '%'
+        )
+    ) AS relevance
+  FROM tags t
+  WHERE t.office_id = target_office_id
+  ORDER BY relevance DESC
+  LIMIT match_count;
+END;
+$$;
+
+-- 8. Create trigger for auto-queuing
 CREATE OR REPLACE FUNCTION queue_tag_embedding()
 RETURNS TRIGGER AS $$
 BEGIN
