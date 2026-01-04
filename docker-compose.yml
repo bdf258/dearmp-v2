@@ -4,8 +4,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "3000:80"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -31,8 +29,6 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    ports:
-      - "3001:3001"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
