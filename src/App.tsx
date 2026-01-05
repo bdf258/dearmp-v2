@@ -36,6 +36,9 @@ import CasePrototypeColumns from '@/pages/prototypes/case/CasePrototypeColumns';
 import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
 import DashboardPrototype from '@/pages/prototypes/DashboardPrototype';
 import ComponentPrototypePage from '@/pages/prototypes/ComponentPrototypePage';
+import SettingsPrototypeUser from '@/pages/prototypes/settings/SettingsPrototypeUser';
+import SettingsPrototypeAdmin from '@/pages/prototypes/settings/SettingsPrototypeAdmin';
+import SettingsPrototypeSidebar from '@/pages/prototypes/settings/SettingsPrototypeSidebar';
 import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import TestTriagePage from '@/pages/TestTriagePage';
@@ -170,6 +173,9 @@ function AuthenticatedLayout() {
             <Route path="/prototypes/case/cards" element={<PageLayout><CasePrototypeCards /></PageLayout>} />
             <Route path="/prototypes/dashboard" element={<PageLayout><DashboardPrototype /></PageLayout>} />
             <Route path="/prototypes/components" element={<PageLayout><ComponentPrototypePage /></PageLayout>} />
+            <Route path="/prototypes/settings/user" element={<PageLayout><SettingsPrototypeUser /></PageLayout>} />
+            <Route path="/prototypes/settings/admin" element={<PageLayout><SettingsPrototypeAdmin /></PageLayout>} />
+            <Route path="/prototypes/settings/sidebar" element={<PageLayout><SettingsPrototypeSidebar /></PageLayout>} />
 
             {/* 404 Catch-all Route */}
             <Route path="*" element={<PageLayout><NotFoundPage /></PageLayout>} />
