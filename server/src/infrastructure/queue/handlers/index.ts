@@ -13,3 +13,12 @@ export {
   type IPollStatusRepository,
   type ISyncStatusRepository as IScheduledSyncStatusRepository,
 } from './ScheduledJobHandler';
+export {
+  EmbeddingJobHandler,
+  type EmbeddingJobHandlerDependencies,
+  type EmbeddingGenerateTagJobData,
+  type EmbeddingBackfillJobData,
+  type EmbeddingRefreshJobData,
+  type ScheduledEmbeddingRefreshJobData,
+  type EmbeddingJobResult,
+} from './EmbeddingJobHandler';

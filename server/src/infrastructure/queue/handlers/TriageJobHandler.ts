@@ -4,6 +4,7 @@
  * Handles email triage pipeline jobs including:
  * - Processing emails to find constituent matches
  * - LLM-powered suggestion generation (with Gemini)
+ * - Vector-based tag recommendation
  * - Batch prefetching for UI performance
  * - Submitting triage decisions
  */
@@ -13,7 +14,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { OfficeId, ExternalId } from '../../../domain/value-objects';
 import { ILegacyApiClient } from '../../../domain/interfaces';
 import { IConstituentRepository, ICaseRepository, IEmailRepository } from '../../../domain/interfaces';
-import { ILLMAnalysisService } from '../../../application/services';
+import { ILLMAnalysisService, TagRecommendationService } from '../../../application/services';
 import {
   TriageContextDto,
   TriageSuggestionDto,
@@ -42,6 +43,7 @@ export interface TriageJobHandlerDependencies {
   emailRepository: IEmailRepository;
   triageCacheRepository: ITriageCacheRepository;
   llmAnalysisService?: ILLMAnalysisService;
+  tagRecommendationService?: TagRecommendationService;
   supabaseClient?: SupabaseClient; // For updating test email status
 }
 
@@ -82,6 +84,7 @@ export class TriageJobHandler {
   private readonly emailRepo: IEmailRepository;
   private readonly triageCache: ITriageCacheRepository;
   private readonly llmService?: ILLMAnalysisService;
+  private readonly tagRecommendationService?: TagRecommendationService;
   private readonly supabase?: SupabaseClient;
 
   constructor(deps: TriageJobHandlerDependencies) {
@@ -92,12 +95,17 @@ export class TriageJobHandler {
     this.emailRepo = deps.emailRepository;
     this.triageCache = deps.triageCacheRepository;
     this.llmService = deps.llmAnalysisService;
+    this.tagRecommendationService = deps.tagRecommendationService;
     this.supabase = deps.supabaseClient;
 
     if (this.llmService) {
       console.log('[TriageJobHandler] LLM analysis service enabled');
     } else {
       console.log('[TriageJobHandler] LLM analysis service not configured, using rule-based suggestions');
+    }
+
+    if (this.tagRecommendationService) {
+      console.log('[TriageJobHandler] Tag recommendation service enabled (vector search)');
     }
   }
 
@@ -395,6 +403,33 @@ export class TriageJobHandler {
         this.legacyApi.getCaseworkers(office),
       ]);
 
+      // Get recommended tags via vector search (or fallback to all tags)
+      let tags: OfficeReferenceDataDto['tags'] = [];
+      if (this.tagRecommendationService) {
+        try {
+          const tagResult = await this.tagRecommendationService.getRecommendedTags({
+            messageId: emailId,
+            officeId: office.toString(),
+            subject: emailContent.subject,
+            body: emailContent.body,
+            senderEmail: emailContent.senderEmail,
+          });
+
+          tags = tagResult.candidateTags.map(t => ({
+            id: t.id,
+            name: t.name,
+            color: '', // Not stored in legacy.tags
+            description: t.description || undefined,
+            keywords: [], // Not using keywords in tag context
+          }));
+
+          console.log(`[TriageProcessEmail] Got ${tags.length} recommended tags (fallback: ${tagResult.fallbackUsed}, ${tagResult.searchTimeMs}ms)`);
+        } catch (tagError) {
+          console.warn('[TriageProcessEmail] Tag recommendation failed:', tagError);
+          // Continue with empty tags rather than failing
+        }
+      }
+
       referenceData = {
         caseTypes: caseTypes.filter(ct => ct.isActive).map(ct => ({
           id: ct.id,
@@ -413,7 +448,7 @@ export class TriageJobHandler {
           name: cw.name,
           email: cw.email,
         })),
-        tags: [], // Tags would come from Supabase
+        tags,
       };
     } catch (refError) {
       console.warn('[TriageProcessEmail] Failed to load reference data:', refError);

@@ -22,3 +22,6 @@ export type { CasesRoutesDependencies } from './cases';
 
 export { createEmailsRoutes } from './emails';
 export type { EmailsRoutesDependencies } from './emails';
+
+export { createEmbeddingsRoutes } from './embeddings';
+export type { EmbeddingsRoutesDependencies } from './embeddings';

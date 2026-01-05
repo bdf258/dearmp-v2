@@ -23,17 +23,21 @@ import {
   PushJobHandler,
   TriageJobHandler,
   ScheduledJobHandler,
+  EmbeddingJobHandler,
   TriageCacheData,
 } from './infrastructure/queue';
+import { JobNames } from './infrastructure/queue/types';
 import { LegacyApiClient, ICredentialsRepository } from './infrastructure/api/LegacyApiClient';
 import {
   SupabaseConstituentRepository,
   SupabaseCaseRepository,
   SupabaseEmailRepository,
   SupabaseReferenceDataRepository,
+  TagVectorRepository,
 } from './infrastructure/repositories';
 import { GeminiLLMService } from './infrastructure/llm';
-import { ILLMAnalysisService } from './application/services';
+import { GeminiEmbeddingService, IEmbeddingService } from './infrastructure/embedding';
+import { ILLMAnalysisService, TagRecommendationService } from './application/services';
 import { OfficeId } from './domain/value-objects';
 
 // ============================================================================
@@ -50,6 +54,7 @@ console.log(`Environment: ${config.nodeEnv}`);
 console.log(`Database: ${config.databaseUrl.replace(/:[^:@]+@/, ':****@')}`);
 console.log(`Legacy API: ${config.legacyApiDisabled ? 'DISABLED (safe mode)' : 'Enabled'}`);
 console.log(`LLM: ${config.geminiApiKey ? `Gemini (${config.geminiModel})` : 'Disabled (no API key)'}`);
+console.log(`Embeddings: ${config.geminiApiKey ? 'Enabled (text-embedding-004)' : 'Disabled (no API key)'}`);
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -368,6 +373,9 @@ async function main() {
 
   // Create LLM service if API key is configured
   let llmService: ILLMAnalysisService | undefined;
+  let embeddingService: IEmbeddingService | undefined;
+  let tagRecommendationService: TagRecommendationService | undefined;
+
   if (config.geminiApiKey) {
     llmService = new GeminiLLMService({
       apiKey: config.geminiApiKey,
@@ -376,6 +384,29 @@ async function main() {
       timeoutMs: config.geminiTimeoutMs,
     });
     console.log('[Worker] Gemini LLM service initialized');
+
+    // Create embedding service for tag recommendation
+    embeddingService = new GeminiEmbeddingService({
+      apiKey: config.geminiApiKey,
+      model: 'text-embedding-004',
+      batchSize: 10,
+      batchDelayMs: 1000,
+    });
+    console.log('[Worker] Gemini Embedding service initialized');
+
+    // Create tag recommendation service
+    const tagVectorRepo = new TagVectorRepository(supabase);
+    tagRecommendationService = new TagRecommendationService(
+      embeddingService,
+      tagVectorRepo,
+      {
+        minVectorResults: 5,
+        maxTags: 20,
+        similarityThreshold: 0.25,
+        maxContentLength: 2000,
+      }
+    );
+    console.log('[Worker] Tag Recommendation service initialized');
   }
 
   const triageHandler = new TriageJobHandler({
@@ -386,6 +417,7 @@ async function main() {
     emailRepository: emailRepo,
     triageCacheRepository: triageCacheRepo,
     llmAnalysisService: llmService,
+    tagRecommendationService,
     supabaseClient: supabase, // For updating test email status
   });
 
@@ -407,6 +439,27 @@ async function main() {
   await triageHandler.register();
   await scheduledHandler.register();
 
+  // Register embedding handler if embedding service is available
+  if (embeddingService) {
+    const tagVectorRepo = new TagVectorRepository(supabase);
+    const embeddingHandler = new EmbeddingJobHandler({
+      pgBossClient,
+      embeddingService,
+      tagVectorRepo,
+      supabase,
+    });
+    await embeddingHandler.register();
+
+    // Schedule periodic embedding refresh (every 25 minutes)
+    await pgBossClient.schedule(
+      JobNames.SCHEDULED_EMBEDDING_REFRESH,
+      '*/25 * * * *', // Every 25 minutes
+      { type: JobNames.SCHEDULED_EMBEDDING_REFRESH },
+      { tz: 'UTC' }
+    );
+    console.log('[Worker] Scheduled embedding refresh (every 25 min)');
+  }
+
   console.log('\n╔════════════════════════════════════════════════════════════════╗');
   console.log('║                    Worker Ready                                 ║');
   console.log('╠════════════════════════════════════════════════════════════════╣');
@@ -415,6 +468,9 @@ async function main() {
   console.log('║  - PushJobHandler      (constituent, case, email, casenote)    ║');
   console.log('║  - TriageJobHandler    (process-email, submit-decision, batch) ║');
   console.log('║  - ScheduledJobHandler (poll-legacy, sync-office, cleanup)     ║');
+  if (embeddingService) {
+    console.log('║  - EmbeddingJobHandler (generate-tag, backfill, refresh)      ║');
+  }
   console.log('╚════════════════════════════════════════════════════════════════╝');
   console.log('\nWaiting for jobs...\n');
 

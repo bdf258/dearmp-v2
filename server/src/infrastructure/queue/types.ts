@@ -29,6 +29,12 @@ export const JobNames = {
   TRIAGE_SUBMIT_DECISION: 'triage:submit-decision',
   TRIAGE_BATCH_PREFETCH: 'triage:batch-prefetch',
 
+  // Embedding jobs - tag vector embedding management
+  EMBEDDING_GENERATE_TAG: 'embedding:generate-tag',
+  EMBEDDING_BACKFILL: 'embedding:backfill',
+  EMBEDDING_REFRESH: 'embedding:refresh',
+  SCHEDULED_EMBEDDING_REFRESH: 'scheduled:embedding-refresh',
+
   // Scheduled jobs
   SCHEDULED_POLL_LEGACY: 'scheduled:poll-legacy',
   SCHEDULED_SYNC_OFFICE: 'scheduled:sync-office',
@@ -255,6 +261,33 @@ export type TriageJobDataUnion =
   | TriageSubmitDecisionJobData
   | TriageBatchPrefetchJobData;
 
+// ============================================================================
+// EMBEDDING JOB DATA
+// ============================================================================
+
+export interface EmbeddingGenerateTagJobData extends BaseJobData {
+  type: typeof JobNames.EMBEDDING_GENERATE_TAG;
+  tagId: string;
+}
+
+export interface EmbeddingBackfillJobData extends BaseJobData {
+  type: typeof JobNames.EMBEDDING_BACKFILL;
+}
+
+export interface EmbeddingRefreshJobData extends BaseJobData {
+  type: typeof JobNames.EMBEDDING_REFRESH;
+}
+
+export interface ScheduledEmbeddingRefreshJobData {
+  type: typeof JobNames.SCHEDULED_EMBEDDING_REFRESH;
+}
+
+export type EmbeddingJobDataUnion =
+  | EmbeddingGenerateTagJobData
+  | EmbeddingBackfillJobData
+  | EmbeddingRefreshJobData
+  | ScheduledEmbeddingRefreshJobData;
+
 export type ScheduledJobDataUnion =
   | ScheduledPollLegacyJobData
   | ScheduledSyncOfficeJobData
@@ -268,6 +301,7 @@ export type AllJobData =
   | SyncJobDataUnion
   | PushJobDataUnion
   | TriageJobDataUnion
+  | EmbeddingJobDataUnion
   | ScheduledJobDataUnion
   | MaintenanceJobDataUnion;
 
@@ -411,6 +445,28 @@ export const DefaultJobOptions: Record<string, JobOptions> = {
     retryBackoff: true,
     expireInSeconds: 300,
     deadLetter: 'dead-letter:triage',
+  },
+  // Embedding jobs
+  [JobNames.EMBEDDING_GENERATE_TAG]: {
+    retryLimit: 3,
+    retryDelay: 30,
+    retryBackoff: true,
+    expireInSeconds: 120,
+  },
+  [JobNames.EMBEDDING_BACKFILL]: {
+    retryLimit: 1,
+    expireInSeconds: 3600, // 1 hour for large backfills
+    singletonSeconds: 3500, // Prevent overlapping
+  },
+  [JobNames.EMBEDDING_REFRESH]: {
+    retryLimit: 1,
+    expireInSeconds: 1800, // 30 minutes
+    singletonSeconds: 1700,
+  },
+  [JobNames.SCHEDULED_EMBEDDING_REFRESH]: {
+    retryLimit: 1,
+    expireInSeconds: 1800,
+    singletonSeconds: 1400, // 23+ minutes (for 25-min schedule)
   },
   [JobNames.SCHEDULED_POLL_LEGACY]: {
     retryLimit: 1,
