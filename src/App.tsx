@@ -42,6 +42,7 @@ import SettingsPrototypeSidebar from '@/pages/prototypes/settings/SettingsProtot
 import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import TestTriagePage from '@/pages/TestTriagePage';
+import TestApiPage from '@/pages/TestApiPage';
 import { TriageDashboard, CampaignDashboard, TriageWorkspace, TriageRedirect } from '@/pages/triage';
 
 function LoadingScreen() {
@@ -157,6 +158,8 @@ function AuthenticatedLayout() {
 
             {/* Test Page - For testing triage pipeline with uploaded .eml files */}
             <Route path="/test" element={<PageLayout><TestTriagePage /></PageLayout>} />
+            {/* Test API Page - For testing Caseworker API endpoints */}
+            <Route path="/test-api" element={<PageLayout><TestApiPage /></PageLayout>} />
 
             {/* Prototypes Index */}
             <Route path="/prototypes" element={<PageLayout><PrototypesPage /></PageLayout>} />
