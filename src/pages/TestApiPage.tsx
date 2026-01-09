@@ -78,8 +78,15 @@ interface CasePatchResponse {
 }
 
 export default function TestApiPage() {
-  // API URL configuration - full base URL
-  const [apiBaseUrl, setApiBaseUrl] = useState('https://alphonsomanila.farier.com/api/ajax');
+  // API URL configuration - use server proxy by default
+  // The subdomain (e.g., "admin") becomes part of the proxy path
+  const [subdomain, setSubdomain] = useState('admin');
+  const [useProxy, setUseProxy] = useState(true);
+
+  // Build the API base URL based on whether we're using the proxy
+  const apiBaseUrl = useProxy
+    ? `/api/caseworker-proxy/${subdomain}`
+    : `https://${subdomain}.farier.com/api/ajax`;
 
   // Auth state
   const [authEmail, setAuthEmail] = useState('');
@@ -180,8 +187,7 @@ export default function TestApiPage() {
 
   // Build API URL
   const buildApiUrl = useCallback((path: string) => {
-    const baseUrl = apiBaseUrl.trim().replace(/\/$/, '');
-    return `${baseUrl}${path}`;
+    return `${apiBaseUrl}${path}`;
   }, [apiBaseUrl]);
 
   // Handle authentication
@@ -482,20 +488,48 @@ export default function TestApiPage() {
             API Configuration
           </CardTitle>
           <CardDescription>
-            Configure the full API base URL
+            Configure the Caseworker API subdomain
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="api-base-url">Base URL</Label>
-            <Input
-              id="api-base-url"
-              value={apiBaseUrl}
-              onChange={(e) => setApiBaseUrl(e.target.value)}
-              placeholder="https://alphonsomanila.farier.com/api/ajax"
-              className="font-mono"
-            />
+          <div className="flex items-center gap-4">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="subdomain">Subdomain</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="subdomain"
+                  value={subdomain}
+                  onChange={(e) => setSubdomain(e.target.value)}
+                  placeholder="admin"
+                  className="font-mono"
+                />
+                <span className="text-muted-foreground text-sm whitespace-nowrap">.farier.com</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="use-proxy">Use Server Proxy</Label>
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="use-proxy"
+                  checked={useProxy}
+                  onChange={(e) => setUseProxy(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {useProxy ? 'Via server (recommended)' : 'Direct (may fail due to CORS)'}
+                </span>
+              </div>
+            </div>
           </div>
+
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Current API Base URL</AlertTitle>
+            <AlertDescription className="font-mono text-xs break-all">
+              {apiBaseUrl}
+            </AlertDescription>
+          </Alert>
 
           <Separator />
 
@@ -861,9 +895,10 @@ export default function TestApiPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Note</AlertTitle>
             <AlertDescription>
-              This page makes direct API calls to the Caseworker API. Ensure you have valid credentials
-              and the API is accessible from your network. CORS may block requests from the browser;
-              if so, consider using a proxy or testing from a server-side context.
+              This page tests the Caseworker API. When "Use Server Proxy" is enabled, requests go through
+              the local server at <code className="font-mono text-xs">/api/caseworker-proxy</code>, which
+              forwards them to the Caseworker API, bypassing CORS restrictions. Make sure the server is
+              running on port 3001 (<code className="font-mono text-xs">npm run server:dev</code>).
             </AlertDescription>
           </Alert>
         </CardContent>

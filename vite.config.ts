@@ -55,5 +55,12 @@ export default defineConfig({
       "X-XSS-Protection": "1; mode=block",
       "Referrer-Policy": "strict-origin-when-cross-origin",
     },
+    proxy: {
+      // Proxy API requests to the local server during development
+      '/api/caseworker-proxy': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    },
   },
 });

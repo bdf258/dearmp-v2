@@ -22,3 +22,6 @@ export type { CasesRoutesDependencies } from './cases';
 
 export { createEmailsRoutes } from './emails';
 export type { EmailsRoutesDependencies } from './emails';
+
+export { createCaseworkerProxyRoutes } from './caseworkerProxy';
+export type { CaseworkerProxyRoutesDependencies } from './caseworkerProxy';

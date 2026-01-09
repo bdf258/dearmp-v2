@@ -35,6 +35,7 @@ import {
   createTestTriageRoutes,
   createReferenceDataRoutes,
   createHealthRoutes,
+  createCaseworkerProxyRoutes,
   apiRateLimiter,
 } from './presentation/http';
 
@@ -235,6 +236,13 @@ async function main() {
     '/reference',
     typedAuthMiddleware,
     createReferenceDataRoutes({ supabase })
+  );
+
+  // Caseworker API proxy (for testing external Caseworker API from frontend)
+  // This does NOT require authentication - it's a pass-through proxy
+  app.use(
+    '/api/caseworker-proxy',
+    createCaseworkerProxyRoutes()
   );
 
   // Root endpoint
