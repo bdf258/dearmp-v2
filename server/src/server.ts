@@ -36,6 +36,7 @@ import {
   createReferenceDataRoutes,
   createHealthRoutes,
   createCaseworkerProxyRoutes,
+  createApiHealthLogRoutes,
   apiRateLimiter,
 } from './presentation/http';
 
@@ -243,6 +244,13 @@ async function main() {
   app.use(
     '/api/caseworker-proxy',
     createCaseworkerProxyRoutes()
+  );
+
+  // API Health Log routes (for logging API health check requests)
+  // This does NOT require authentication - it's a developer tool
+  app.use(
+    '/api/health-log',
+    createApiHealthLogRoutes()
   );
 
   // Root endpoint

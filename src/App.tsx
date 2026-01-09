@@ -43,6 +43,7 @@ import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import TestTriagePage from '@/pages/TestTriagePage';
 import TestApiPage from '@/pages/TestApiPage';
+import ApiHealthPage from '@/pages/ApiHealthPage';
 import { TriageDashboard, CampaignDashboard, TriageWorkspace, TriageRedirect } from '@/pages/triage';
 
 function LoadingScreen() {
@@ -160,6 +161,8 @@ function AuthenticatedLayout() {
             <Route path="/test" element={<PageLayout><TestTriagePage /></PageLayout>} />
             {/* Test API Page - For testing Caseworker API endpoints */}
             <Route path="/test-api" element={<PageLayout><TestApiPage /></PageLayout>} />
+            {/* API Health Page - For testing API endpoints with server-side logging */}
+            <Route path="/api-health" element={<PageLayout><ApiHealthPage /></PageLayout>} />
 
             {/* Prototypes Index */}
             <Route path="/prototypes" element={<PageLayout><PrototypesPage /></PageLayout>} />
@@ -202,6 +205,11 @@ function RootLayout() {
   // Test API page is public (developer tool)
   if (location.pathname === '/test-api') {
     return <TestApiPage />;
+  }
+
+  // API Health page is public (developer tool)
+  if (location.pathname === '/api-health') {
+    return <ApiHealthPage />;
   }
 
   if (loading) {
