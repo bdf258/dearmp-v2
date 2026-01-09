@@ -199,6 +199,11 @@ function RootLayout() {
     return <LandingPage />;
   }
 
+  // Test API page is public (developer tool)
+  if (location.pathname === '/test-api') {
+    return <TestApiPage />;
+  }
+
   if (loading) {
     return <LoadingScreen />;
   }
