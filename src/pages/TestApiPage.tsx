@@ -5,7 +5,7 @@
  * Allows testing authentication, case search, and case updates.
  *
  * API endpoints (based on caseworker repo):
- * - POST /api/ajax/auth - Authenticate with email, password, OTP
+ * - POST /api/ajax/auth - Authenticate with email, password, secondFactor (OTP/Yubikey)
  * - POST /api/ajax/cases/search - Search for cases
  * - PATCH /api/ajax/cases/{id} - Update a case
  */
@@ -200,7 +200,7 @@ export default function TestApiPage() {
       const body = {
         email: authEmail,
         password: authPassword,
-        otp: authOtp || undefined,
+        secondFactor: authOtp || undefined,
         locale: 'en-GB',
       };
 
@@ -401,7 +401,7 @@ export default function TestApiPage() {
     const body = {
       email: authEmail || '<email>',
       password: authPassword || '<password>',
-      ...(authOtp ? { otp: authOtp } : {}),
+      ...(authOtp ? { secondFactor: authOtp } : {}),
       locale: 'en-GB',
     };
     return `curl -X POST '${url}' \\
@@ -557,12 +557,12 @@ export default function TestApiPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="auth-otp">OTP (optional)</Label>
+              <Label htmlFor="auth-otp">Second Factor / OTP (optional)</Label>
               <Input
                 id="auth-otp"
                 value={authOtp}
                 onChange={(e) => setAuthOtp(e.target.value)}
-                placeholder="123456"
+                placeholder="Yubikey or Google Authenticator code"
               />
             </div>
 
@@ -823,7 +823,7 @@ export default function TestApiPage() {
                 POST /api/ajax/auth
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Body: {`{ email, password, otp?, locale }`}
+                Body: {`{ email, password, secondFactor?, locale }`}
               </p>
               <p className="text-xs text-muted-foreground">
                 Returns: auth token string
