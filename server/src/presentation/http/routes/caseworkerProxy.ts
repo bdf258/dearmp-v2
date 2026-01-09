@@ -1,7 +1,7 @@
 /**
  * Caseworker API Proxy Routes
  *
- * Server-side proxy for the Caseworker API (farier.com).
+ * Server-side proxy for the Caseworker API.
  * This allows the frontend to make API calls through the server,
  * bypassing CORS restrictions.
  *
@@ -11,6 +11,10 @@
  * - GET  /api/caseworker-proxy/:subdomain/cases/:id - Get a case
  * - PATCH /api/caseworker-proxy/:subdomain/cases/:id - Update a case
  * - Any other path is forwarded as-is
+ *
+ * Custom Domain Support:
+ * - Use "custom" as subdomain with ?domain=yourdomain.com query param
+ * - Example: /api/caseworker-proxy/custom/auth?domain=aballinger.caseworkermp.com
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
@@ -28,9 +32,21 @@ export function createCaseworkerProxyRoutes(_deps?: CaseworkerProxyRoutesDepende
 
   /**
    * Build the full Caseworker API URL
+   * @param subdomainOrCustom - Either a subdomain for farier.com or "custom"
+   * @param path - The API path (e.g., /auth, /cases/search)
+   * @param customDomain - Full custom domain (used when subdomainOrCustom is "custom")
    */
-  function buildApiUrl(subdomain: string, path: string): string {
-    const cleanSubdomain = subdomain
+  function buildApiUrl(subdomainOrCustom: string, path: string, customDomain?: string): string {
+    // If using custom domain mode
+    if (subdomainOrCustom === 'custom' && customDomain) {
+      const cleanDomain = customDomain
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '');
+      return `https://${cleanDomain}/api/ajax${path}`;
+    }
+
+    // Default: subdomain of farier.com
+    const cleanSubdomain = subdomainOrCustom
       .replace(/^https?:\/\//, '')
       .replace(/\.farier\.com.*$/, '')
       .replace(/\/$/, '');
@@ -49,9 +65,10 @@ export function createCaseworkerProxyRoutes(_deps?: CaseworkerProxyRoutesDepende
       method: string;
       body?: unknown;
       authToken?: string;
+      customDomain?: string;
     }
   ): Promise<void> {
-    const url = buildApiUrl(subdomain, path);
+    const url = buildApiUrl(subdomain, path, options.customDomain);
 
     console.log(`[CaseworkerProxy] ${options.method} ${url}`);
 
@@ -239,6 +256,9 @@ export function createCaseworkerProxyRoutes(_deps?: CaseworkerProxyRoutesDepende
   /**
    * Catch-all: Forward any other requests
    * This allows the proxy to work with any endpoint
+   *
+   * For custom domains, use "custom" as subdomain with ?domain=yourdomain.com
+   * Example: /api/caseworker-proxy/custom/api/ajax/auth?domain=aballinger.caseworkermp.com
    */
   router.all('/:subdomain/*', async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -246,11 +266,14 @@ export function createCaseworkerProxyRoutes(_deps?: CaseworkerProxyRoutesDepende
       // Get the path after the subdomain
       const path = '/' + req.params[0];
       const authToken = req.headers.authorization as string | undefined;
+      // Support custom domain via query parameter
+      const customDomain = req.query.domain as string | undefined;
 
       await proxyRequest(req, res, subdomain, path, {
         method: req.method,
         body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? req.body : undefined,
         authToken,
+        customDomain,
       });
     } catch (error) {
       next(error);
