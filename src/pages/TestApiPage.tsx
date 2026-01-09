@@ -30,6 +30,7 @@ import {
   Copy,
   Trash2,
   FileText,
+  Bookmark,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -78,8 +79,15 @@ interface CasePatchResponse {
 }
 
 export default function TestApiPage() {
-  // API URL configuration - full base URL
-  const [apiBaseUrl, setApiBaseUrl] = useState('https://alphonsomanila.farier.com/api/ajax');
+  // API URL configuration - use server proxy by default
+  // The subdomain (e.g., "admin") becomes part of the proxy path
+  const [subdomain, setSubdomain] = useState('admin');
+  const [useProxy, setUseProxy] = useState(true);
+
+  // Build the API base URL based on whether we're using the proxy
+  const apiBaseUrl = useProxy
+    ? `/api/caseworker-proxy/${subdomain}`
+    : `https://${subdomain}.farier.com/api/ajax`;
 
   // Auth state
   const [authEmail, setAuthEmail] = useState('');
@@ -180,8 +188,7 @@ export default function TestApiPage() {
 
   // Build API URL
   const buildApiUrl = useCallback((path: string) => {
-    const baseUrl = apiBaseUrl.trim().replace(/\/$/, '');
-    return `${baseUrl}${path}`;
+    return `${apiBaseUrl}${path}`;
   }, [apiBaseUrl]);
 
   // Handle authentication
@@ -482,20 +489,48 @@ export default function TestApiPage() {
             API Configuration
           </CardTitle>
           <CardDescription>
-            Configure the full API base URL
+            Configure the Caseworker API subdomain
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="api-base-url">Base URL</Label>
-            <Input
-              id="api-base-url"
-              value={apiBaseUrl}
-              onChange={(e) => setApiBaseUrl(e.target.value)}
-              placeholder="https://alphonsomanila.farier.com/api/ajax"
-              className="font-mono"
-            />
+          <div className="flex items-center gap-4">
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="subdomain">Subdomain</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="subdomain"
+                  value={subdomain}
+                  onChange={(e) => setSubdomain(e.target.value)}
+                  placeholder="admin"
+                  className="font-mono"
+                />
+                <span className="text-muted-foreground text-sm whitespace-nowrap">.farier.com</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="use-proxy">Use Server Proxy</Label>
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="use-proxy"
+                  checked={useProxy}
+                  onChange={(e) => setUseProxy(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {useProxy ? 'Via server (recommended)' : 'Direct (may fail due to CORS)'}
+                </span>
+              </div>
+            </div>
           </div>
+
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Current API Base URL</AlertTitle>
+            <AlertDescription className="font-mono text-xs break-all">
+              {apiBaseUrl}
+            </AlertDescription>
+          </Alert>
 
           <Separator />
 
@@ -861,9 +896,125 @@ export default function TestApiPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Note</AlertTitle>
             <AlertDescription>
-              This page makes direct API calls to the Caseworker API. Ensure you have valid credentials
-              and the API is accessible from your network. CORS may block requests from the browser;
-              if so, consider using a proxy or testing from a server-side context.
+              This page tests the Caseworker API. When "Use Server Proxy" is enabled, requests go through
+              the local server at <code className="font-mono text-xs">/api/caseworker-proxy</code>, which
+              forwards them to the Caseworker API, bypassing CORS restrictions. Make sure the server is
+              running on port 3001 (<code className="font-mono text-xs">npm run server:dev</code>).
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+
+      {/* Bookmarklets Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bookmark className="h-5 w-5" />
+            API Bookmarklets
+          </CardTitle>
+          <CardDescription>
+            Drag these bookmarklets to your bookmarks bar to quickly test API endpoints from any page
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Instructions */}
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>How to Use</AlertTitle>
+            <AlertDescription>
+              <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+                <li>Drag any blue button below to your browser's bookmarks bar</li>
+                <li>Navigate to your Caseworker application</li>
+                <li>Click the bookmarklet to execute the API call</li>
+                <li>Results will be displayed in a popup window</li>
+              </ol>
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Auth Request Bookmarklet */}
+            <div className="p-4 border rounded-lg space-y-3">
+              <h4 className="font-medium">1. Auth Request</h4>
+              <p className="text-xs text-muted-foreground">
+                Authenticates with test credentials and saves JWT token to localStorage.
+              </p>
+              <a
+                className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm cursor-move"
+                href="javascript:(function(){const BASE_URL=window.location.protocol+'//'+window.location.host+'/api/ajax';const endpoint='/auth';const payload={email:'test@test.com',password:'test',locale:'en'};const reqInfo={method:'POST',url:BASE_URL+endpoint,headers:{'Content-Type':'application/json'},body:payload};fetch(BASE_URL+endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>{const status=r.status;const statusText=r.statusText;const headers={};r.headers.forEach((v,k)=>headers[k]=v);return r.text().then(body=>({status,statusText,headers,body,ok:r.ok}));}).then(res=>{if(res.ok)window.localStorage.setItem('token',res.body);const w=window.open('','_blank','width=800,height=700');w.document.write('<html><head><title>Auth Result</title><style>body{font-family:sans-serif;padding:20px;background:%23f5f5f5}textarea{width:100%;height:150px;font-family:monospace;font-size:12px;padding:10px;border:1px solid %23ccc;border-radius:4px;resize:vertical}h2{color:%23333}h3{margin-top:20px;color:%23555}.success{color:%23198754}.error{color:%23dc3545}label{font-weight:bold;display:block;margin-bottom:5px}</style></head><body><h2>Auth Request Result</h2><p class=\"'+(res.ok?'success':'error')+'\">'+(res.ok?'Authentication successful!':'Authentication failed: '+res.status+' '+res.statusText)+'</p>'+(res.ok?'<p>JWT Token saved to localStorage</p>':'')+'<h3>Request Sent:</h3><label>URL:</label><textarea readonly>POST '+reqInfo.url+'</textarea><label>Headers:</label><textarea readonly>'+JSON.stringify(reqInfo.headers,null,2)+'</textarea><label>Body:</label><textarea readonly>'+JSON.stringify(reqInfo.body,null,2)+'</textarea><h3>Response Received:</h3><label>Status:</label><textarea readonly style=\"height:40px\">'+res.status+' '+res.statusText+'</textarea><label>Headers:</label><textarea readonly>'+JSON.stringify(res.headers,null,2)+'</textarea><label>Body:</label><textarea readonly style=\"height:200px\">'+res.body+'</textarea></body></html>');}).catch(e=>{alert('Auth Error: '+e.message);console.error(e);});})();"
+              >
+                Auth Request
+              </a>
+              <p className="text-xs text-muted-foreground">
+                Credentials: <code className="bg-muted px-1 rounded">test@test.com</code> / <code className="bg-muted px-1 rounded">test</code>
+              </p>
+            </div>
+
+            {/* Search Tags Bookmarklet */}
+            <div className="p-4 border rounded-lg space-y-3">
+              <h4 className="font-medium">2. Search Tags (10)</h4>
+              <p className="text-xs text-muted-foreground">
+                Searches for tags via <code className="bg-muted px-1 rounded">/api/ajax/tags/search</code>. Requires authentication first.
+              </p>
+              <a
+                className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm cursor-move"
+                href="javascript:(function(){const BASE_URL=window.location.protocol+'//'+window.location.host+'/api/ajax';const endpoint='/tags/search';const token=window.localStorage.getItem('token')||'';const payload={term:'',pageNo:1,resultsPerPage:10};const reqHeaders={'Content-Type':'application/json','Authorization':token};const reqInfo={method:'POST',url:BASE_URL+endpoint,headers:reqHeaders,body:payload};fetch(BASE_URL+endpoint,{method:'POST',headers:reqHeaders,body:JSON.stringify(payload)}).then(r=>{const status=r.status;const statusText=r.statusText;const headers={};r.headers.forEach((v,k)=>headers[k]=v);if(r.headers.has('Authorization'))window.localStorage.setItem('token',r.headers.get('Authorization'));return r.text().then(body=>({status,statusText,headers,body,ok:r.ok}));}).then(res=>{let data=null;let parseError=null;try{data=JSON.parse(res.body);}catch(e){parseError=e.message;}const w=window.open('','_blank','width=900,height=800');const tableRows=data&&data.results?data.results.map(t=>'<tr><td>'+t.id+'</td><td>'+t.tag+'</td><td>'+(t.usageCount||0)+'</td></tr>').join(''):'<tr><td colspan=\"3\">No results</td></tr>';w.document.write('<html><head><title>Tags Search Result</title><style>body{font-family:sans-serif;padding:20px;background:%23f5f5f5}textarea{width:100%;height:120px;font-family:monospace;font-size:12px;padding:10px;border:1px solid %23ccc;border-radius:4px;resize:vertical}h2{color:%23333}h3{margin-top:20px;color:%23555}.success{color:%23198754}.error{color:%23dc3545}label{font-weight:bold;display:block;margin-bottom:5px}table{width:100%;border-collapse:collapse;background:white;margin:10px 0}th,td{border:1px solid %23ddd;padding:8px;text-align:left}th{background:%23007bff;color:white}</style></head><body><h2>Tags Search Result</h2><p class=\"'+(res.ok?'success':'error')+'\">'+(res.ok?'Request successful!':'Request failed: '+res.status+' '+res.statusText)+'</p>'+(data?'<p>Found <strong>'+((data.results&&data.results.length)||0)+'</strong> of <strong>'+(data.totalResults||0)+'</strong> total tags</p>':'')+'<h3>Results Table:</h3><table><tr><th>ID</th><th>Tag</th><th>Usage Count</th></tr>'+tableRows+'</table><h3>Request Sent:</h3><label>URL:</label><textarea readonly style=\"height:40px\">POST '+reqInfo.url+'</textarea><label>Headers:</label><textarea readonly>'+JSON.stringify(reqInfo.headers,null,2)+'</textarea><label>Body:</label><textarea readonly>'+JSON.stringify(reqInfo.body,null,2)+'</textarea><h3>Response Received:</h3><label>Status:</label><textarea readonly style=\"height:40px\">'+res.status+' '+res.statusText+'</textarea><label>Headers:</label><textarea readonly>'+JSON.stringify(res.headers,null,2)+'</textarea><label>Body:</label><textarea readonly style=\"height:200px\">'+res.body+'</textarea></body></html>');}).catch(e=>{alert('Tags Search Error: '+e.message+'\\n\\nMake sure you are authenticated first!');console.error(e);});})();"
+              >
+                Search Tags (10)
+              </a>
+            </div>
+
+            {/* Search Constituents Bookmarklet */}
+            <div className="p-4 border rounded-lg space-y-3">
+              <h4 className="font-medium">3. Search Constituents (1000)</h4>
+              <p className="text-xs text-muted-foreground">
+                Searches for constituents via <code className="bg-muted px-1 rounded">/api/ajax/constituents/search</code>. Requires authentication first.
+              </p>
+              <a
+                className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium text-sm cursor-move"
+                href="javascript:(function(){const BASE_URL=window.location.protocol+'//'+window.location.host+'/api/ajax';const endpoint='/constituents/search';const token=window.localStorage.getItem('token')||'';const payload={term:'',pageNo:1,resultsPerPage:1000};const reqHeaders={'Content-Type':'application/json','Authorization':token};const reqInfo={method:'POST',url:BASE_URL+endpoint,headers:reqHeaders,body:payload};fetch(BASE_URL+endpoint,{method:'POST',headers:reqHeaders,body:JSON.stringify(payload)}).then(r=>{const status=r.status;const statusText=r.statusText;const headers={};r.headers.forEach((v,k)=>headers[k]=v);if(r.headers.has('Authorization'))window.localStorage.setItem('token',r.headers.get('Authorization'));return r.text().then(body=>({status,statusText,headers,body,ok:r.ok}));}).then(res=>{let data=null;try{data=JSON.parse(res.body);}catch(e){}const results=data&&data.results?data.results:[];const w=window.open('','_blank','width=900,height=800');const tableRows=results.slice(0,50).map(c=>'<tr><td>'+(c.id||'')+'</td><td>'+(c.firstName||'')+'</td><td>'+(c.lastName||'')+'</td><td>'+(c.fullName||'')+'</td></tr>').join('')||'<tr><td colspan=\"4\">No results</td></tr>';w.document.write('<html><head><title>Constituents Search Result</title><style>body{font-family:sans-serif;padding:20px;background:%23f5f5f5}textarea{width:100%;height:120px;font-family:monospace;font-size:12px;padding:10px;border:1px solid %23ccc;border-radius:4px;resize:vertical}h2{color:%23333}h3{margin-top:20px;color:%23555}.success{color:%23198754}.error{color:%23dc3545}label{font-weight:bold;display:block;margin-bottom:5px}table{width:100%;border-collapse:collapse;background:white;margin:10px 0}th,td{border:1px solid %23ddd;padding:8px;text-align:left}th{background:%23007bff;color:white}.note{background:%23fff3cd;padding:10px;border-radius:4px;margin:10px 0}</style></head><body><h2>Constituents Search Result</h2><p class=\"'+(res.ok?'success':'error')+'\">'+(res.ok?'Request successful!':'Request failed: '+res.status+' '+res.statusText)+'</p>'+(data?'<p>Found <strong>'+results.length+'</strong> of <strong>'+(data.totalResults||0)+'</strong> total constituents</p>':'')+(results.length>50?'<p class=\"note\">Showing first 50 results in table. See response body for all data.</p>':'')+'<h3>Results Table:</h3><table><tr><th>ID</th><th>First Name</th><th>Last Name</th><th>Full Name</th></tr>'+tableRows+'</table><h3>Request Sent:</h3><label>URL:</label><textarea readonly style=\"height:40px\">POST '+reqInfo.url+'</textarea><label>Headers:</label><textarea readonly>'+JSON.stringify(reqInfo.headers,null,2)+'</textarea><label>Body:</label><textarea readonly>'+JSON.stringify(reqInfo.body,null,2)+'</textarea><h3>Response Received:</h3><label>Status:</label><textarea readonly style=\"height:40px\">'+res.status+' '+res.statusText+'</textarea><label>Headers:</label><textarea readonly>'+JSON.stringify(res.headers,null,2)+'</textarea><label>Body:</label><textarea readonly style=\"height:250px\">'+res.body+'</textarea></body></html>');}).catch(e=>{alert('Constituents Search Error: '+e.message+'\\n\\nMake sure you are authenticated first!');console.error(e);});})();"
+              >
+                Search Constituents (1000)
+              </a>
+            </div>
+          </div>
+
+          {/* Bookmarklet API Reference */}
+          <div className="border-t pt-4 mt-4">
+            <h4 className="font-medium mb-3">Bookmarklet API Endpoints</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    <th className="p-2 text-left border">Endpoint</th>
+                    <th className="p-2 text-left border">Method</th>
+                    <th className="p-2 text-left border">Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="p-2 border"><code className="text-xs">/api/ajax/auth</code></td>
+                    <td className="p-2 border">POST</td>
+                    <td className="p-2 border">Authenticate user, returns JWT token</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2 border"><code className="text-xs">/api/ajax/tags/search</code></td>
+                    <td className="p-2 border">POST</td>
+                    <td className="p-2 border">Search tags with pagination</td>
+                  </tr>
+                  <tr>
+                    <td className="p-2 border"><code className="text-xs">/api/ajax/constituents/search</code></td>
+                    <td className="p-2 border">POST</td>
+                    <td className="p-2 border">Search constituents with pagination</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <Alert className="bg-yellow-50 border-yellow-200">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800">
+              These bookmarklets use the current page's origin as the API base URL. Make sure you're on the Caseworker application before running them.
             </AlertDescription>
           </Alert>
         </CardContent>

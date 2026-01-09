@@ -22,3 +22,9 @@ export type { CasesRoutesDependencies } from './cases';
 
 export { createEmailsRoutes } from './emails';
 export type { EmailsRoutesDependencies } from './emails';
+
+export { createCaseworkerProxyRoutes } from './caseworkerProxy';
+export type { CaseworkerProxyRoutesDependencies } from './caseworkerProxy';
+
+export { createApiHealthLogRoutes } from './apiHealthLog';
+export type { ApiHealthLogEntry } from './apiHealthLog';
