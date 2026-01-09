@@ -1,41 +1,28 @@
 /**
- * API Health Page
+ * API Documentation Page
  *
- * A developer tool for testing API endpoints via the server proxy.
- * All requests go through the server to bypass CORS restrictions.
- * Requests and responses are logged to server storage.
- *
- * Based on caseworker-api-routes.txt:
- * - POST /api/ajax/auth - Authenticate with email, password, secondFactor (OTP/Yubikey)
- * - POST /api/ajax/cases/search - Search for cases
- * - POST /api/ajax/tags/search - Search for tags
+ * A standard API documentation interface for the Caseworker API.
+ * Features sidebar navigation with anchor links, editable API domain,
+ * and interactive endpoint testing.
  */
 
-import { useState, useCallback, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import {
   Loader2,
   CheckCircle,
-  AlertCircle,
+  Copy,
+  Send,
+  ChevronRight,
+  Settings,
   Key,
   Search,
-  Server,
-  Copy,
-  Trash2,
-  FileText,
-  Bookmark,
-  Send,
   Tag,
-  RefreshCw,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -43,78 +30,178 @@ import { toast } from 'sonner';
 // Types
 // ============================================================================
 
-interface LogEntry {
-  id: string;
-  timestamp: string;
-  endpoint: string;
-  method: string;
-  requestUrl: string;
-  requestHeaders: Record<string, string>;
-  requestBody: unknown;
-  responseStatus: number;
-  responseStatusText: string;
-  responseHeaders: Record<string, string>;
-  responseBody: string;
-  duration: number;
-  error?: string;
-}
-
 interface EndpointConfig {
+  id: string;
   name: string;
   description: string;
-  method: string;
-  path: string;
-  defaultBody: Record<string, unknown>;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  path: string;        // Proxy path (without /api/ajax prefix)
+  fullPath: string;    // Full API path (for documentation display)
   requiresAuth: boolean;
+  requestBody?: {
+    description: string;
+    fields: {
+      name: string;
+      type: string;
+      required: boolean;
+      description: string;
+      example?: string;
+    }[];
+    example: Record<string, unknown>;
+  };
+  responseBody?: {
+    description: string;
+    example: Record<string, unknown> | string;
+  };
+  notes?: string[];
+}
+
+interface NavSection {
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  endpoints: string[];
 }
 
 // ============================================================================
-// Endpoint Configurations
+// API Configuration
 // ============================================================================
+
+const DEFAULT_API_DOMAIN = 'aballinger.caseworkermp.com';
 
 const ENDPOINTS: Record<string, EndpointConfig> = {
   auth: {
+    id: 'auth',
     name: 'Authentication',
-    description: 'Authenticate with email, password, and optional OTP. Returns a JWT token.',
+    description: 'Authenticate a user and obtain a JWT token for subsequent API requests.',
     method: 'POST',
     path: '/auth',
-    defaultBody: {
-      email: '',
-      password: '',
-      secondFactor: '',
-      locale: 'en-GB',
-    },
+    fullPath: '/api/ajax/auth',
     requiresAuth: false,
+    requestBody: {
+      description: 'User credentials and optional second factor authentication.',
+      fields: [
+        { name: 'email', type: 'string', required: true, description: 'User email address', example: 'user@example.com' },
+        { name: 'password', type: 'string', required: true, description: 'User password', example: '********' },
+        { name: 'secondFactor', type: 'string', required: false, description: 'OTP code or Yubikey token for 2FA', example: '123456' },
+        { name: 'locale', type: 'string', required: false, description: 'Locale for response messages', example: 'en-GB' },
+      ],
+      example: {
+        email: '',
+        password: '',
+        secondFactor: '',
+        locale: 'en-GB',
+      },
+    },
+    responseBody: {
+      description: 'Returns a JWT token string on successful authentication.',
+      example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    },
+    notes: [
+      'The returned token should be included in the Authorization header for authenticated endpoints.',
+      'Token format: Include the raw token value in the Authorization header.',
+      'Tokens typically expire after a set period - re-authenticate when receiving 401 responses.',
+    ],
   },
   casesSearch: {
-    name: 'Cases Search',
-    description: 'Search for cases with various filters. Returns paginated case results.',
+    id: 'casesSearch',
+    name: 'Search Cases',
+    description: 'Search for cases with various filters including date range, status, and case type.',
     method: 'POST',
     path: '/cases/search',
-    defaultBody: {
-      dateRange: {
-        type: 'modified',
-        from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        to: new Date().toISOString(),
-      },
-      pageNo: 1,
-      resultsPerPage: 20,
-    },
+    fullPath: '/api/ajax/cases/search',
     requiresAuth: true,
+    requestBody: {
+      description: 'Search parameters for filtering cases.',
+      fields: [
+        { name: 'dateRange', type: 'object', required: false, description: 'Date range filter with type, from, and to fields' },
+        { name: 'dateRange.type', type: 'string', required: false, description: 'Type of date to filter by (created, modified)' },
+        { name: 'dateRange.from', type: 'string', required: false, description: 'Start date in ISO 8601 format' },
+        { name: 'dateRange.to', type: 'string', required: false, description: 'End date in ISO 8601 format' },
+        { name: 'pageNo', type: 'number', required: false, description: 'Page number for pagination (default: 1)', example: '1' },
+        { name: 'resultsPerPage', type: 'number', required: false, description: 'Number of results per page (default: 20)', example: '20' },
+        { name: 'statusID', type: 'number', required: false, description: 'Filter by case status ID' },
+        { name: 'casetypeID', type: 'number', required: false, description: 'Filter by case type ID' },
+        { name: 'orderBy', type: 'string', required: false, description: 'Field to order results by' },
+        { name: 'orderByDirection', type: 'string', required: false, description: 'Sort direction (asc, desc)' },
+      ],
+      example: {
+        dateRange: {
+          type: 'modified',
+          from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+          to: new Date().toISOString(),
+        },
+        pageNo: 1,
+        resultsPerPage: 20,
+      },
+    },
+    responseBody: {
+      description: 'Returns paginated case results with metadata.',
+      example: {
+        results: [],
+        totalResults: 0,
+        pageNo: 1,
+        resultsPerPage: 20,
+      },
+    },
   },
   tagsSearch: {
-    name: 'Tags Search',
-    description: 'Search for tags. Returns paginated tag results.',
+    id: 'tagsSearch',
+    name: 'Search Tags',
+    description: 'Search for tags by term with pagination support.',
     method: 'POST',
     path: '/tags/search',
-    defaultBody: {
-      term: '',
-      pageNo: 1,
-      resultsPerPage: 20,
-    },
+    fullPath: '/api/ajax/tags/search',
     requiresAuth: true,
+    requestBody: {
+      description: 'Search parameters for finding tags.',
+      fields: [
+        { name: 'term', type: 'string', required: false, description: 'Search term to filter tags', example: 'housing' },
+        { name: 'pageNo', type: 'number', required: false, description: 'Page number for pagination (default: 1)', example: '1' },
+        { name: 'resultsPerPage', type: 'number', required: false, description: 'Number of results per page (default: 20)', example: '20' },
+      ],
+      example: {
+        term: '',
+        pageNo: 1,
+        resultsPerPage: 20,
+      },
+    },
+    responseBody: {
+      description: 'Returns paginated tag results.',
+      example: {
+        results: [],
+        totalResults: 0,
+      },
+    },
   },
 };
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    id: 'getting-started',
+    title: 'Getting Started',
+    icon: <FileText className="h-4 w-4" />,
+    endpoints: [],
+  },
+  {
+    id: 'authentication',
+    title: 'Authentication',
+    icon: <Key className="h-4 w-4" />,
+    endpoints: ['auth'],
+  },
+  {
+    id: 'cases',
+    title: 'Cases',
+    icon: <Search className="h-4 w-4" />,
+    endpoints: ['casesSearch'],
+  },
+  {
+    id: 'tags',
+    title: 'Tags',
+    icon: <Tag className="h-4 w-4" />,
+    endpoints: ['tagsSearch'],
+  },
+];
 
 // ============================================================================
 // Component
@@ -122,107 +209,90 @@ const ENDPOINTS: Record<string, EndpointConfig> = {
 
 export default function ApiHealthPage() {
   // Config state
-  const [subdomain, setSubdomain] = useState('admin');
+  const [apiDomain, setApiDomain] = useState(DEFAULT_API_DOMAIN);
   const [authToken, setAuthToken] = useState('');
 
-  // Request body state (editable JSON for each endpoint)
-  const [authBody, setAuthBody] = useState(JSON.stringify(ENDPOINTS.auth.defaultBody, null, 2));
-  const [casesSearchBody, setCasesSearchBody] = useState(JSON.stringify(ENDPOINTS.casesSearch.defaultBody, null, 2));
-  const [tagsSearchBody, setTagsSearchBody] = useState(JSON.stringify(ENDPOINTS.tagsSearch.defaultBody, null, 2));
+  // Active section for navigation highlighting
+  const [activeSection, setActiveSection] = useState('getting-started');
 
-  // Response state
-  const [authResponse, setAuthResponse] = useState<string | null>(null);
-  const [casesSearchResponse, setCasesSearchResponse] = useState<string | null>(null);
-  const [tagsSearchResponse, setTagsSearchResponse] = useState<string | null>(null);
-
-  // Loading state
-  const [authLoading, setAuthLoading] = useState(false);
-  const [casesSearchLoading, setCasesSearchLoading] = useState(false);
-  const [tagsSearchLoading, setTagsSearchLoading] = useState(false);
-
-  // Error state
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [casesSearchError, setCasesSearchError] = useState<string | null>(null);
-  const [tagsSearchError, setTagsSearchError] = useState<string | null>(null);
-
-  // Server logs state
-  const [serverLogs, setServerLogs] = useState<LogEntry[]>([]);
-  const [logsLoading, setLogsLoading] = useState(false);
-
-  // Build the proxy URL
-  const buildProxyUrl = useCallback((path: string) => {
-    return `/api/caseworker-proxy/${subdomain}${path}`;
-  }, [subdomain]);
-
-  // Log to server
-  const logToServer = useCallback(async (logData: Omit<LogEntry, 'id' | 'timestamp'>) => {
-    try {
-      await fetch('/api/health-log/log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(logData),
-      });
-    } catch (error) {
-      console.error('Failed to log to server:', error);
-    }
-  }, []);
-
-  // Fetch server logs
-  const fetchServerLogs = useCallback(async () => {
-    setLogsLoading(true);
-    try {
-      const response = await fetch('/api/health-log/logs');
-      const data = await response.json();
-      if (data.success) {
-        setServerLogs(data.data || []);
+  // Request/response state per endpoint
+  const [requestBodies, setRequestBodies] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    Object.entries(ENDPOINTS).forEach(([key, endpoint]) => {
+      if (endpoint.requestBody) {
+        initial[key] = JSON.stringify(endpoint.requestBody.example, null, 2);
       }
-    } catch (error) {
-      console.error('Failed to fetch server logs:', error);
-    } finally {
-      setLogsLoading(false);
-    }
-  }, []);
+    });
+    return initial;
+  });
 
-  // Clear server logs
-  const clearServerLogs = useCallback(async () => {
-    try {
-      await fetch('/api/health-log/logs', { method: 'DELETE' });
-      setServerLogs([]);
-      toast.success('Server logs cleared');
-    } catch (error) {
-      console.error('Failed to clear server logs:', error);
-      toast.error('Failed to clear logs');
-    }
-  }, []);
+  const [responses, setResponses] = useState<Record<string, { status: number; body: string; duration: number } | null>>({});
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
 
-  // Load logs on mount
+  // Refs for scroll tracking
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Handle scroll to update active section
   useEffect(() => {
-    fetchServerLogs();
-  }, [fetchServerLogs]);
+    const handleScroll = () => {
+      if (!contentRef.current) return;
 
-  // Generic request handler
-  const makeRequest = useCallback(async (
-    endpoint: EndpointConfig,
-    body: string,
-    setResponse: (r: string | null) => void,
-    setError: (e: string | null) => void,
-    setLoading: (l: boolean) => void,
-    onSuccess?: (data: unknown, rawResponse: string) => void
-  ) => {
-    setLoading(true);
-    setError(null);
-    setResponse(null);
+      const scrollTop = contentRef.current.scrollTop;
+      const sections = ['getting-started', ...Object.keys(ENDPOINTS)];
 
+      for (const section of sections) {
+        const element = sectionRefs.current[section];
+        if (element) {
+          const { offsetTop } = element;
+          if (scrollTop >= offsetTop - 100) {
+            setActiveSection(section);
+          }
+        }
+      }
+    };
+
+    const content = contentRef.current;
+    content?.addEventListener('scroll', handleScroll);
+    return () => content?.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Scroll to section
+  const scrollToSection = useCallback((sectionId: string) => {
+    const element = sectionRefs.current[sectionId];
+    if (element && contentRef.current) {
+      contentRef.current.scrollTo({
+        top: element.offsetTop - 20,
+        behavior: 'smooth',
+      });
+    }
+    setActiveSection(sectionId);
+  }, []);
+
+  // Build full API URL
+  const buildApiUrl = useCallback((path: string) => {
+    return `https://${apiDomain}${path}`;
+  }, [apiDomain]);
+
+  // Make API request
+  const makeRequest = useCallback(async (endpointId: string) => {
+    const endpoint = ENDPOINTS[endpointId];
+    if (!endpoint) return;
+
+    setLoading(prev => ({ ...prev, [endpointId]: true }));
+    setResponses(prev => ({ ...prev, [endpointId]: null }));
+
+    const body = requestBodies[endpointId];
     let parsedBody: unknown;
+
     try {
       parsedBody = JSON.parse(body);
     } catch {
-      setError('Invalid JSON in request body');
-      setLoading(false);
+      toast.error('Invalid JSON in request body');
+      setLoading(prev => ({ ...prev, [endpointId]: false }));
       return;
     }
 
-    const url = buildProxyUrl(endpoint.path);
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -234,7 +304,10 @@ export default function ApiHealthPage() {
     const startTime = performance.now();
 
     try {
-      const response = await fetch(url, {
+      // Use proxy endpoint to avoid CORS
+      const proxyUrl = `/api/caseworker-proxy/custom${endpoint.path}?domain=${encodeURIComponent(apiDomain)}`;
+
+      const response = await fetch(proxyUrl, {
         method: endpoint.method,
         headers,
         body: JSON.stringify(parsedBody),
@@ -243,124 +316,47 @@ export default function ApiHealthPage() {
       const responseText = await response.text();
       const duration = Math.round(performance.now() - startTime);
 
-      // Log to server
-      await logToServer({
-        endpoint: endpoint.name,
-        method: endpoint.method,
-        requestUrl: url,
-        requestHeaders: headers,
-        requestBody: parsedBody,
-        responseStatus: response.status,
-        responseStatusText: response.statusText,
-        responseHeaders: Object.fromEntries(response.headers.entries()),
-        responseBody: responseText,
-        duration,
-      });
-
-      // Refresh logs
-      fetchServerLogs();
-
-      setResponse(responseText);
-
-      if (!response.ok) {
-        setError(`HTTP ${response.status}: ${response.statusText}`);
-        return;
-      }
-
-      // Try to parse and prettify JSON response
+      let formattedBody = responseText;
       try {
-        const data = JSON.parse(responseText);
-        setResponse(JSON.stringify(data, null, 2));
-        if (onSuccess) {
-          onSuccess(data, responseText);
-        }
-        toast.success(`${endpoint.name} successful`);
-      } catch {
-        // Response is not JSON
-        if (onSuccess) {
-          onSuccess(responseText, responseText);
-        }
-        toast.success(`${endpoint.name} successful`);
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Request failed';
-      const duration = Math.round(performance.now() - startTime);
+        const parsed = JSON.parse(responseText);
+        formattedBody = JSON.stringify(parsed, null, 2);
 
-      // Log error to server
-      await logToServer({
-        endpoint: endpoint.name,
-        method: endpoint.method,
-        requestUrl: url,
-        requestHeaders: headers,
-        requestBody: parsedBody,
-        responseStatus: 0,
-        responseStatusText: 'Error',
-        responseHeaders: {},
-        responseBody: '',
-        duration,
-        error: errorMessage,
-      });
-
-      fetchServerLogs();
-      setError(errorMessage);
-      toast.error(`${endpoint.name} failed: ${errorMessage}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [buildProxyUrl, authToken, logToServer, fetchServerLogs]);
-
-  // Handle auth request
-  const handleAuth = useCallback(() => {
-    makeRequest(
-      ENDPOINTS.auth,
-      authBody,
-      setAuthResponse,
-      setAuthError,
-      setAuthLoading,
-      (data, rawResponse) => {
-        // Extract token from response
-        let token: string | null = null;
-        if (typeof data === 'string') {
-          token = data;
-        } else if (typeof data === 'object' && data !== null) {
-          const obj = data as Record<string, unknown>;
-          if (typeof obj.token === 'string') {
-            token = obj.token;
+        // Auto-save auth token
+        if (endpointId === 'auth' && response.ok) {
+          const token = typeof parsed === 'string' ? parsed : parsed.token || responseText.replace(/^"|"$/g, '');
+          if (token) {
+            setAuthToken(token);
+            toast.success('Token saved automatically');
           }
         }
-        if (!token) {
-          // Try raw response as token
-          token = rawResponse.replace(/^"|"$/g, '');
-        }
-        if (token) {
-          setAuthToken(token);
-          toast.success('Token saved - will be used for subsequent requests');
-        }
+      } catch {
+        // Not JSON, use as-is
       }
-    );
-  }, [authBody, makeRequest]);
 
-  // Handle cases search request
-  const handleCasesSearch = useCallback(() => {
-    makeRequest(
-      ENDPOINTS.casesSearch,
-      casesSearchBody,
-      setCasesSearchResponse,
-      setCasesSearchError,
-      setCasesSearchLoading
-    );
-  }, [casesSearchBody, makeRequest]);
+      setResponses(prev => ({
+        ...prev,
+        [endpointId]: { status: response.status, body: formattedBody, duration },
+      }));
 
-  // Handle tags search request
-  const handleTagsSearch = useCallback(() => {
-    makeRequest(
-      ENDPOINTS.tagsSearch,
-      tagsSearchBody,
-      setTagsSearchResponse,
-      setTagsSearchError,
-      setTagsSearchLoading
-    );
-  }, [tagsSearchBody, makeRequest]);
+      if (response.ok) {
+        toast.success(`${endpoint.name} - ${response.status} OK`);
+      } else {
+        toast.error(`${endpoint.name} - ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      const duration = Math.round(performance.now() - startTime);
+      const errorMessage = error instanceof Error ? error.message : 'Request failed';
+
+      setResponses(prev => ({
+        ...prev,
+        [endpointId]: { status: 0, body: `Error: ${errorMessage}`, duration },
+      }));
+
+      toast.error(`${endpoint.name} failed: ${errorMessage}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [endpointId]: false }));
+    }
+  }, [apiDomain, authToken, requestBodies]);
 
   // Copy to clipboard
   const copyToClipboard = useCallback((text: string, label: string = 'Text') => {
@@ -368,496 +364,390 @@ export default function ApiHealthPage() {
     toast.success(`${label} copied to clipboard`);
   }, []);
 
-  // Generate bookmarklet
-  const generateBookmarklet = useCallback((endpointKey: string) => {
-    const baseUrl = window.location.origin;
-
-    // Create a bookmarklet that opens the API Health page with pre-filled data
-    const bookmarkletCode = `javascript:(function(){
-      const url='${baseUrl}/api-health?endpoint=${endpointKey}&subdomain=${subdomain}${authToken ? '&token=' + encodeURIComponent(authToken) : ''}';
-      window.open(url,'_blank');
-    })();`;
-
-    return bookmarkletCode.replace(/\s+/g, ' ');
-  }, [subdomain, authToken]);
-
-  // Endpoint Card Component
-  const EndpointCard = ({
-    endpointKey,
-    body,
-    setBody,
-    response,
-    error,
-    loading,
-    onSend,
-  }: {
-    endpointKey: string;
-    body: string;
-    setBody: (b: string) => void;
-    response: string | null;
-    error: string | null;
-    loading: boolean;
-    onSend: () => void;
-  }) => {
-    const endpoint = ENDPOINTS[endpointKey];
-    const Icon = endpointKey === 'auth' ? Key : endpointKey === 'casesSearch' ? Search : Tag;
-
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Icon className="h-5 w-5" />
-            {endpoint.name}
-            <Badge variant="outline" className="ml-2">
-              {endpoint.method}
-            </Badge>
-          </CardTitle>
-          <CardDescription>{endpoint.description}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Endpoint URL */}
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Endpoint URL:</Label>
-            <div className="p-2 bg-muted rounded font-mono text-xs break-all">
-              {buildProxyUrl(endpoint.path)}
-            </div>
-          </div>
-
-          {/* Auth requirement warning */}
-          {endpoint.requiresAuth && !authToken && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                This endpoint requires authentication. Please authenticate first.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Request body editor */}
-          <div className="space-y-2">
-            <Label>Request Body (JSON):</Label>
-            <Textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              className="font-mono text-xs min-h-[150px]"
-              placeholder="Enter JSON request body..."
-            />
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex gap-2">
-            <Button
-              onClick={onSend}
-              disabled={loading || (endpoint.requiresAuth && !authToken)}
-              className="flex-1"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Request
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => copyToClipboard(body, 'Request body')}
-              title="Copy request body"
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Error display */}
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {/* Response display */}
-          {response && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">Response:</Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => copyToClipboard(response, 'Response')}
-                >
-                  <Copy className="h-3 w-3 mr-1" />
-                  Copy
-                </Button>
-              </div>
-              <ScrollArea className="h-[200px] border rounded">
-                <pre className="p-3 text-xs font-mono whitespace-pre-wrap break-all">
-                  {response}
-                </pre>
-              </ScrollArea>
-            </div>
-          )}
-
-          {/* Bookmarklet */}
-          <Separator />
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground flex items-center gap-1">
-              <Bookmark className="h-3 w-3" />
-              Bookmarklet:
-            </Label>
-            <div className="flex gap-2">
-              <a
-                href={generateBookmarklet(endpointKey)}
-                className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded cursor-move"
-                onClick={(e) => e.preventDefault()}
-                title="Drag to bookmarks bar"
-              >
-                <Bookmark className="h-3 w-3 mr-1" />
-                {endpoint.name}
-              </a>
-              <span className="text-xs text-muted-foreground self-center">
-                Drag to bookmarks bar
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+  // Get method badge color
+  const getMethodColor = (method: string) => {
+    switch (method) {
+      case 'GET': return 'bg-blue-500';
+      case 'POST': return 'bg-green-500';
+      case 'PUT': return 'bg-yellow-500';
+      case 'DELETE': return 'bg-red-500';
+      case 'PATCH': return 'bg-purple-500';
+      default: return 'bg-gray-500';
+    }
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">API Health Check</h1>
-        <p className="text-muted-foreground">
-          Test Caseworker API endpoints via the server proxy. All requests are logged to server storage.
-        </p>
-      </div>
+    <div className="flex h-screen bg-white">
+      {/* Sidebar Navigation */}
+      <nav className="w-64 border-r border-gray-200 bg-gray-50 flex-shrink-0 overflow-y-auto">
+        <div className="p-4 border-b border-gray-200">
+          <h1 className="text-lg font-semibold text-gray-900">Caseworker API</h1>
+          <p className="text-sm text-gray-500 mt-1">v2.1 Documentation</p>
+        </div>
 
-      {/* Configuration Panel */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Server className="h-5 w-5" />
-            API Configuration
-          </CardTitle>
-          <CardDescription>
-            Configure the API endpoint and authentication token
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Subdomain */}
-            <div className="space-y-2">
-              <Label htmlFor="subdomain">Subdomain</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="subdomain"
-                  value={subdomain}
-                  onChange={(e) => setSubdomain(e.target.value)}
-                  placeholder="admin"
-                  className="font-mono"
-                />
-                <span className="text-muted-foreground text-sm whitespace-nowrap">.farier.com</span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                API Base: https://{subdomain}.farier.com/api/ajax
-              </p>
+        <div className="p-2">
+          {NAV_SECTIONS.map(section => (
+            <div key={section.id} className="mb-2">
+              <button
+                onClick={() => scrollToSection(section.endpoints[0] || section.id)}
+                className={`w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  activeSection === section.id || section.endpoints.includes(activeSection)
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {section.icon}
+                {section.title}
+              </button>
+
+              {section.endpoints.length > 0 && (
+                <div className="ml-6 mt-1 space-y-1">
+                  {section.endpoints.map(endpointId => {
+                    const endpoint = ENDPOINTS[endpointId];
+                    return (
+                      <button
+                        key={endpointId}
+                        onClick={() => scrollToSection(endpointId)}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors ${
+                          activeSection === endpointId
+                            ? 'text-blue-700 bg-blue-50'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                      >
+                        <ChevronRight className="h-3 w-3" />
+                        {endpoint.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Configuration Bar */}
+        <header className="border-b border-gray-200 bg-white px-6 py-4">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Settings className="h-4 w-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-700">API Domain:</span>
+              <Input
+                value={apiDomain}
+                onChange={(e) => setApiDomain(e.target.value)}
+                placeholder="api.example.com"
+                className="w-64 h-8 text-sm font-mono"
+              />
             </div>
 
-            {/* Auth Token */}
-            <div className="space-y-2">
-              <Label htmlFor="auth-token">Authentication Token</Label>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-1">
+              <Key className="h-4 w-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-700">Auth Token:</span>
+              <div className="flex-1 flex items-center gap-2">
                 <Input
-                  id="auth-token"
                   value={authToken}
                   onChange={(e) => setAuthToken(e.target.value)}
-                  placeholder="JWT token (auto-filled after auth)"
-                  className="font-mono text-xs"
+                  placeholder="Paste your JWT token or authenticate below"
                   type="password"
+                  className="flex-1 h-8 text-sm font-mono"
                 />
                 {authToken && (
+                  <>
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => copyToClipboard(authToken, 'Token')}
+                      className="h-8"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Documentation Content */}
+        <main ref={contentRef} className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-6 py-8">
+            {/* Getting Started Section */}
+            <section
+              ref={el => { sectionRefs.current['getting-started'] = el; }}
+              id="getting-started"
+              className="mb-12"
+            >
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Getting Started</h2>
+
+              <div className="prose prose-gray max-w-none">
+                <p className="text-gray-600 mb-4">
+                  Welcome to the Caseworker API documentation. This API allows you to interact with
+                  the Caseworker system programmatically, enabling you to search cases, manage tags,
+                  and perform various operations.
+                </p>
+
+                <h3 className="text-lg font-semibold text-gray-900 mt-6 mb-3">Base URL</h3>
+                <div className="bg-gray-100 rounded-md p-3 font-mono text-sm mb-4">
+                  https://{apiDomain}/api/ajax
+                </div>
+
+                <h3 className="text-lg font-semibold text-gray-900 mt-6 mb-3">Authentication</h3>
+                <p className="text-gray-600 mb-4">
+                  Most API endpoints require authentication. To authenticate:
+                </p>
+                <ol className="list-decimal list-inside text-gray-600 space-y-2 mb-4">
+                  <li>Call the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">/auth</code> endpoint with your credentials</li>
+                  <li>Copy the returned JWT token</li>
+                  <li>Include the token in the <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">Authorization</code> header for subsequent requests</li>
+                </ol>
+
+                <h3 className="text-lg font-semibold text-gray-900 mt-6 mb-3">Quick Start</h3>
+                <p className="text-gray-600 mb-4">
+                  Enter your API domain above (default: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm">{DEFAULT_API_DOMAIN}</code>)
+                  and paste your auth token, or use the Authentication endpoint below to obtain one.
+                </p>
+              </div>
+            </section>
+
+            {/* Endpoint Sections */}
+            {Object.entries(ENDPOINTS).map(([endpointId, endpoint]) => (
+              <section
+                key={endpointId}
+                ref={el => { sectionRefs.current[endpointId] = el; }}
+                id={endpointId}
+                className="mb-12 scroll-mt-4"
+              >
+                {/* Endpoint Header */}
+                <div className="flex items-center gap-3 mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900">{endpoint.name}</h2>
+                  <a
+                    href={`#${endpointId}`}
+                    className="text-gray-400 hover:text-gray-600"
+                    title="Link to this section"
+                  >
+                    ¶
+                  </a>
+                </div>
+
+                <p className="text-gray-600 mb-4">{endpoint.description}</p>
+
+                {/* Method and Path */}
+                <div className="flex items-center gap-2 mb-6">
+                  <Badge className={`${getMethodColor(endpoint.method)} text-white font-mono`}>
+                    {endpoint.method}
+                  </Badge>
+                  <code className="bg-gray-100 px-3 py-1.5 rounded text-sm font-mono flex-1">
+                    {endpoint.fullPath}
+                  </code>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    onClick={() => copyToClipboard(authToken, 'Token')}
-                    title="Copy token"
+                    size="sm"
+                    onClick={() => copyToClipboard(buildApiUrl(endpoint.fullPath), 'URL')}
                   >
-                    <Copy className="h-4 w-4" />
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copy URL
                   </Button>
+                </div>
+
+                {/* Auth Requirement */}
+                {endpoint.requiresAuth && (
+                  <div className={`mb-4 px-4 py-2 rounded-md text-sm ${
+                    authToken
+                      ? 'bg-green-50 text-green-800 border border-green-200'
+                      : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                  }`}>
+                    <Key className="h-4 w-4 inline mr-2" />
+                    {authToken
+                      ? 'This endpoint requires authentication. Token is set.'
+                      : 'This endpoint requires authentication. Please set a token above or authenticate first.'}
+                  </div>
                 )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {authToken ? (
-                  <span className="text-green-600 flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3" />
-                    Token set - will be used for authenticated requests
-                  </span>
-                ) : (
-                  'Use the Auth endpoint to get a token, or paste one manually'
-                )}
-              </p>
-            </div>
-          </div>
 
-          {/* Bookmarklet for current config */}
-          <Separator />
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Quick Access Bookmarklet:</Label>
-            <div className="flex items-center gap-2">
-              <a
-                href={`javascript:(function(){window.open('${window.location.origin}/api-health?subdomain=${subdomain}${authToken ? '&token=' + encodeURIComponent(authToken) : ''}','_blank');})();`}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded cursor-move"
-                onClick={(e) => e.preventDefault()}
-                title="Drag to bookmarks bar"
-              >
-                <Bookmark className="h-4 w-4 mr-2" />
-                API Health ({subdomain})
-              </a>
-              <span className="text-sm text-muted-foreground">
-                Drag to bookmarks bar to quickly open this page with current config
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Request Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Request</h3>
 
-      {/* Endpoints */}
-      <Tabs defaultValue="auth" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="auth" className="flex items-center gap-2">
-            <Key className="h-4 w-4" />
-            Auth
-          </TabsTrigger>
-          <TabsTrigger value="casesSearch" className="flex items-center gap-2">
-            <Search className="h-4 w-4" />
-            Cases Search
-          </TabsTrigger>
-          <TabsTrigger value="tagsSearch" className="flex items-center gap-2">
-            <Tag className="h-4 w-4" />
-            Tags Search
-          </TabsTrigger>
-        </TabsList>
+                    {endpoint.requestBody && (
+                      <>
+                        <p className="text-sm text-gray-600 mb-3">{endpoint.requestBody.description}</p>
 
-        <TabsContent value="auth">
-          <EndpointCard
-            endpointKey="auth"
-            body={authBody}
-            setBody={setAuthBody}
-            response={authResponse}
-            error={authError}
-            loading={authLoading}
-            onSend={handleAuth}
-          />
-        </TabsContent>
+                        {/* Parameters Table */}
+                        <div className="border rounded-md overflow-hidden mb-4">
+                          <table className="w-full text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-medium text-gray-700">Parameter</th>
+                                <th className="px-3 py-2 text-left font-medium text-gray-700">Type</th>
+                                <th className="px-3 py-2 text-left font-medium text-gray-700">Required</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {endpoint.requestBody.fields.map(field => (
+                                <tr key={field.name}>
+                                  <td className="px-3 py-2">
+                                    <code className="text-xs bg-gray-100 px-1 rounded">{field.name}</code>
+                                    <p className="text-xs text-gray-500 mt-0.5">{field.description}</p>
+                                  </td>
+                                  <td className="px-3 py-2 text-gray-600">{field.type}</td>
+                                  <td className="px-3 py-2">
+                                    {field.required ? (
+                                      <span className="text-red-600 text-xs font-medium">Required</span>
+                                    ) : (
+                                      <span className="text-gray-400 text-xs">Optional</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
 
-        <TabsContent value="casesSearch">
-          <EndpointCard
-            endpointKey="casesSearch"
-            body={casesSearchBody}
-            setBody={setCasesSearchBody}
-            response={casesSearchResponse}
-            error={casesSearchError}
-            loading={casesSearchLoading}
-            onSend={handleCasesSearch}
-          />
-        </TabsContent>
+                        {/* Request Body Editor */}
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-gray-700">Request Body</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyToClipboard(requestBodies[endpointId] || '', 'Request body')}
+                              className="h-6 text-xs"
+                            >
+                              <Copy className="h-3 w-3 mr-1" />
+                              Copy
+                            </Button>
+                          </div>
+                          <Textarea
+                            value={requestBodies[endpointId] || ''}
+                            onChange={(e) => setRequestBodies(prev => ({ ...prev, [endpointId]: e.target.value }))}
+                            className="font-mono text-xs min-h-[150px] bg-gray-900 text-gray-100 border-gray-700"
+                            placeholder="Enter JSON request body..."
+                          />
+                        </div>
 
-        <TabsContent value="tagsSearch">
-          <EndpointCard
-            endpointKey="tagsSearch"
-            body={tagsSearchBody}
-            setBody={setTagsSearchBody}
-            response={tagsSearchResponse}
-            error={tagsSearchError}
-            loading={tagsSearchLoading}
-            onSend={handleTagsSearch}
-          />
-        </TabsContent>
-      </Tabs>
+                        {/* Send Button */}
+                        <Button
+                          onClick={() => makeRequest(endpointId)}
+                          disabled={loading[endpointId] || (endpoint.requiresAuth && !authToken)}
+                          className="w-full"
+                        >
+                          {loading[endpointId] ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Sending...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4 mr-2" />
+                              Try it out
+                            </>
+                          )}
+                        </Button>
+                      </>
+                    )}
+                  </div>
 
-      {/* API Documentation */}
-      <Card>
-        <CardHeader>
-          <CardTitle>API Documentation</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="p-3 bg-muted rounded space-y-2">
-              <h4 className="font-medium flex items-center gap-2">
-                <Key className="h-4 w-4" />
-                Authentication
-              </h4>
-              <p className="text-xs text-muted-foreground font-mono">
-                POST /api/ajax/auth
-              </p>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p><strong>Body:</strong></p>
-                <ul className="list-disc list-inside pl-2">
-                  <li>email (required)</li>
-                  <li>password (required)</li>
-                  <li>secondFactor (optional - OTP)</li>
-                  <li>locale (default: en-GB)</li>
-                </ul>
-                <p><strong>Returns:</strong> JWT token string</p>
-              </div>
-            </div>
-            <div className="p-3 bg-muted rounded space-y-2">
-              <h4 className="font-medium flex items-center gap-2">
-                <Search className="h-4 w-4" />
-                Cases Search
-              </h4>
-              <p className="text-xs text-muted-foreground font-mono">
-                POST /api/ajax/cases/search
-              </p>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p><strong>Headers:</strong> Authorization: {`<token>`}</p>
-                <p><strong>Body:</strong></p>
-                <ul className="list-disc list-inside pl-2">
-                  <li>dateRange (type, from, to)</li>
-                  <li>pageNo, resultsPerPage</li>
-                  <li>statusID, casetypeID (optional)</li>
-                  <li>orderBy, orderByDirection (optional)</li>
-                </ul>
-              </div>
-            </div>
-            <div className="p-3 bg-muted rounded space-y-2">
-              <h4 className="font-medium flex items-center gap-2">
-                <Tag className="h-4 w-4" />
-                Tags Search
-              </h4>
-              <p className="text-xs text-muted-foreground font-mono">
-                POST /api/ajax/tags/search
-              </p>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p><strong>Headers:</strong> Authorization: {`<token>`}</p>
-                <p><strong>Body:</strong></p>
-                <ul className="list-disc list-inside pl-2">
-                  <li>term (search string)</li>
-                  <li>pageNo</li>
-                  <li>resultsPerPage</li>
-                </ul>
-                <p><strong>Returns:</strong> {`{ results, totalResults }`}</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                  {/* Response Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Response</h3>
 
-      {/* Server Logs */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Server Request Log
-            </CardTitle>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchServerLogs}
-                disabled={logsLoading}
-              >
-                {logsLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearServerLogs}
-                disabled={serverLogs.length === 0}
-              >
-                <Trash2 className="h-4 w-4 mr-1" />
-                Clear
-              </Button>
-            </div>
-          </div>
-          <CardDescription>
-            All requests are logged to server storage at <code className="text-xs">/logs/api-health-requests.json</code>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-96 border rounded-md bg-slate-950 text-slate-50">
-            <div className="p-4 font-mono text-xs space-y-4">
-              {serverLogs.length === 0 ? (
-                <p className="text-slate-500 italic">No requests logged yet. Send a request to see it logged here.</p>
-              ) : (
-                serverLogs.map((entry) => (
-                  <div key={entry.id} className="border-b border-slate-800 pb-4 last:border-b-0">
-                    {/* Timestamp and status */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-slate-500">
-                        {new Date(entry.timestamp).toLocaleString()}
-                      </span>
-                      <Badge className={`text-white text-[10px] px-1.5 py-0 ${
-                        entry.responseStatus >= 200 && entry.responseStatus < 300
-                          ? 'bg-green-600'
-                          : entry.responseStatus > 0
-                          ? 'bg-red-600'
-                          : 'bg-yellow-600'
-                      }`}>
-                        {entry.responseStatus || 'ERROR'}
-                      </Badge>
-                      <span className="text-slate-500">{entry.duration}ms</span>
-                      <Badge variant="outline" className="text-[10px]">{entry.endpoint}</Badge>
-                    </div>
-
-                    {/* URL */}
-                    <div className="mb-2">
-                      <span className="text-yellow-400 font-bold">{entry.method}</span>
-                      <span className="text-slate-300 ml-2">{entry.requestUrl}</span>
-                    </div>
-
-                    {/* Request body */}
-                    {entry.requestBody != null && (
-                      <div className="mb-2">
-                        <span className="text-slate-500">Request:</span>
-                        <pre className="text-cyan-400 ml-2 whitespace-pre-wrap break-all">
-                          {String(typeof entry.requestBody === 'string'
-                            ? entry.requestBody
-                            : JSON.stringify(entry.requestBody, null, 2))}
-                        </pre>
-                      </div>
+                    {endpoint.responseBody && (
+                      <p className="text-sm text-gray-600 mb-3">{endpoint.responseBody.description}</p>
                     )}
 
-                    {/* Response or error */}
-                    {entry.error ? (
-                      <div>
-                        <span className="text-red-400">Error: {entry.error}</span>
+                    {/* Response Display */}
+                    {responses[endpointId] ? (
+                      <div className="border rounded-md overflow-hidden">
+                        <div className="bg-gray-100 px-3 py-2 flex items-center justify-between border-b">
+                          <div className="flex items-center gap-2">
+                            <Badge className={`${
+                              responses[endpointId]!.status >= 200 && responses[endpointId]!.status < 300
+                                ? 'bg-green-500'
+                                : responses[endpointId]!.status > 0
+                                ? 'bg-red-500'
+                                : 'bg-yellow-500'
+                            } text-white text-xs`}>
+                              {responses[endpointId]!.status || 'ERROR'}
+                            </Badge>
+                            <span className="text-xs text-gray-500">{responses[endpointId]!.duration}ms</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(responses[endpointId]!.body, 'Response')}
+                            className="h-6 text-xs"
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-gray-900 p-3 overflow-auto max-h-[300px]">
+                          <pre className="text-xs font-mono text-gray-100 whitespace-pre-wrap break-all">
+                            {responses[endpointId]!.body}
+                          </pre>
+                        </div>
                       </div>
-                    ) : entry.responseBody && (
-                      <div>
-                        <span className="text-slate-500">Response:</span>
-                        <pre className="text-green-400 ml-2 whitespace-pre-wrap break-all max-h-32 overflow-auto">
-                          {(() => {
-                            try {
-                              return JSON.stringify(JSON.parse(entry.responseBody), null, 2);
-                            } catch {
-                              return entry.responseBody.substring(0, 500) + (entry.responseBody.length > 500 ? '...' : '');
-                            }
-                          })()}
-                        </pre>
+                    ) : (
+                      /* Example Response */
+                      endpoint.responseBody && (
+                        <div className="border rounded-md overflow-hidden">
+                          <div className="bg-gray-100 px-3 py-2 flex items-center justify-between border-b">
+                            <span className="text-xs text-gray-500">Example Response</span>
+                          </div>
+                          <div className="bg-gray-900 p-3 overflow-auto max-h-[200px]">
+                            <pre className="text-xs font-mono text-gray-400 whitespace-pre-wrap">
+                              {typeof endpoint.responseBody.example === 'string'
+                                ? endpoint.responseBody.example
+                                : JSON.stringify(endpoint.responseBody.example, null, 2)}
+                            </pre>
+                          </div>
+                        </div>
+                      )
+                    )}
+
+                    {/* Notes */}
+                    {endpoint.notes && endpoint.notes.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Notes</h4>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          {endpoint.notes.map((note, idx) => (
+                            <li key={idx} className="flex items-start gap-2">
+                              <span className="text-gray-400 mt-1">•</span>
+                              <span>{note}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     )}
                   </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
+                </div>
+              </section>
+            ))}
+
+            {/* Footer */}
+            <footer className="border-t border-gray-200 pt-8 mt-8">
+              <div className="flex items-center justify-between text-sm text-gray-500">
+                <div className="flex items-center gap-4">
+                  <span>Caseworker API Documentation</span>
+                  <a
+                    href={`https://${apiDomain}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Open API Domain
+                  </a>
+                </div>
+                <span>All requests are proxied through the server</span>
+              </div>
+            </footer>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
