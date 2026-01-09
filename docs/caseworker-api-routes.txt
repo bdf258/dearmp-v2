@@ -1,0 +1,5054 @@
+Directory structure:
+└── bdf258-caseworker/
+    └── rebuild_workspace/
+        └── src_final/
+            └── scripts/
+                └── api/
+                    └── src/
+                        ├── auth.js
+                        ├── behalfApi.js
+                        ├── bulkActions.js
+                        ├── case.js
+                        ├── casenotes.js
+                        ├── cases.js
+                        ├── casetemplates.js
+                        ├── caseworkers.js
+                        ├── categorisations.js
+                        ├── connections.js
+                        ├── constituents.js
+                        ├── contacts.js
+                        ├── customFields.js
+                        ├── doorknocking.js
+                        ├── electoralRoll.js
+                        ├── emailAddresses.js
+                        ├── emails.js
+                        ├── emailSignatures.js
+                        ├── emailTemplates.js
+                        ├── file.js
+                        ├── flags.js
+                        ├── groupsApi.js
+                        ├── inbox.js
+                        ├── kmls.js
+                        ├── letter.js
+                        ├── letterHeads.js
+                        ├── letterTemplates.js
+                        ├── locale.js
+                        ├── membership.js
+                        ├── organisations.js
+                        ├── plugins.js
+                        ├── restrictions.js
+                        ├── reviewDates.js
+                        ├── rss.js
+                        ├── search.js
+                        ├── segments.js
+                        ├── sms.js
+                        ├── surveys.js
+                        ├── tags.js
+                        ├── types.js
+                        ├── userPreferences.js
+                        ├── specialCases/
+                        │   └── fileDropUpload.js
+                        └── util/
+                            ├── fetch.js
+                            ├── flattenAPIs.js
+                            ├── handleError.js
+                            ├── logging.js
+                            └── parseEmailLegacyFormatting.js
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/auth.js
+================================================
+import { post } from "./util/fetch";
+
+/**
+ * Auth a user and login them in
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {String} payload.email - The text of the login email.
+ * @param {String} payload.password - The text of password.
+ * @param {String} payload.secondFactor - The text of the yubikey or google authenticator code.
+ * @param {String} payload.locale - The locale of the user.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const login = async (payload) => await post("/auth", payload);
+
+/**
+ * Auth a user and login them in
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {String} payload.JWT - The text of password.
+ * @param {String} payload.locale - The locale of the user.
+ * @param {String} payload.type - The type of sso e.g. "microsoft"
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const sso = async (payload) => await post("/auth/sso", payload);
+
+const loginAPI = {
+  login,
+  sso,
+};
+
+export default loginAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/behalfApi.js
+================================================
+/* eslint-disable no-unused-vars */
+import { deleteReq, get, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Get list of behalfs of.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Int} id - Id of the group whose details are required.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getBehalfs = async (modalActions, id = "") => {
+  const url = id ? "/behalfs/" + id : "/behalfs";
+  return await get(url).catch((error) =>
+    handleError("behalfs", error, modalActions)
+  );
+};
+
+/**
+ * Create a behalf of with its name and default settings passed in payload.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Object} payload - The payload passed to the backend.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const createBehalf = async (payload, modalActions) =>
+  await post("/behalfs", payload).catch((error) =>
+    handleError(("behalfs", error, modalActions))
+  );
+
+/** Update an existing Group.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param modalActions
+ * @param {Number} id - The id of the group to be updated.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateBehalf = async (id, payload, modalActions) =>
+  await post("/behalfs/" + id, payload).catch((error) => {
+    handleError("behalfs", error, modalActions);
+    throw error;
+  });
+
+/**
+ * Delete a group with a specific id.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Int} id - Id of the group to be deleted.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const deleteBehalf = async (id, modalActions) =>
+  await deleteReq("/behalfs/" + id).catch((error) =>
+    handleError(("behalfs", error, modalActions))
+  );
+
+const behalfApi = {
+  getBehalfs: getBehalfs,
+  createBehalf: createBehalf,
+  deleteBehalf: deleteBehalf,
+  updateBehalf: updateBehalf,
+};
+
+export default behalfApi;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/bulkActions.js
+================================================
+import { handleError } from "./util/handleError";
+import { post } from "./util/fetch";
+
+/**
+ * Add note to selected cases.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param modalActions - Use global modal component to catch errors.
+ * @param {[Number] || []} payload.caseSearch.statusID - An array of status IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.casetypeID - An array of casetype IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.categorytypeID - An array of category IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.contacttypeID - An array of contact type IDs that matching cases should have (stored as enquirytypeID in the database).
+ * @param {Array<Number>} payload.caseSearch.assignedToID - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{type: String, from: String, to: String}>} payload.caseSearch.dateRange - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{payload.caseSearch.searchType: String, tagID: Array<Number>}>} [payload.caseSearch.tagged] - An object containing details of tags that cases should have in order to match your case criteria, containing the following keys.
+ * @param {Object<{payload.caseSearch.searchType: String, tagID: Array<Number>}>} [payload.caseSearch.notTagged] - An object describing tags that should be excluded from a search.
+ * @param {String} payload.caseSearch.fileContents - String representing the file as base64.
+ * @param {String} payload.caseSearch.fileName - String representing the filename.
+ * @param {String} payload.caseSearch.reference - String representing the file description.
+ * @param {String} payload.caseSearch.timestamp - String representing the creation datetime of the file.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const bulkAttachFile = async (payload, modalActions, iln) =>
+  await post("/cases/bulkactions/attachfile", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to bulk attach a file."
+          )
+        : "There was an error while attempting to bulk attach a file.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Attach file to selected cases.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param modalActions - Use global modal component to catch errors.
+ * @param {[Number] || []} payload.caseSearch.statusID - An array of status IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.casetypeID - An array of casetype IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.categorytypeID - An array of category IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.contacttypeID - An array of contact type IDs that matching cases should have (stored as enquirytypeID in the database).
+ * @param {Array<Number>} payload.caseSearch.assignedToID - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{type: String, from: String, to: String}>} payload.caseSearch.dateRange - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{payload.caseSearch.searchType: String, tagID: Array<Number>}>} [payload.caseSearch.tagged] - An object containing details of tags that cases should have in order to match your case criteria, containing the following keys.
+ * @param {Object<{payload.caseSearch.searchType: String, tagID: Array<Number>}>} [payload.caseSearch.notTagged] - An object describing tags that should be excluded from a search.
+ * @param {String} payload.caseSearch.note - String representing the note contents.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkAddNote = async (payload, modalActions, iln) =>
+  await post("/cases/bulkactions/addnote", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to bulk add a note.")
+        : "There was an error while attempting to bulk add a note.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Change status of selected cases.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param modalActions - Use global modal component to catch errors.
+ * @param {[Number] || []} payload.caseSearch.statusID - An array of status IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.casetypeID - An array of casetype IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.categorytypeID - An array of category IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.contacttypeID - An array of contact type IDs that matching cases should have (stored as enquirytypeID in the database).
+ * @param {Array<Number>} payload.caseSearch.assignedToID - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{type: String, from: String, to: String}>} payload.caseSearch.dateRange - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{payload.caseSearch.searchType: String, tagID: Array<Number>}>} [payload.caseSearch.tagged] - An object containing details of tags that cases should have in order to match your case criteria, containing the following keys.
+ * @param {Object<{payload.caseSearch.searchType: String, tagID: Array<Number>}>} [payload.caseSearch.notTagged] - An object describing tags that should be excluded from a search.
+ * @param {String} payload.caseSearch.statusID - Number representing the selected statusID.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkChangeStatus = async (payload, modalActions, iln) =>
+  await post("/cases/bulkactions/changestatus", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to bulk change case statuses."
+          )
+        : "There was an error while attempting to bulk change case statuses.",
+
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Add tags to selected cases.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param modalActions - Use global modal component to catch errors.
+ * @param {[Number] || []} payload.caseSearch.statusID - An array of status IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.casetypeID - An array of casetype IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.categorytypeID - An array of category IDs that matching cases should have.
+ * @param {Array<Number>} payload.caseSearch.contacttypeID - An array of contact type IDs that matching cases should have (stored as enquirytypeID in the database).
+ * @param {Array<Number>} payload.caseSearch.assignedToID - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{type: String, from: String, to: String}>} payload.caseSearch.dateRange - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{payload.caseSearch.searchType: String, tagID: Array<Number>}>} [payload.caseSearch.tagged] - An object containing details of tags that cases should have in order to match your case criteria, containing the following keys.
+ * @param {Object<{payload.caseSearch.searchType: String, tagID: Array<Number>}>} [payload.caseSearch.notTagged] - An object describing tags that should be excluded from a search.
+ * @param {[Number] || []} payload.caseSearch.tags - ID's of tags to be added to cases.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkAddTags = async (payload, modalActions, iln) =>
+  await post("/cases/bulkactions/addtags", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to bulk add tag(s).")
+        : "There was an error while attempting to bulk add tag(s).",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Send a bulk email based on case search filters.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {String} payload.subject - The text of the email's subject line.
+ * @param {String} payload.from - The string that the email is sent on behalf of.
+ * @param {String} payload.body - The HTML string of the email's body.
+ * @param {Object} payload.caseSearch - The filters of the case search, used to select the cases that are emailed.
+ * @param {String} payload.schedule - Timestamp for scheduling bulk email
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkSendEmail = async (payload, modalActions, iln) =>
+  await post("/cases/bulkactions/sendemail", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to send a bulk email."
+          )
+        : "There was an error while attempting to send a bulk email.",
+      error,
+      modalActions
+    )
+  );
+/**
+ * Assign a review date to all cases that match the case search filters.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {String} payload.reviewDate - This must follow the format of MM/DD/YYYY UTC.
+ * @param {Object} payload.caseSearch - The filters of the case search, used to select the cases that are emailed.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const bulkAddReviewDate = async (payload, modalActions, iln) =>
+  await post("/cases/bulkactions/setreviewdate", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to set a bulk review date."
+          )
+        : "There was an error while attempting to set a bulk review date.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Clear a review date on all cases that match the case search filters.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {Object} payload.caseSearch - The filters of the case search, used to select the cases that are emailed.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkClearReviewDate = async (payload, modalActions, iln) =>
+  await post("/cases/bulkactions/clearreviewdate", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to clear bulk review dates."
+          )
+        : "There was an error while attempting to clear bulk review dates.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Bulk change the case details of cases that match the case search filters.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {Number} payload.contactType - (optionial) The id of the new contact type.
+ * @param {Number} payload.assignedToID - (optionial) The id of the new assigned user.
+ * @param {Number} payload.caseTypeID - (optionial) The id of the new case type.
+ * @param {Number} payload.categoryTypeID - (optionial) The id of the new category type.
+ * @param {Number} payload.statusID - (optionial) The id of the new status type.
+ * @param {Object} payload.caseSearch - The filters of the case search, used to select the cases that have their details updated.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkChangeCaseDetails = async (payload, modalActions, iln) =>
+  await post("/cases/bulkactions/details", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to bulk change case details."
+          )
+        : "There was an error while attempting to bulk change case details.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Bulk delete the cases that match the cases search and optionally any constituents with 0 cases.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {Number} payload.caseSearch - the search criteria for cases
+ * @param {Object} payload.deleteOrphan - Delete constituents that end up with 0 cases after the deletion
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkDeleteCases = async (payload, modalActions, iln) =>
+  await post("/cases/bulkactions/delete", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attemping to bulk delete cases")
+        : "There was an error while attemping to bulk delete cases",
+      error,
+      modalActions
+    )
+  );
+
+const bulkActionApi = {
+  bulkAddNote,
+  bulkChangeStatus,
+  bulkAddTags,
+  bulkAttachFile,
+  bulkSendEmail,
+  bulkAddReviewDate,
+  bulkClearReviewDate,
+  bulkChangeCaseDetails,
+  bulkDeleteCases,
+};
+
+export default bulkActionApi;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/case.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Update case details
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {String} payload.term - The search term that must match a template name.
+ * @param {Boolean} payload.active - If the template is set to active.
+ * @param {Array} payload.columnsToReturn - The columns to return from the DB. Optional.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateCase = async (caseID, payload, modalActions, iln) =>
+  await patch(`/cases/${caseID}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to update a case's details."
+          )
+        : "There was an error while trying to update a case's details.",
+      error,
+      modalActions
+    )
+  );
+
+const deleteCase = async (caseID, modalActions, iln) =>
+  await deleteReq(`/cases/${caseID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to delete a case.")
+        : "There was an error while trying to delete a case.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Create a new case.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {String} payload.reviewDate - (optional )The date string of when the case is up for review.
+ * @param {String} payload.contactTypeID - The ID of the contact type of the case.
+ * @param {String} payload.constituentID - The ID of the constituent this case belongs to.
+ * @param {String} payload.caseTypeID - The ID of the case type of the case.
+ * @param {String} payload.statusID - The ID of the status of the case.
+ * @param {String} payload.categoryTypeID - The ID of the category of the case.
+ * @param {String} payload.assignedToID - The ID of the user assigned to the case.
+ * @param {String} payload.summary - The text of the summary of the case.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createCase = async (payload, modalActions, iln) =>
+  await post("/cases", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to create a case.")
+        : "There was an error while trying to create a case.",
+      error,
+      modalActions
+    )
+  );
+
+const getCase = async (caseID, modalActions, iln) =>
+  await get(`/cases/${caseID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to get a case's details."
+          )
+        : "There was an error while trying to get a case's details.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Create a new case.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {Number} currentCase - The case that will have it's casenotes moved to another case
+ * @param {Number} mergeWithID - The master case that will have other casenotes merged into it
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const mergeCase = async (currentCase, mergeWithID, modalActions, iln) =>
+  await post(`/cases/${mergeWithID}/merge`, {
+    mergeCaseID: currentCase,
+  }).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to create a case.")
+        : "There was an error while trying to create a case.",
+      error,
+      modalActions
+    )
+  );
+
+const getCasesStatistics = async (caseTypeID, iln) =>
+  await get(`/cases/statistics/casetype/${caseTypeID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error retrieving the statistics")
+        : "There was an error retrieving the statistics.",
+      error
+    )
+  );
+const viewCaseAPI = {
+  getCase,
+  createCase,
+  updateCase,
+  deleteCase,
+  mergeCase,
+  getCasesStatistics,
+};
+
+export default viewCaseAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/casenotes.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Get a single casenote
+ * @param {string} casenoteID - The ID of the casenote you'd like to get.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCasenote = async (casenoteID, modalActions, iln) =>
+  await get(`/casenotes/${casenoteID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to fetch a casenote.")
+        : "There was an error while trying to fetch a casenote.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get all the casenotes assigned to a case
+ * @param {string} caseID - The ID of the case you'd like to get the casenotes for.
+ * @param {object} pagination - object of params for controlling pagination
+ * @param {int} pagination.page - The page being requested
+ * @param {int} pagination.limit - The number of results per page
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getAllCasenotes = async (caseID, pagination = {}, modalActions, iln) =>
+  await get(
+    `/cases/${caseID}/casenotes?${
+      pagination.page !== undefined ? `page=${pagination.page}` : ""
+    }${pagination.limit ? `&limit=${pagination.limit}` : ""}${
+      pagination.orderBy ? `&orderBy=${pagination.orderBy}` : ""
+    }`
+  ).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to fetch all a case's casenotes."
+          )
+        : "There was an error while trying to fetch all a case's casenotes.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get the notes assigned to a case
+ * @param {string} caseID - The ID of the case you'd like to get the casenotes for.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCaseNotes = async (caseID, modalActions, iln) =>
+  await get(`/cases/${caseID}/notes`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to fetch a case's notes."
+          )
+        : "There was an error while trying to fetch a case's notes.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get the appointments assigned to a case
+ * @param {string} caseID - The ID of the case you'd like to get the casenotes for.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCaseAppointments = async (caseID, modalActions, iln) =>
+  await get(`/cases/${caseID}/appointments`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to fetch appointment casenotes."
+          )
+        : "There was an error while trying to fetch appointment casenotes.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get the files assigned to a case
+ * @param {string} caseID - The ID of the case you'd like to get the casenotes for.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCaseFiles = async (caseID, modalActions, iln) =>
+  get(`/cases/${caseID}/files`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to fetch file casenotes."
+          )
+        : "There was an error while trying to fetch file casenotes.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get the emails assigned to a case
+ * @param {string} caseID - The ID of the case you'd like to get the casenotes for.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCaseEmails = async (caseID, modalActions, iln) =>
+  get(`/cases/${caseID}/emails`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to fetch email casenotes."
+          )
+        : "There was an error while trying to fetch email casenotes.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get the letters assigned to a case
+ * @param {string} caseID - The ID of the case you'd like to get the casenotes for.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCaseLetters = async (caseID, modalActions, iln) =>
+  get(`/cases/${caseID}/letters`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to fetch letter casenotes."
+          )
+        : "There was an error while trying to fetch letter casenotes.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get the review dates assigned to a case
+ * @param {string} caseID - The ID of the case you'd like to get the casenotes for.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCaseReviewDates = async (caseID, modalActions, iln) =>
+  await get(`/cases/${caseID}/reviewDates`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to fetch appointment casenotes."
+          )
+        : "There was an error while trying to fetch appointment casenotes.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Create a note on a case
+ * @param {string} caseID - The ID of the case you'd like to create the note on.
+ * @param {object} payload - The payload passed to the backend.
+ * @param {string} payload.note - The text of the note.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createNote = async (caseID, payload, modalActions, iln) =>
+  await post(`/cases/${caseID}/notes`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to create a note.")
+        : "There was an error while trying to create a note.",
+      error,
+      modalActions
+    )
+  );
+
+const updateCasenote = async (noteID, payload, modalActions, iln) =>
+  await patch(`/casenotes/${noteID}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to update a casenote.")
+        : "There was an error while trying to update a casenote.",
+      error,
+      modalActions
+    )
+  );
+
+const deleteCasenote = async (noteID, modalActions, iln) =>
+  await deleteReq(`/casenotes/${noteID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to delete a casenote.")
+        : "There was an error while trying to delete a casenote.",
+      error,
+      modalActions
+    )
+  );
+
+const getCaseAllCaseFiles = async (caseId, modalActions, iln) =>
+  await get(`/cases/${caseId}/attachments`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to get the case files.")
+        : "There was an error while trying to get the case files.",
+      error,
+      modalActions
+    )
+  );
+
+export default {
+  getCasenote,
+  getAllCasenotes,
+  getCaseNotes,
+  getCaseAppointments,
+  getCaseFiles,
+  getCaseEmails,
+  getCaseLetters,
+  getCaseReviewDates,
+  createNote,
+  updateCasenote,
+  deleteCasenote,
+  getCaseAllCaseFiles,
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/cases.js
+================================================
+import { get, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+import { renameCaseworkerFromApi } from "../../helpers/renameAdminUser";
+
+/**
+ * Search cases.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param modalActions - Use global modal component to catch errors.
+ * @param {[Number] || []} payload.statusID - An array of status IDs that matching cases should have.
+ * @param {Array<Number>} payload.casetypeID - An array of casetype IDs that matching cases should have.
+ * @param {Array<Number>} payload.categorytypeID - An array of category IDs that matching cases should have.
+ * @param {Array<Number>} payload.contacttypeID - An array of contact type IDs that matching cases should have (stored as enquirytypeID in the database).
+ * @param {Array<Number>} payload.assignedToID - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{type: String, from: String, to: String}>} payload.dateRange - an array of caseworker IDs that matching cases should have set as their “assigned to” field.
+ * @param {Object<{searchType: String, tagID: Array<Number>}>} [payload.tagged] - An object containing details of tags that cases should have in order to match your case criteria, containing the following keys.
+ * @param {String} [payload.orderBy] -If no orderBy is provided then cases returned will be ordered by created date.
+ * @param {String} [payload.orderByDirection] - Sets the sort order for returned columns. If not supplied will default to “DESC”. Must be either  “ASC” or “DESC”.
+ * @param {Object<{searchType: String, tagID: Array<Number>}>} [payload.notTagged] - An object describing tags that should be excluded from a search.
+ * @param {Number} payload.pageNo - the page number of results to return. The number of results per page is defined by the “resultsPerPage” key.
+ * @param {Number} payload.resultsPerPage - The number of results per page to be returned. Cannot be empty or zero.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const searchCases = async (payload, modalActions, iln) =>
+  await post("/cases/search", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while searching for cases.")
+        : "There was an error while searching for cases.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get a list of current caseworkers
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const caseWorkers = async (modalActions, iln) =>
+  await get("/caseworkers")
+    .then(
+      (caseworkers) =>
+        new Promise((resolve) =>
+          resolve(renameCaseworkerFromApi(caseworkers, "name"))
+        )
+    )
+    .catch((error) =>
+      handleError(
+        iln
+          ? iln.gettext("There was an error while searching for Caseworkers.")
+          : "There was an error while searching for Caseworkers.",
+        error,
+        modalActions
+      )
+    );
+
+const searchCasesById = async (searchTerm, modalActions, iln) =>
+  await get(`/cases/search/${searchTerm}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while searching by ID for cases.")
+        : "There was an error while searching by ID for cases.",
+      error,
+      modalActions
+    )
+  );
+
+const casesApi = {
+  searchCases,
+  caseWorkers,
+  searchCasesById,
+};
+
+export default casesApi;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/casetemplates.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * get a case template by id.
+ * @param {number} id - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCaseTemplate = async (id, modalActions, iln) =>
+  await get(`/casetemplates/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to get a case template."
+          )
+        : "There was an error while attempting to get a case template.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * create a new case template.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {string} payload.name - The name of the template.
+ * @param {Object} payload.template - The template object of casetypes etc, any shape is accepted.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createCaseTemplate = async (payload, modalActions, iln) =>
+  await post("/casetemplates", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to create a new case template."
+          )
+        : "There was an error while attempting to create a new case template.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * update an existing case template.
+ * @param {number} id - The payload passed to the backend.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {string} payload.name - The name of the template.
+ * @param {Object} payload.template - The template object of casetypes etc, any shape is accepted.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateCaseTemplate = async (id, payload, modalActions, iln) =>
+  await patch(`/casetemplates/${id}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to update a case template."
+          )
+        : "There was an error while attempting to update a case template.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * delete a case template by id.
+ * @param {number} id - the id of the template to delete.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteCaseTemplate = async (id, modalActions, iln) =>
+  await deleteReq(`/casetemplates/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to delete a case template."
+          )
+        : "There was an error while attempting to delete a case template.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * create a new case template.
+ * @param {object} payload - The payload passed to the backend
+ * @param {string} payload.columnsToReturn - The selected DB columns, all if empty. (id,name,createdBy,updatedBy, template,created,updated)
+ * @param {string} payload.pageNo - Which "page" would you like to be returned
+ * @param {string} payload.resultsPerPage - The number of results returned per page
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const searchCaseTemplates = async (payload, modalActions, iln, signal) =>
+  await post("/casetemplates/search", payload, signal).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to search for case templates."
+          )
+        : "There was an error while attempting to search for case templates.",
+      error,
+      modalActions
+    )
+  );
+
+const caseTemplatesAPI = {
+  getCaseTemplate,
+  createCaseTemplate,
+  updateCaseTemplate,
+  deleteCaseTemplate,
+  searchCaseTemplates,
+};
+
+export default caseTemplatesAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/caseworkers.js
+================================================
+import { get } from "./util/fetch";
+import { handleError } from "./util/handleError";
+
+/**
+ * get all caseworkers.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCaseworkers = async (modalActions, iln) =>
+  await get("/caseworkers").catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while searching for Caseworkers.")
+        : "There was an error while searching for Caseworkers.",
+      error,
+      modalActions
+    )
+  );
+
+const getCaseworkersForCase = async (caseID, modalActions, iln) =>
+  await get(`/caseworkers/forCase/${caseID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while searching for Caseworkers.")
+        : "There was an error while searching for Caseworkers.",
+      error,
+      modalActions
+    )
+  );
+
+const getAllCaseworkers = async (modalActions, iln) =>
+  await get("/caseworkers/all").catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while searching for Caseworkers.")
+        : "There was an error while searching for Caseworkers.",
+      error,
+      modalActions
+    )
+  );
+const caseworkersAPI = {
+  getCaseworkers,
+  getCaseworkersForCase,
+  getAllCaseworkers,
+};
+
+export default caseworkersAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/categorisations.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * get all caseworkers.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getCategoryTypes = async (modalActions) =>
+  await get("/categorytype").catch((error) =>
+    handleError("getCategoryTypes", error, modalActions)
+  );
+const getCategoryType = async (id, modalActions) =>
+  await get(`/categorytype/${id}`).catch((error) =>
+    handleError("getCategoryType", error, modalActions)
+  );
+const createCategoryType = ({ categorytype, reviewInDays }, modalActions) =>
+  post("/categorytype", { categorytype, reviewInDays }).catch((error) =>
+    handleError("createCategoryType", error, modalActions)
+  );
+const updateCategoryType = ({ id, categorytype, reviewInDays }, modalActions) =>
+  patch(`/categorytype/${id}`, { categorytype, reviewInDays }).catch((error) =>
+    handleError("updateCategoryType", error, modalActions)
+  );
+const checkDeleteCategoryType = ({ id }, modalActions) =>
+  post(`/categorytype/delete/${id}`).catch((error) =>
+    handleError("deleteCheckCategoryType", error, modalActions)
+  );
+const deleteCategoryType = ({ id }, modalActions) =>
+  deleteReq(`/categorytype/${id}`).catch((error) =>
+    handleError("deleteCategoryType", error, modalActions)
+  );
+const deleteMergeCategoryType = ({ id, mergeID }, modalActions) =>
+  deleteReq(`/categorytype/${id}/${mergeID}`).catch((error) =>
+    handleError("deleteCategoryType", error, modalActions)
+  );
+const getCaseTypes = async (modalActions) =>
+  await get("/casetype").catch((error) =>
+    handleError("getCaseTypes", error, modalActions)
+  );
+const getCaseType = async (id, modalActions) =>
+  await get(`/casetype/${id}`).catch((error) =>
+    handleError("getCaseType", error, modalActions)
+  );
+const createCaseType = (
+  { casetype, categorytypeID, retentionMonths },
+  modalActions
+) =>
+  post("/casetype", { casetype, categorytypeID, retentionMonths }).catch(
+    (error) => handleError("createCaseType", error, modalActions)
+  );
+const updateCaseType = (
+  { id, casetype, categorytypeID, retentionMonths },
+  modalActions
+) =>
+  patch(`/casetype/${id}`, {
+    casetype,
+    categorytypeID,
+    retentionMonths,
+  }).catch((error) => handleError("updateCaseType", error, modalActions));
+const checkDeleteCaseType = ({ id }, modalActions) =>
+  post(`/casetype/delete/${id}`).catch((error) =>
+    handleError("checkDeleteCaseType", error, modalActions)
+  );
+const deleteCaseType = ({ id }, modalActions) =>
+  deleteReq(`/casetype/${id}`).catch((error) =>
+    handleError("deleteCaseType", error, modalActions)
+  );
+const deleteMergeCaseType = ({ id, mergeID }, modalActions) =>
+  deleteReq(`/casetype/${id}/${mergeID}`).catch((error) =>
+    handleError("deleteCaseType", error, modalActions)
+  );
+const getStatusTypes = async (modalActions) =>
+  await get("/statustype").catch((error) =>
+    handleError("getStatusTypes", error, modalActions)
+  );
+const getStatusType = async (id, modalActions) =>
+  await get(`/statustype/${id}`).catch((error) =>
+    handleError("getStatusType", error, modalActions)
+  );
+const createStatusType = (
+  { statustype, categorytypeID, retentionMonths, closed },
+  modalActions
+) =>
+  post("/statustype", {
+    statustype,
+    categorytypeID,
+    retentionMonths,
+    closed,
+  }).catch((error) => handleError("createStatusType", error, modalActions));
+const updateStatusType = (
+  { id, statustype, categorytypeID, retentionMonths, closed },
+  modalActions
+) =>
+  patch(`/statustype/${id}`, {
+    statustype,
+    categorytypeID,
+    retentionMonths,
+    closed,
+  }).catch((error) => handleError("updateStatusType", error, modalActions));
+const checkDeleteStatusType = ({ id }, modalActions) =>
+  post(`/statustype/delete/${id}`).catch((error) =>
+    handleError("checkDeleteStatusType", error, modalActions)
+  );
+const deleteStatusType = ({ id }, modalActions) =>
+  deleteReq(`/statustype/${id}`).catch((error) =>
+    handleError("deleteStatusType", error, modalActions)
+  );
+const deleteMergeStatusType = ({ id, mergeID }, modalActions) =>
+  deleteReq(`/statustype/${id}/${mergeID}`).catch((error) =>
+    handleError("deleteMergeStatusType", error, modalActions)
+  );
+const categorisationsAPI = {
+  getCategoryTypes,
+  getCategoryType,
+  createCategoryType,
+  updateCategoryType,
+  checkDeleteCategoryType,
+  deleteCategoryType,
+  deleteMergeCategoryType,
+  getCaseTypes,
+  getCaseType,
+  createCaseType,
+  updateCaseType,
+  checkDeleteCaseType,
+  deleteCaseType,
+  deleteMergeCaseType,
+  getStatusTypes,
+  getStatusType,
+  createStatusType,
+  updateStatusType,
+  checkDeleteStatusType,
+  deleteStatusType,
+  deleteMergeStatusType,
+};
+export default categorisationsAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/connections.js
+================================================
+import { get, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * get a constituent's connections.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getConnectionsFromConstituent = async (id, modalActions, iln) =>
+  await get(`/connections/fromconstituentid/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while fetching connections.")
+        : "There was an error while fetching connections.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Create a connection on a constituent.
+ * @param {number} payload.parentID - the constituent ID of the parent
+ * @param {number} payload.childID - the constituent ID of the child
+ * @param {number} payload.connectionTypeID - The type of the connection
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createConnection = async (payload, modalActions, iln) =>
+  await post("/connections", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while fetching connections.")
+        : "There was an error while fetching connections.",
+      error,
+      modalActions
+    )
+  );
+
+const connectionsAPI = {
+  getConnectionsFromConstituent,
+  createConnection,
+};
+
+export default connectionsAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/constituents.js
+================================================
+import { deleteReq, get, patch, post, file as uploadFile } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * create a constituent
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createConstituent = async (payload, modalActions, iln) =>
+  await post("/constituents", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to create a constituent."
+          )
+        : "There was an error while attempting to create a constituent.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Search constituents
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const constituentsSearch = async (payload, modalActions, iln, signal) =>
+  await post("/constituents/search", payload, signal).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to search constituents."
+          )
+        : "There was an error while attempting to search constituents.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * get a constituents details
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getConstituent = async (id, modalActions, iln, signal) =>
+  await get(`/constituents/${id}`, signal).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to get a constituent's details."
+          )
+        : "There was an error while attempting to get a constituent's details.",
+      error,
+      modalActions
+    )
+  );
+
+const deleteGeocode = async (payload, modalActions, iln) =>
+  await deleteReq(`/constituent/${payload}/geocode`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to remove a constituent's geocode."
+          )
+        : "There was an error while attempting to remove a constituent's geocode.",
+      error,
+      modalActions
+    )
+  );
+
+const getConstituentContactDetails = async (constituentId, modalActions, iln) =>
+  await get(`/constituents/${constituentId}/contactDetails`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to retrieve the constituents contact details."
+          )
+        : "There was an error while attempting to retrieve the constituents contact details.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * add to a constituents details
+ * @param {object} payload - payload based to the backend
+ * @param {number} payload.contactTypeID - the contactType ID of the value
+ * @param {number} payload.constituentID - the constituent ID
+ * @param {string} payload.source - where the contact detail came from
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const addConstituentContactDetail = async (payload, modalActions, iln) =>
+  await post("/contactDetails", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to add contact details to a constituent."
+          )
+        : "There was an error while attempting to add contact details to a constituent.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * update a constituents details
+ * @param {object} payload - payload based to the backend
+ * @param {string} payload.value - the value of contact detail
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateConstituentContactDetail = async (payload, modalActions, iln) =>
+  await patch(`/contactDetails/${payload.id}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to update a constituent's contact detail."
+          )
+        : "There was an error while attempting to update a constituent's contact detail.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * delete a constituents details
+ * @param {object} payload - payload based to the backend
+ * @param {string} payload.id - the contact detail ID
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteConstituentContactDetail = async (payload, modalActions, iln) =>
+  await deleteReq(`/contactDetails/${payload.id}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to delete a constituent's contact detail."
+          )
+        : "There was an error while attempting to delete a constituent's contact detail.",
+      error,
+      modalActions
+    )
+  );
+
+const mergeConstituents = async (
+  constituentID,
+  newConstituentID,
+  precedence,
+  modalActions,
+  iln
+) =>
+  await post(`/constituent/${constituentID}/merge`, {
+    idToKeep: newConstituentID,
+    precedence,
+  }).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error merging constituents. Please try again"
+          )
+        : "There was an error merging constituents. Please try again",
+      error,
+      modalActions
+    )
+  );
+
+const getMergeDetails = async (constituentID, modalActions, iln) =>
+  await get(`/constituent/${constituentID}/merge`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error getting merging details. Please try again"
+          )
+        : "There was an error getting merging details. Please try again",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Uploads constituents from a csv file
+ * @param {object} payload - The payload sent to the backend
+ * @param {file} payload.file - The csv file
+ * @param {object} payload.matchOn - The type of check to be used for matching to existing constituents
+ * @param {object} payload.columns - The configuration containing which columns to import
+ * @param {function} modalActions - a func that sets the global modal content, used for errors.
+ * @param {function} iln - a func that handles international translation, used for errors.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const uploadConstituents = async ({ file, ...payload }, modalActions, iln) =>
+  await uploadFile(`/constituents/initRequest`, file, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error uploading your constituents.")
+        : "There was an error uploading your constituents.",
+      error,
+      modalActions
+    )
+  );
+
+const updateConstituent = async (updateConstituent, modalActions, iln) =>
+  await patch(
+    `/constituents/${updateConstituent?.id}`,
+    updateConstituent
+  ).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error updating the constituent")
+        : "There was an error updating the constituent",
+      error,
+      modalActions
+    )
+  );
+
+const constituents = {
+  constituentsSearch,
+  deleteGeocode,
+  getConstituent,
+  getConstituentContactDetails,
+  addConstituentContactDetail,
+  updateConstituentContactDetail,
+  deleteConstituentContactDetail,
+  mergeConstituents,
+  getMergeDetails,
+  uploadConstituents,
+  createConstituent,
+  updateConstituent,
+};
+
+export default constituents;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/contacts.js
+================================================
+import { get, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * @public get contact list config.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - context for translating text of error messages.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const getContactList = async (modalActions, iln) => {
+  return await get("/contactLists").catch((error) =>
+    handleError(
+      iln
+        ? iln.getText("There was an error retrieving the contact list")
+        : "There was an error retrieving the contact list",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * @public get contactList by id.
+ * @param {String} contactListId - Id of the contact list to get.
+ * @param {Object} searchTerm - searchTerm.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - context for translating text of error messages.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const searchContactLists = async (
+  contactListId,
+  searchTerm,
+  modalActions,
+  iln,
+  signal
+) => {
+  return await post(
+    `/contactLists/${contactListId}/search`,
+    {
+      term: searchTerm,
+    },
+    signal
+  ).catch((error) =>
+    handleError(
+      iln
+        ? iln.getText("There was an error retrieving the contact list")
+        : "There was an error retrieving the contact list",
+      error,
+      modalActions
+    )
+  );
+};
+
+const contactsAPI = {
+  getContactList: getContactList,
+  searchContactLists: searchContactLists,
+};
+
+export default contactsAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/customFields.js
+================================================
+import { patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+const updateCustomField = async (id, payload, modalActions) =>
+  await patch(`/customfields/${id}`, payload).catch((error) =>
+    handleError("customFields", error, modalActions)
+  );
+
+const saveCustomField = async (payload, modalActions) =>
+  await post(`/customfields`, payload).catch((error) =>
+    handleError("customFields", error, modalActions)
+  );
+
+const bulkEditCustomFields = async (payload, modalActions) =>
+  await post(`/customfields/bulkedit`, payload).catch((error) =>
+    handleError("customFields", error, modalActions)
+  );
+
+const customFieldNameUnique = async (payload, modalActions, signal) =>
+  await post("/customfields/test", payload, signal).catch((error) =>
+    handleError("customFields", error, modalActions)
+  );
+
+const customFieldsAPI = {
+  updateCustomField,
+  saveCustomField,
+  bulkEditCustomFields,
+  customFieldNameUnique,
+};
+
+export default customFieldsAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/doorknocking.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+const getDoorknockingUsers = async (modalActions, iln) =>
+  await get("/doorknocking/users").catch((error) => {
+    handleError(
+      iln
+        ? iln.gettext("There was an error retrieving the current active users")
+        : "There was an error retrieving the current active users",
+      error,
+      modalActions
+    );
+  });
+
+const saveDoorknockUser = async (payload, modalActions, iln) =>
+  await post("/doorknocking/users", payload).catch((error) => {
+    handleError(
+      iln
+        ? iln.gettext("There was an error saving your entry. Please try again")
+        : "There was an error saving your entry. Please try again",
+      error,
+      modalActions
+    );
+  });
+
+const deleteDoorknockUser = async (id, modalActions, iln) =>
+  await deleteReq(`/doorknocking/users/${id}`).catch((error) => {
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error deleting your entry. Please try again"
+          )
+        : "There was an error deleting your entry. Please try again",
+      error,
+      modalActions
+    );
+  });
+
+const bulkDeletedDoorknockUsers = async (payload, modalActions, iln) => {
+  await post(`/doorknocking/bulkDelete`, payload).catch((error) => {
+    handleError(
+      iln
+        ? iln.gettext("There was an error deleting users. Please try again")
+        : "There was an error deleting your users. Please try again",
+      error,
+      modalActions
+    );
+  });
+};
+
+const getDoorknockOverview = async (payload, modalActions, iln) =>
+  await post(`/doorknocking/stats`, payload).catch((error) => {
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error retrieving the data. Please try again"
+          )
+        : "There was an error retrieving the data. Please try again",
+      error,
+      modalActions
+    );
+  });
+
+const getDoorknockDetails = async (payload, modalActions, iln) =>
+  await post(`/doorknocking/details`, payload).catch((error) => {
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error retrieving the data. Please try again"
+          )
+        : "There was an error retrieving the data. Please try again",
+      error,
+      modalActions
+    );
+  });
+
+const archiveDoorknockSurvey = async (id, modalActions, iln) =>
+  await patch(`/doorknocking/${id}/archive`, {}).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to archive the survey."
+          )
+        : "There was an error while attempting to archive the survey.",
+      error,
+      modalActions
+    )
+  );
+
+const unarchiveDoorknockSurvey = async (id, modalActions, iln) =>
+  await patch(`/doorknocking/${id}/unarchive`, {}).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to restore the survey."
+          )
+        : "There was an error while attempting to archive the survey.",
+      error,
+      modalActions
+    )
+  );
+
+export default {
+  getDoorknockingUsers,
+  saveDoorknockUser,
+  deleteDoorknockUser,
+  getDoorknockOverview,
+  getDoorknockDetails,
+  bulkDeletedDoorknockUsers,
+  archiveDoorknockSurvey,
+  unarchiveDoorknockSurvey,
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/electoralRoll.js
+================================================
+import { handleError } from "./util/handleError";
+import { post } from "./util/fetch";
+
+/**
+ * @public get contactList by id.
+ * @param {String} contactListId - Id of the contact list to get.
+ * @param {Object} searchTerm - searchTerm.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - context for translating text of error messages.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const searchElectoralRoll = async (payload, modalActions, iln) =>
+  await post(`/electoralroll/search`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error searching the electoral roll")
+        : "There was an error searching the electoral roll",
+      error,
+      modalActions
+    )
+  );
+
+const electoralRollAPI = {
+  searchElectoralRoll,
+};
+
+export default electoralRollAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/emailAddresses.js
+================================================
+import { handleError } from "./util/handleError";
+import { post } from "./util/fetch";
+
+/**
+ * @public get matching addresses for auto complete source
+ * @param {object} iln - translation context
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const getAutoCompleteOptions = async (
+  payload,
+  modalActions,
+  iln,
+  signal
+) => {
+  return await post(`/emails/address`, payload, signal).catch((error) =>
+    error.status == 404
+      ? []
+      : handleError(
+          iln
+            ? iln.gettext("There was an error getting matching email addresses")
+            : "There was an error getting matching email addresses",
+          error,
+          modalActions
+        )
+  );
+};
+
+const emailAddressesAPI = {
+  getAutoCompleteOptions,
+};
+
+export default emailAddressesAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/emails.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+import { parseEmailsForLegacyEmailFormatting } from "./util/parseEmailLegacyFormatting";
+
+/**
+ * send test email.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const sendTestEmail = async (payload, modalActions) =>
+  await post("/emails/sendtest", payload).catch((error) =>
+    handleError(
+      "There was an error while attempting to send a test email.",
+      error,
+      modalActions
+    )
+  );
+/**
+ * check mergecodes in Email.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const checkEmailMergeCodes = async (payload, modalActions) =>
+  await post("/emails/checkEmailMergeCodes", payload).catch((error) =>
+    handleError(
+      "There was an error while checking email merge codes.",
+      error,
+      modalActions
+    )
+  );
+/**
+ * get email body from template.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getEmailBody = async (payload, modalActions) =>
+  await post("/emails/getEmailBody", payload).catch((error) =>
+    handleError(
+      "There was an error while attempting to get email body.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * send email.
+ * @param {String} emailId - The id of the email that must be sent.iated with.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const sendEmail = async (emailId, modalActions, iln) =>
+  await post(`/emails/${emailId}/send`, "").catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to send the email.")
+        : "There was an error while attempting to send the email.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * get email by case id.
+ * @param {string} emailId - id of the email to get.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getEmail = async (emailId, modalActions, iln) => {
+  return parseEmailsForLegacyEmailFormatting(get(`/emails/${emailId}`)).catch(
+    (error) =>
+      handleError(
+        iln
+          ? iln.gettext(
+              "There was an error while trying to retrieve the email."
+            )
+          : "There was an error while trying to retrieve the email.",
+        error,
+        modalActions
+      )
+  );
+};
+
+/**
+ * update existing draft email.
+ * @param {Object} payload - The payload that is passed to the backend.
+ * @param {Array<String>} payload.to - Email addresses to send to.
+ * @param {Array<String>} payload.cc - Email addresses to cc.
+ * @param {Array<String>} payload.bcc - Email addresses to bcc.
+ * @param {String} payload.from - Email address the email is from.
+ * @param {String} payload.htmlBody - The HTML body of the email.
+ * @param {String} payload.subject - The subject of the email.
+ * @param {String} payload.caseID - The Id of the case that the email is associated with.
+ * @param {string} payload.emailID - The id of the email to update.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateEmail = async (payload, modalActions, iln) => {
+  return await patch(`/emails/${payload.emailID}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while updating the saved email.")
+        : "There was an error while updating the saved email.",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * save draft email.
+ * @param {Object} payload - The payload that is passed to the backend.
+ * @param {Array<String>} payload.to - Email addresses to send to.
+ * @param {Array<String>} payload.cc - Email addresses to cc.
+ * @param {Array<String>} payload.bcc - Email addresses to bcc.
+ * @param {String} payload.from - Email address the email is from.
+ * @param {String} payload.htmlBody - The HTML body of the email.
+ * @param {String} payload.subject - The subject of the email.
+ * @param {String} payload.caseID - The Id of the case that the email is associated with.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const saveDraftEmail = async (payload, modalActions, iln) => {
+  return await post("/emails", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while saving the email.")
+        : "There was an error while saving the email.",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * update existing draft email.
+ * @param {Object} payload - The payload that is passed to the backend.
+ * @param {Array<String>} payload.to - Email addresses to send to.
+ * @param {Array<String>} payload.cc - Email addresses to cc.
+ * @param {Array<String>} payload.bcc - Email addresses to bcc.
+ * @param {String} payload.from - Email address the email is from.
+ * @param {String} payload.htmlBody - The HTML body of the email.
+ * @param {String} payload.subject - The subject of the email.
+ * @param {String} payload.caseID - The Id of the case that the email is associated with.
+ * @param {string} payload.emailID - The id of the email to update.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateDraftEmail = async (payload, modalActions, iln) => {
+  return await patch(`/emails/${payload.emailID}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while updating the saved email.")
+        : "There was an error while updating the saved email.",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * upload an attachment to an email.
+ * @param {Object} payload - The payload that is passed to the backend.
+ * @param {string} payload.emailId - Id of the email to attach the file to.
+ * @param {Object} payload.attachment - File to attach.
+ * @param {string} payload.attachment.content - Base64 encoding of the files content.
+ * @param {string} payload.attachment.name - Name of the file.
+ * @param {string} payload.attachment.type - The mime-type of the file.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const addAttachment = async (payload, modalActions, iln) => {
+  return await post(
+    `/emails/${payload.emailId}/attach`,
+    payload.attachment
+  ).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while adding the attachment to the email."
+          )
+        : "There was an error while adding the attachment to the email.",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * attach an existing file to an email.
+ * @param {'caseFile' | 'letter' | 'emailAttachment' } type - The payload that is passed to the backend.
+ * @param {string} emailId - Id of the email to attach the file to.
+ * @param {string} attachmentId - Id of the file to attach.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const attachExistingFileToEmail = async (
+  type,
+  attachmentId,
+  emailId,
+  modalActions,
+  iln
+) => {
+  type = type === "file" ? "caseFile" : type;
+  let payload = {
+    type: type,
+    [`${type}ID`]: attachmentId,
+  };
+  if (type === "letter") payload = Object.assign(payload, { signed: true });
+  return await post(`/emails/${emailId}/attach`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attaching the %1 to the email.",
+            type
+          )
+        : `There was an error while attaching the ${type} to the email.`,
+      error,
+      modalActions
+    )
+  );
+};
+
+const attachedSignedLetterToEmail = async (
+  attachmentId,
+  emailId,
+  modalActions,
+  iln
+) => {
+  return await post(`/emails/${emailId}/attach`, {
+    type: "letter",
+    signed: true,
+    letterID: attachmentId,
+  }).catch((error) =>
+    handleError(
+      iln.gettext(
+        "There was an error while attaching the letter to the email."
+      ),
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * delete an attachment to on email.
+ * @param {string} attachmentId - The id of the attachment to delete.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteAttachment = async (attachmentId, modalActions, iln) => {
+  return await deleteReq(`/emails/attachments/${attachmentId}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was a error while trying to delete the attachment."
+          )
+        : "There was a error while trying to delete the attachment.",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * get specific email attachment content.
+ * @param {string} attachmentId - The id of the attachment to get.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getAttachment = async (attachmentId, modalActions, iln) => {
+  return await get(`/emails/attachments/${attachmentId}/content`).catch(
+    (error) =>
+      handleError(
+        iln
+          ? iln.gettext(
+              "There was a error while trying to delete the attachment."
+            )
+          : "There was a error while trying to delete the attachment.",
+        error,
+        modalActions
+      )
+  );
+};
+
+/**
+ * delete an email.
+ * @param {string} emailId - The id of the email to delete.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteEmail = async (emailId, modalActions, iln) => {
+  return await deleteReq(`/emails/${emailId}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was a error while trying to delete the email.")
+        : "There was a error while trying to delete the email.",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * Mark a casenote as actioned or not
+ * @param {string} casenoteID - The ID of the casenote you want to set as actioned or unactioned
+ * @param {boolean} actioned - If the casenote is to be set to actioned (true) or unactioned (false)
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateEmailActioned = async (emailID, actioned, modalActions, iln) =>
+  await patch(`/emails/${emailID}`, {
+    actioned,
+  }).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to mark an inbox item as actioned."
+          )
+        : "There was an error while attempting to mark an inbox item as actioned.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Mark a casenote as actioned or not
+ * @param {string} casenoteID - The ID of the casenote you want to set as actioned or unactioned
+ * @param {boolean} actioned - If the casenote is to be set to actioned (true) or unactioned (false)
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateEmailAssignedTo = async (emailID, assignedTo, modalActions, iln) =>
+  await patch(`/emails/${emailID}`, {
+    assignedTo,
+  }).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to change an inbox item's assigned to."
+          )
+        : "There was an error while attempting to change an inbox item's assigned to.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Search emails
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Number} page - The page to return the results for
+ * @param {Number} limit - Number of results returned
+ * @param {String} subject - Number of results returned
+ * @param {String} to - Number of results returned
+ * @param {String} from - Number of results returned
+ * @param {String} body - Value to use when searching the body field
+ * @param {Array} type - List of types to search to limit the search to
+ * @param {Array} caseWorkerIds - Caseworker Id’s to limit the search to
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const emailSearch = async (searchParams, modalActions, iln, signal) =>
+  await post("/emails/search", searchParams, signal).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to search for emails.")
+        : "There was an error while trying to search for emails.",
+      error,
+      modalActions
+    )
+  );
+
+const noOfScheduledEmails = async (emailID, modalActions, iln) =>
+  await get(`/emails/${emailID}/cancel`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to get the number of scheduled emails."
+          )
+        : "There was an error while trying to get the number of scheduled emails.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Cancels the scheduled emails batch of which this email is part of
+ * @param {string} emailID - The ID of the scheduled email in that batch.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const cancelScheduledEmail = async (emailID, modalActions, iln) =>
+  await post(`/emails/${emailID}/cancel`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to cancel scheduled emails."
+          )
+        : "There was an error while trying to cancel scheduled emails.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * bulk mark emails as actioned
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {Object} payload.emails - Array of email IDs.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkMarkAsActioned = async (payload, modalActions, iln) =>
+  await post("/emails/bulkactions/markasactioned", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error attempting to create bulk cases.")
+        : "There was an error attempting to create bulk cases.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * bulk deletes emails
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {Object} payload.emails - Array of email IDs.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkDeleteEmails = async (payload, modalActions, iln) =>
+  await post("/emails/bulkactions/delete", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error attempting to bulk delete emails.")
+        : "There was an error attempting to bulk delete emails.",
+      error,
+      modalActions
+    )
+  );
+
+const emailAPI = {
+  getAttachment,
+  sendTestEmail,
+  getEmail,
+  saveDraftEmail,
+  updateDraftEmail,
+  addAttachment,
+  updateEmail,
+  sendEmail,
+  deleteAttachment,
+  attachExistingFileToEmail,
+  attachedSignedLetterToEmail,
+  deleteEmail,
+  updateEmailActioned,
+  updateEmailAssignedTo,
+  getEmailBody,
+  checkEmailMergeCodes,
+  emailSearch,
+  noOfScheduledEmails,
+  cancelScheduledEmail,
+  bulkMarkAsActioned,
+  bulkDeleteEmails,
+};
+
+export default emailAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/emailSignatures.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Get email signature by id.
+ * @param {number} id - the id of the email signature to be fetched.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - a func that handles translations.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getEmailSignature = async (id, modalActions, iln) =>
+  await get(`/emailsignatures/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to fetch an email signature."
+          )
+        : "There was an error while attempting to fetch an email signature.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * update the logged in user's preferences.
+ * @param {object} payload - the object to be passed to the backend.
+ * @param {string} payload.email - the email address associated with this signature.
+ * @param {string} payload.signature - the text of the signature.
+ * @param {number} payload.caseworkerID - the id of the caseworker that the signature belongs to.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - a func that handles translations.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createEmailSignature = async (payload, modalActions, iln) =>
+  await post("/emailsignatures", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to create an email signature."
+          )
+        : "There was an error while attempting to create an email signature.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Update email signature by id.
+ * @param {object} payload - the object to be passed to the backend.
+ * @param {string} payload.id - the id of the signautre to be updated.
+ * @param {string} payload.email - the email address associated with this signature.
+ * @param {string} payload.signature - the text of the signature.
+ * @param {number} payload.caseworkerID - the id of the caseworker that the signature belongs to.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - a func that handles translations.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateEmailSignature = async (payload, modalActions, iln) =>
+  await patch(`/emailsignatures/${payload.id}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to update an email signature."
+          )
+        : "There was an error while attempting to fetch an email signature.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Delete user email signature by id
+ * @param {number} id - the id of the email signature to be deleted.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - a func that handles translations.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteEmailSignature = async (id, modalActions, iln) =>
+  await deleteReq(`/emailsignatures/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to delete an email signature."
+          )
+        : "There was an error while attempting to delete an email signature.",
+      error,
+      modalActions
+    )
+  );
+
+export default {
+  getEmailSignature,
+  createEmailSignature,
+  updateEmailSignature,
+  deleteEmailSignature,
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/emailTemplates.js
+================================================
+import { get, getPDF, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Search for email templates.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {String} payload.term - The search term that must match a template name.
+ * @param {Boolean} payload.active - If the template is set to active.
+ * @param {Array} payload.columnsToReturn - The columns to return from the DB. Optional.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const searchEmailTemplates = async (payload, modalActions, iln, signal) =>
+  await post("/emailtemplates/search", payload, signal).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to search email templates."
+          )
+        : "There was an error while attempting to search email templates.",
+      error,
+      modalActions
+    )
+  );
+
+const getEmailTemplateById = async (id, modalActions, iln) =>
+  await get(`/emailtemplates/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to get an email template."
+          )
+        : "There was an error while attempting to get an email template.",
+      error,
+      modalActions
+    )
+  );
+
+const duplicateEmailTemplate = async (id, payload, modalActions) =>
+  await post("/emailtemplates/duplicate/" + id, payload).catch((error) =>
+    handleError("Unable to duplicate Email Template", error, modalActions)
+  );
+
+const proxyDownload = async (url, modalActions) =>
+  await getPDF(`/proxy/${url}`).catch((error) =>
+    handleError(
+      "There was an error while attempting to download the email template.",
+      error,
+      modalActions
+    )
+  );
+
+const saveEmailTemplate = async (id, payload, modalActions) =>
+  await post(`/emailtemplates/save/${id}`, payload).catch((error) =>
+    handleError(
+      "There was an error while attempting to save email template.",
+      error,
+      modalActions
+    )
+  );
+
+window.duplicateEmailTemplate = duplicateEmailTemplate;
+
+const bulkCasesAPI = {
+  searchEmailTemplates: searchEmailTemplates,
+  getEmailTemplateById: getEmailTemplateById,
+  duplicateEmailTemplate: duplicateEmailTemplate,
+  saveEmailTemplate: saveEmailTemplate,
+  proxyDownload: proxyDownload,
+};
+
+export default bulkCasesAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/file.js
+================================================
+import { deleteReq, file as fileUpload, get, patch } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+const getFile = async (fileID, modalActions, iln) =>
+  await get(`/casefiles/${fileID}/content`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to get a file.")
+        : "There was an error while trying to get a file.",
+      error,
+      modalActions
+    )
+  );
+
+const getFileDetails = async (fileID, modalActions, iln) =>
+  await get(`/casefiles/${fileID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to get a file's details."
+          )
+        : "There was an error while trying to get a file's details.",
+      error,
+      modalActions
+    )
+  );
+
+const uploadFile = async ({ file, ...data }, modalActions, iln) => {
+  return await fileUpload("/casefiles", file, data).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to upload a file.")
+        : "There was an error while trying to upload a file.",
+      error,
+      modalActions
+    )
+  );
+};
+
+const updateFile = async (fileID, payload, modalActions, iln) =>
+  await patch(`/casefiles/${fileID}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying update a file.")
+        : "There was an error while trying update a file.",
+      error,
+      modalActions
+    )
+  );
+
+const deleteFile = async (fileID, modalActions, iln) =>
+  await deleteReq(`/casefiles/${fileID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to delete a file.")
+        : "There was an error while trying to delete a file.",
+      error,
+      modalActions
+    )
+  );
+
+export default {
+  getFile,
+  getFileDetails,
+  uploadFile,
+  updateFile,
+  deleteFile,
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/flags.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Create a new unique flag.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {String} payload.flag - The text of the flag to be created.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createFlag = async (payload, modalActions) =>
+  await post("/flags", payload).catch((error) =>
+    handleError(
+      "There was an error while attempting to create a flag.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get a flag based on it's unique id.
+ * @param {Number} id - The ID of the flag you want to fetch the text for.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getFlag = async (id, modalActions) =>
+  await get(`/flags/${id}`).catch((error) =>
+    handleError(
+      "There was an error while attempting to get a flag.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Update an existing flags text.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {Number} payload.id - The id of the flag to be updated.
+ * @param {String} payload.flag - The new text of the  updated flag.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateFlag = async (payload, modalActions) =>
+  await patch("/flags", payload).catch((error) => {
+    handleError(
+      "There was an error while attempting to update a flag.",
+      error,
+      modalActions
+    );
+    throw error;
+  });
+
+/**
+ * Delete an existing flag.
+ * @param {Number} id - The id of the flag to be deleted.
+ * @param modalActions
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteFlag = async (id, modalActions) =>
+  await deleteReq(`/flags/${id}`).catch((error) =>
+    handleError(
+      "There was an error while attempting to delete a flag.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Search all flags.
+ * @param {Object} payload - The payload passed to the backend.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const searchFlags = async (payload, modalActions) =>
+  await post("/flags/search", payload).catch((error) =>
+    handleError(
+      "There was an error while attempting to search flags.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Merge multiple flags into one flag.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {Array} payload.idsToBeMerged - An array of flags to be merged.
+ * @param {Object} payload.flagToMergeInto - The object of the master flag.
+ * @param {Number} payload.flagToMergeInto.id - The id of the master flag.
+ * @param {String} payload.flagToMergeInto.flag - The text of the existing flag.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const mergeFlags = async (payload, modalActions) =>
+  await post("/manageflags/merge", payload).catch((error) =>
+    handleError(
+      "There was an error while attempting to merge flags.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Delete multiple flags en masse.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteBulkFlags = async (payload, modalActions) =>
+  await post("/manageflags/delete", payload).catch((error) =>
+    handleError(
+      "There was an error while attempting to bulk delete a flag.",
+      error,
+      modalActions
+    )
+  );
+/**
+ * Adds Flags to Segments.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const flagsToSegment = async (payload, modalActions) =>
+  await post("/flags/flagsToSegment", payload).catch((error) =>
+    handleError(
+      "There was an error while attempting to bulk delete a flag.",
+      error,
+      modalActions
+    )
+  );
+
+const flagsAPI = {
+  createFlag: createFlag,
+  getFlag: getFlag,
+  updateFlag: updateFlag,
+  deleteFlag: deleteFlag,
+  searchFlags: searchFlags,
+  mergeFlags: mergeFlags,
+  deleteBulkFlags: deleteBulkFlags,
+  flagsToSegment: flagsToSegment,
+};
+
+export default flagsAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/groupsApi.js
+================================================
+/* eslint-disable no-unused-vars */
+import { deleteReq, get, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Get list of groups.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Int} id - Id of the group whose details are required.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getGroups = async (modalActions, id = "") => {
+  const url = id ? "/usergroups/" + id : "/usergroups";
+  return await get(url).catch((error) =>
+    handleError("getGroups", error, modalActions)
+  );
+};
+
+/**
+ * Get list of groups.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Int} id - Id of the group whose details are required.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getOwnGroups = async (modalActions) => {
+  return await get("/usergroups/me").catch((error) =>
+    handleError("groups", error, modalActions)
+  );
+};
+
+/**
+ * Create a group with its name and default settings passed in payload.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Object} payload - The payload passed to the backend.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const createGroup = async (payload, modalActions) =>
+  await post("/usergroups", payload).catch((error) =>
+    handleError("groups", error, modalActions)
+  );
+
+/** Update an existing Group.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param modalActions
+ * @param {Number} id - The id of the group to be updated.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateGroup = async (id, payload, modalActions) =>
+  await post("/usergroups/" + id, payload).catch((error) =>
+    handleError("groups", error, modalActions)
+  );
+
+/**
+ * Get Permissions for a case.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Int} id - Id of the case whose details are required.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const getCasePermissions = async (id, modalActions) => {
+  return await get("/permissions/case/" + id).catch((error) =>
+    handleError("groups", error, modalActions)
+  );
+};
+
+/**
+ * Get Permissions for a case.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Int} id - Id of the case whose details are required.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const updateCasePermissions = async (id, payload, modalActions) => {
+  return await post("/permissions/case/" + id, payload).catch((error) =>
+    handleError("groups", error, modalActions)
+  );
+};
+
+/**
+ * Delete a group with a specific id.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {Int} id - Id of the group to be deleted.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const deleteGroup = async (id, modalActions) =>
+  await deleteReq("/usergroups/" + id).catch((error) =>
+    handleError(("groups", error, modalActions))
+  );
+
+const groupsAPI = {
+  getGroups: getGroups,
+  createGroup: createGroup,
+  deleteGroup: deleteGroup,
+  updateGroup: updateGroup,
+  getCasePermissions: getCasePermissions,
+  getOwnGroups: getOwnGroups,
+  updateCasePermissions: updateCasePermissions,
+};
+
+export default groupsAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/inbox.js
+================================================
+import { get, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Bulk create a case for each selected email.
+ * @param modalActions - Use global modal component to catch errors
+ * @param iln - User facing string translation
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createBulkCasesFromEmails = async (payload, modalActions, iln) =>
+  await post("/inbox/bulkActions/createCases", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error attempting to create bulk cases.")
+        : "There was an error attempting to create bulk cases.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Bulk assign inbox items to a caseworker.
+ * @param modalActions - Use global modal component to catch errors
+ * @param iln - User facing string translation
+ * @param payload - the payload sent to the backend
+ * @param payload.caseworkerID - the ID of the caseworker
+ * @param payload.itemIDs - the items that will have their assigned caseworker updated
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const bulkAssignInboxItemsToCaseworker = async (payload, modalActions, iln) =>
+  await post("/inbox/bulkActions/assignCaseworker", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error attempting to create bulk cases.")
+        : "There was an error attempting to create bulk cases.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Bulk assign inbox items to a caseworker.
+ * @param payload - the payload sent to the backend
+ * @param modalActions - Use global modal component to catch errors
+ * @param iln - User facing string translation
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const inboxSearch = async (payload, modalActions, iln) =>
+  await post("/inbox/search", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error attempting to search for inbox items."
+          )
+        : "There was an error attempting to search for inbox items.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * get any potential constituent and electoral roll matches for an email
+ * @param payload - the payload sent to the backend
+ * @param payload.name {string} - name on the email
+ * @param payload.email {string} - email address on the email
+ * @param modalActions - Use global modal component to catch errors
+ * @param iln - User facing string translation
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getConstituentMatches = async (payload, modalActions, iln) =>
+  await post("/inbox/constituentMatches", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error attempting to find constituent matches"
+          )
+        : "There was an error attempting to find constituent matches",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Bulk assign inbox items to a caseworker.
+ * @param modalActions - Use global modal component to catch errors
+ * @param iln - User facing string translation
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getInboxes = async (modalActions, iln) =>
+  await get("/inbox/getInboxes").catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error attempting to get the available inboxes."
+          )
+        : "There was an error attempting to get the available inboxes.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * triggerAutomations
+ * @param {Object} payload - The payload passed to the backend.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const triggerAutomation = async (payload, modalActions, iln) =>
+  await post("/inbox/triggerAutomation", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error running email automation.")
+        : "There was an error attempting running email automation.",
+      error,
+      modalActions
+    )
+  );
+const inboxAPI = {
+  createBulkCasesFromEmails,
+  bulkAssignInboxItemsToCaseworker,
+  inboxSearch,
+  getInboxes,
+  triggerAutomation,
+  getConstituentMatches,
+};
+
+export default inboxAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/kmls.js
+================================================
+import { deleteReq, get, patch, file as uploadFile } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * @public upload a kml.
+ * @param {object} kml - the country code of the locale to use.
+ * @param {string} kml.name - a human name for the area the kml covers.
+ * @param {blob} kml.file - the kml file blob.
+ * @param {object} iln - translation context
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const getKMLs = async (modalActions, iln) => {
+  return await get(`/kmls`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error attempting to get all kmls")
+        : "There was an error attempting to get all kmls",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * @public upload a kml.
+ * @param {object} kml - the country code of the locale to use.
+ * @param {string} kml.name - a human name for the area the kml covers.
+ * @param {blob} kml.file - the kml file blob.
+ * @param {object} iln - translation context
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const createKML = async ({ file, ...data }, modalActions, iln) => {
+  return await uploadFile(`/kmls`, file, data).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error attempting to create a kml")
+        : "There was an error attempting to create a kml",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * @public update a kml.
+ * @param {number} id - the country code of the locale to use.
+ * @param {object} iln - translation context
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const updateKML = async (kml, modalActions, iln) => {
+  return await patch(`/kmls`, kml).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error attempting to delete a kml")
+        : "There was an error attempting to delete a kml",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * @public delete a kml.
+ * @param {number} id - the country code of the locale to use.
+ * @param {object} iln - translation context
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const deleteKML = async (id, modalActions, iln) => {
+  return await deleteReq(`/kmls`, { id }).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error attempting to delete a kml")
+        : "There was an error attempting to delete a kml",
+      error,
+      modalActions
+    )
+  );
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/letter.js
+================================================
+import { get, getPDF, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * get a letter.
+ * @param {string} letterId - The id of the letter to retrieve.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const getLetter = async (letterId, modalActions, iln) =>
+  await get(`/letters/${letterId}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to get the letter.")
+        : "There was an error while attempting to get the letter.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * save a letter.
+ * @param {Object} payload - The payload that is passed to the backend.
+ * @param {string} payload.caseId - The caseId that the letter is attached to.
+ * @param {string} payload.letterheadId - id of the letter's letter head.
+ * @param {string} payload.reference - The letters reference.
+ * @param {string} payload.letterContent - The content of the body of the letter.
+ * @param {string} payload.footerContent - The content of the letters footer.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const saveLetter = async (payload, modalActions, iln) => {
+  const {
+    caseId: caseID,
+    letterheadId,
+    letterRef: reference,
+    letterContent: text = "",
+    footerContent: footer = "",
+    autosave,
+  } = payload;
+
+  payload = {
+    caseID: Number.parseInt(caseID),
+    letterheadId: Number.parseInt(letterheadId),
+    reference,
+    ...(text && { text }),
+    ...(footer && { footer }),
+    ...(autosave && { autosave }),
+  };
+
+  return await post("/letters", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to save the letter.")
+        : "There was an error while attempting to save the letter.",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * Updates letter.
+ * @param modalActions - Use global modal component to catch errors
+ * @param reviewID - id of the case the review dates is conected on.
+ * @param {Object} payload - An array with all the review date objects.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateLetter = async (reviewID, payload, modalActions, iln) => {
+  const {
+    caseId: caseID,
+    letterheadId,
+    letterRef: reference,
+    letterContent: text,
+    footerContent: footer,
+    autosave,
+  } = payload;
+
+  payload = {
+    caseID: Number.parseInt(caseID),
+    letterheadId: Number.parseInt(letterheadId),
+    reference,
+    ...((text || text === "") && { text }),
+    ...((footer || footer === "") && { footer }),
+    ...(autosave && { autosave }),
+  };
+
+  return await patch(`/letters/${reviewID}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to update a letter.")
+        : "There was an error while attempting to update a letter.",
+      error,
+      modalActions
+    )
+  );
+};
+
+/**
+ * Get a letter as a PDF file
+ * @param {string} letterID - The ID of the letter you want to fetch
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getLetterAsPDF = async (letterID, modalActions, iln) =>
+  await getPDF(`/letters/${letterID}/pdf`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to fetch a letter PDF.")
+        : "There was an error while trying to fetch a letter PDF.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get a signed letter as a PDF file
+ * @param {string} letterID - The ID of the letter you want to fetch
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getSignedLetterAsPDF = async (letterID, modalActions, iln) =>
+  await getPDF(`/letters/${letterID}/pdf/signed`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while trying to fetch a letter PDF.")
+        : "There was an error while trying to fetch a letter PDF.",
+      error,
+      modalActions
+    )
+  );
+
+const letterAPI = {
+  getLetter,
+  saveLetter,
+  updateLetter,
+  getLetterAsPDF,
+  getSignedLetterAsPDF,
+};
+
+export default letterAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/letterHeads.js
+================================================
+import { handleError } from "./util/handleError";
+import { post } from "./util/fetch";
+
+/**
+ * Search for email templates.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {String} payload.term - The search term that must match a template name.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const duplicateLetterHead = async (id, payload, modalActions) =>
+  await post("/letterheads/duplicate/" + id, payload).catch((error) =>
+    handleError("Unable to duplicate LetterHead", error, modalActions)
+  );
+
+const searchLetterHeads = async (payload, modalActions) =>
+  await post("/letterheads/search", payload).catch((error) =>
+    handleError(
+      "There was an error while attempting to search letterheads.",
+      error,
+      modalActions
+    )
+  );
+
+const letterHeadAPI = {
+  duplicateLetterHead: duplicateLetterHead,
+  searchLetterHeads: searchLetterHeads,
+};
+
+export default letterHeadAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/letterTemplates.js
+================================================
+import { get, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Search for email templates.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {String} payload.term - The search term that must match a template name.
+ * @param {Boolean} payload.active - If the template is set to active.
+ * @param {Array} payload.columnsToReturn - The columns to return from the DB. Optional.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const searchLetterTemplates = async (payload, modalActions, iln) =>
+  await post("/lettertemplates/search", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to search letter templates."
+          )
+        : "There was an error while attempting to search letter templates.",
+      error,
+      modalActions
+    )
+  );
+
+const duplicateTemplate = async (id, payload, modalActions) =>
+  await post("/lettertemplates/duplicate/" + id, payload).catch((error) =>
+    handleError("Unable to duplicate LetterTemplate", error, modalActions)
+  );
+
+const getLetterTemplate = async (id, modalActions, iln) =>
+  await get(`/lettertemplates/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while retrieving the email tempalte.")
+        : "There was an error while retrieving the email tempalte.",
+      error,
+      modalActions
+    )
+  );
+
+const searchLetterHeaders = async (payload, modalActions, iln) =>
+  await post("/letterheads/search", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error retrieving the letter heads.")
+        : "There was an error retrieving the letter heads.",
+      error,
+      modalActions
+    )
+  );
+
+const updateLetterTemplateRestrictions = async (
+  id,
+  payload,
+  modalActions,
+  iln
+) =>
+  await post(`/lettertemplates/updateRestrictions/${id}`, payload).catch(
+    (error) =>
+      handleError(
+        iln
+          ? iln.gettext("There was an error updating restrictions")
+          : "There was an error updating restrictions",
+        error,
+        modalActions
+      )
+  );
+
+window.duplicateLetterTemplate = duplicateTemplate;
+
+const getLetterHeader = async (payload, modalActions) =>
+  await get(`/letterheads/${payload}`).catch((error) => {
+    handleError(
+      "There was an error while retrieving the email header template"
+    ),
+      error,
+      modalActions;
+  });
+
+const letterTemplatesAPI = {
+  getLetterHeader: getLetterHeader,
+  searchLetterTemplates: searchLetterTemplates,
+  getLetterTemplate: getLetterTemplate,
+  searchLetterHeaders: searchLetterHeaders,
+  duplicateTemplate: duplicateTemplate,
+  updateLetterTemplateRestrictions: updateLetterTemplateRestrictions,
+};
+
+export default letterTemplatesAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/locale.js
+================================================
+import { post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * @public set locale.
+ * @param {String} locale - the country code of the locale to use.
+ * @param {object} iln - translation context
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const setLocale = async (locale, iln, modalActions) => {
+  return await post(`/locale/set`, {
+    locale,
+  }).catch((error) =>
+    handleError(
+      iln
+        ? iln.getText("There was an error retrieving the contact list")
+        : "There was an error retrieving the contact list",
+      error,
+      modalActions
+    )
+  );
+};
+
+const localeAPI = {
+  setLocale: setLocale,
+};
+
+export default localeAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/membership.js
+================================================
+import { get, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Get all membership types.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @param setModalState - Use global modal component to catch errors
+ * @throws {String} An error message returned by the API.
+ */
+const getMembershipTypes = async (setModalState) =>
+  await get("/membership/branches/types").catch((error) =>
+    handleError("getMembershipTypes", error, setModalState)
+  );
+
+/**
+ * Get membership report.
+ * @param {Object} payload - The payload passed to the backend.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @param setModalState - Use global modal component to catch errors
+ * @throws {String} An error message returned by the API.
+ */
+const getMembershipReport = async (payload, setModalState, setLoading, btn) =>
+  await post("/membership/report", payload).catch((error) => {
+    setLoading(false);
+    btn.disabled = false;
+    handleError("getMembershipReport", error, setModalState);
+  });
+
+const getMembershipDetails = async (payload, setModalState, setLoading, btn) =>
+  await post("/membership/memberDetails", payload).catch((error) => {
+    setLoading(false);
+    btn.disabled = false;
+    handleError("getMembershipDetails", error, setModalState);
+  });
+
+const membershipAPI = {
+  getMembershipTypes: getMembershipTypes,
+  getMembershipReport: getMembershipReport,
+  getMembershipDetails: getMembershipDetails,
+};
+
+export default membershipAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/organisations.js
+================================================
+import { get } from "./util/fetch";
+import { handleError } from "./util/handleError";
+
+/**
+ * @public get current array of distinct organisation types
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+export const getOrganisationTypes = async (modalActions, iln) =>
+  await get("/organisations/types").catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error searching the electoral roll")
+        : "There was an error searching the electoral roll",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * @public get current array of distinct connection types
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getConnectionTypes = async (modalActions, iln) =>
+  await get("/connectionTypes").catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error searching the electoral roll")
+        : "There was an error searching the electoral roll",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * @public get current array of distinct role types
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getRoleTypes = async (modalActions, iln) =>
+  await get("/roleTypes").catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error searching the electoral roll")
+        : "There was an error searching the electoral roll",
+      error,
+      modalActions
+    )
+  );
+
+const organisationsAPI = {
+  getOrganisationTypes,
+  getConnectionTypes,
+  getRoleTypes,
+};
+
+export default organisationsAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/plugins.js
+================================================
+import { get, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Get all the plugins.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getPlugins = async (modalActions, iln) =>
+  await get(`/plugins`).catch(
+    (error) =>
+      handleError(
+        iln
+          ? iln.gettext("There was an error while fetching plugins.")
+          : "There was an error while fetching plugins.",
+        error,
+        modalActions
+      ) //using same review dates handle error function to handle errors
+  );
+
+/**
+ * Save plugin details.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const savePlugin = async (pluginID, payload, modalActions, iln) =>
+  await post(`/plugins/${pluginID}`, payload).catch(
+    (error) =>
+      handleError(
+        iln
+          ? iln.gettext("There was an error attempting to save plugins.")
+          : "There was an error attempting to save plugins.",
+        error,
+        modalActions
+      ) //using same review dates handle error function to handle errors
+  );
+
+const pluginsAPI = {
+  getPlugins,
+  savePlugin,
+};
+
+export default pluginsAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/restrictions.js
+================================================
+import { handleError } from "./util/handleError";
+import { post } from "./util/fetch";
+
+const updateRestrictions = async (payload) =>
+  await post("/restrictions", payload).catch((error) => handleError(error));
+
+export default {
+  updateRestrictions,
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/reviewDates.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Create a new date object.
+ * @param modalActions - Use global modal component to catch errors
+ * @param {object} payload - The payload passed to the backend
+ * @param {string} payload.reviewDate - String of the date
+ * @param {string} payload.note - The note to appear on the review date
+ * @param {number} payload.caseID - the case id that the review is assigned to
+ * @param {number} payload.assignedTo - the user id that the review is assigned to
+ * @param {function} modalActions - Use global modal component to catch errors
+ * @returns {payload} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createReviewDate = async (payload, modalActions, iln) =>
+  await post(`/reviewDates`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to add a review date."
+          )
+        : "There was an error while attempting to add a review date.",
+      error,
+      modalActions
+    )
+  );
+const createReviewDateForCase = async (caseID, modalActions, iln) =>
+  await post(`/reviewDates/forCase/${caseID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to add a review date."
+          )
+        : "There was an error while attempting to add a review date.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get all the date objects.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getReviewDate = async (reviewID, modalActions, iln) =>
+  await get(`/reviewDates/${reviewID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to get a review date."
+          )
+        : "There was an error while attempting to get a review date.",
+      error,
+      modalActions
+    )
+  );
+const getReviewDatesForCase = async (caseID, modalActions, iln) =>
+  await get(`/reviewDates/forCase/${caseID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to get a review date."
+          )
+        : "There was an error while attempting to get a review date.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Updates review dates.
+ * @param modalActions - Use global modal component to catch errors
+ * @param caseID - id of the case the review dates is conected on.
+ * @param {Object} payload - An array with all the review date objects.
+ * @param {string} payload.reviewDate - String of the date
+ * @param {string} payload.note - The note to appear on the review date
+ * @param {number} payload.caseID - the case id that the review is assigned to
+ * @param {number} payload.assignedTo - the user id that the review is assigned to
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateReviewDate = async (reviewID, payload, modalActions, iln) =>
+  await patch(`/reviewDates/${reviewID}`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to update a review date."
+          )
+        : "There was an error while attempting to update a review date.",
+      error,
+      modalActions
+    )
+  );
+const updateReviewDateForCase = async (caseID, payload, modalActions, iln) =>
+  await post(`/reviewDates/forCase/${caseID}/update`, payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to update a review date."
+          )
+        : "There was an error while attempting to update a review date.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Mark a review date as completed.
+ * @param modalActions - Use global modal component to catch errors
+ * @param reviewID - id of the review date object.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const completeReviewDate = async (reviewID, modalActions, iln) =>
+  await post(`/reviewDates/${reviewID}/complete`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to mark a review date as complete."
+          )
+        : "There was an error while attempting to mark a review date as complete.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Mark a review date as in complete.
+ * @param modalActions - Use global modal component to catch errors
+ * @param reviewID - id of the review date object.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const incompleteReviewDate = async (reviewID, modalActions, iln) =>
+  await post(`/reviewDates/${reviewID}/incomplete`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to mark a review date as incomplete."
+          )
+        : "There was an error while attempting to mark a review date as incomplete.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Delete a review date.
+ * @param modalActions - Use global modal component to catch errors
+ * @param caseID - id of the case the review dates is conected on.
+ * @param id - id of the review date object.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const deleteReviewDates = async (reviewID, modalActions, iln) =>
+  await deleteReq(`/reviewDates/${reviewID}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to delete a review date."
+          )
+        : "There was an error while attempting to delete a review date.",
+      error,
+      modalActions
+    )
+  );
+const deleteReviewDate = deleteReviewDates;
+
+const reviewDatesAPI = {
+  getReviewDate,
+  createReviewDate,
+  getReviewDatesForCase,
+  createReviewDateForCase,
+  completeReviewDate,
+  incompleteReviewDate,
+  deleteReviewDates,
+  updateReviewDateForCase,
+  deleteReviewDate,
+  updateReviewDate,
+};
+
+export default reviewDatesAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/rss.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Get all the plugins.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getRssFeeds = async (modalActions, iln) =>
+  await get(`/rss_feeds`).catch(
+    (error) =>
+      handleError(
+        iln
+          ? iln.gettext("There was an error while fetching RSS Feeds.")
+          : "There was an error while fetching Rss Feed.",
+        error,
+        modalActions
+      ) //using same review dates handle error function to handle errors
+  );
+
+/**
+ * Save plugin details.
+ * @param modalActions - Use global modal component to catch errors
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const saveRssFeed = async (payload, modalActions, iln) =>
+  await post(`/rss_feeds`, payload).catch(
+    (error) =>
+      handleError(
+        iln
+          ? iln.gettext("There was an error attempting to save RSS Feed.")
+          : "There was an error attempting to save RSS Feed.",
+        error,
+        modalActions
+      ) //using same review dates handle error function to handle errors
+  );
+const editRssFeed = async (payload, modalActions, iln) =>
+  await patch(`/rss_feeds`, payload).catch(
+    (error) =>
+      handleError(
+        iln
+          ? iln.gettext("There was an error attempting to update RSS Feed.")
+          : "There was an error attempting to update RSS Feed.",
+        error,
+        modalActions
+      ) //using same review dates handle error function to handle errors
+  );
+const deleteRssFeed = async (payload, modalActions, iln) =>
+  await deleteReq(`/rss_feeds`, payload).catch(
+    (error) =>
+      handleError(
+        iln
+          ? iln.gettext("There was an error attempting to update RSS Feed.")
+          : "There was an error attempting to update RSS Feed.",
+        error,
+        modalActions
+      ) //using same review dates handle error function to handle errors
+  );
+
+const rssAPI = {
+  getRssFeeds,
+  saveRssFeed,
+  editRssFeed,
+  deleteRssFeed,
+};
+
+export default rssAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/search.js
+================================================
+import { handleError } from "./util/handleError";
+import { post } from "./util/fetch";
+
+/**
+ * Configurable endpoint for universal searching.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const search = async (payload, modalActions, iln) =>
+  await post("/search", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting a search.")
+        : "There was an error while attempting a search.",
+      error,
+      modalActions
+    )
+  );
+
+const searchAPI = {
+  search,
+};
+
+export default searchAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/segments.js
+================================================
+import { get } from "./util/fetch";
+import { handleError } from "./util/handleError";
+
+const getSegment = async (id) =>
+  await get(`/segments/${id}`).catch((error) => handleError(error));
+
+export default {
+  getSegment,
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/sms.js
+================================================
+import { get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+const getSMSData = async (dateArray, modalActions) =>
+  await get(`/SMSData`).catch((error) =>
+    handleError(
+      "There was an error while attempting to get a SMS data.",
+      error,
+      modalActions
+    )
+  );
+
+const getDateRangeData = async (dateArray, modalActions) =>
+  await post(`/SMSData`, dateArray).catch((error) =>
+    handleError(
+      "There was an error while attempting to get a SMS data.",
+      error,
+      modalActions
+    )
+  );
+
+const sendSms = async ({ caseID, from, to, body }, modalActions) =>
+  await post(`/sms/send`, { caseID, from, to, body }).catch((error) =>
+    handleError(
+      "There was an error while attempting to send an SMS.",
+      error,
+      modalActions
+    )
+  );
+
+const updateSmsActioned = async ({ id, actioned }, modalActions) =>
+  await patch(`/sms/${id}`, { actioned }).catch((error) =>
+    handleError(
+      "There was an error while attempting to update an SMS.",
+      error,
+      modalActions
+    )
+  );
+
+const SMSAPI = {
+  getSMSData,
+  getDateRangeData,
+  sendSms,
+  updateSmsActioned,
+};
+
+export default SMSAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/surveys.js
+================================================
+import { get, patch } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Create a new unique tag.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {String} payload.tag - The text of the tag to be created.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const archiveSurvey = async (id, modalActions, iln) =>
+  await patch(`/surveys/${id}/archive`, {}).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to archive the survey."
+          )
+        : "There was an error while attempting to archive the survey.",
+      error,
+      modalActions
+    )
+  );
+
+const unarchiveSurvey = async (id, modalActions, iln) =>
+  await patch(`/surveys/${id}/unarchive`, {}).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to restore the survey."
+          )
+        : "There was an error while attempting to archive the survey.",
+      error,
+      modalActions
+    )
+  );
+
+const getSurveys = async (modalActions, iln) =>
+  await get("/surveys").catch((error) => {
+    handleError(
+      iln
+        ? iln.gettext("There was an error retrieving the surveys.")
+        : "There was an error retrieving the surveys.",
+      error,
+      modalActions
+    );
+  });
+
+const getDoorknockSurveys = async (modalActions, iln) =>
+  await get("/doorknocking/surveys").catch((error) => {
+    handleError(
+      iln
+        ? iln.gettext("There was an error retrieving the surveys.")
+        : "There was an error retrieving the surveys.",
+      error,
+      modalActions
+    );
+  });
+
+export default {
+  archiveSurvey,
+  unarchiveSurvey,
+  getSurveys,
+  getDoorknockSurveys,
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/tags.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Create a new unique tag.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {String} payload.tag - The text of the tag to be created.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const createTag = async (payload, modalActions, iln) =>
+  await post("/tags", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to create a tag.")
+        : "There was an error while attempting to create a tag.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Get a tag based on it's unique id.
+ * @param {Number} id - The ID of the tag you want to fetch the text for.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getTag = async (id, modalActions, iln) =>
+  await get(`/tags/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to get a tag.")
+        : "There was an error while attempting to get a tag.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Update an existing tags text.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {Number} payload.id - The id of the tag to be updated.
+ * @param {String} payload.tag - The new text of the  updated tag.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateTag = async (payload, modalActions, iln) =>
+  await patch("/tags", payload).catch((error) => {
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to update a tag.")
+        : "There was an error while attempting to update a tag.",
+      error,
+      modalActions
+    );
+    throw error;
+  });
+
+/**
+ * Delete an existing tag.
+ * @param {Number} id - The id of the tag to be deleted.
+ * @param modalActions
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteTag = async (id, modalActions, iln) =>
+  await deleteReq(`/tags/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to delete a tag.")
+        : "There was an error while attempting to delete a tag.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Search all tags.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {String} payload.term - The search term that results must match.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const searchTags = async (payload, modalActions, iln) =>
+  await post("/tags/search", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to search tags.")
+        : "There was an error while attempting to search tags.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Merge multiple tags into one tag.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {Array} payload.idsToBeMerged - An array of tags to be merged.
+ * @param {Object} payload.tagToMergeInto - The object of the master tag.
+ * @param {Number} payload.tagToMergeInto.id - The id of the master tag.
+ * @param {String} payload.tagToMergeInto.tag - The text of the existing tag.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+
+const mergeTags = async (payload, modalActions, iln) =>
+  await post("/managetags/merge", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to merge tags.")
+        : "There was an error while attempting to merge tags.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Delete multiple tags en masse.
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteBulkTags = async (payload, modalActions, iln) =>
+  await post("/managetags/delete", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to bulk delete a tag."
+          )
+        : "There was an error while attempting to bulk delete a tag.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Delete a tag silently if it is not used on the system.
+ * @param {string} id - The ID of the tag that should be deleted.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteTagIfNotUsedSilent = async (id, modalActions, iln) =>
+  await deleteReq(`/tags/silent/${id}`).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext("There was an error while attempting to delete a tag.")
+        : "There was an error while attempting to delete a tag.",
+      error,
+      modalActions
+    )
+  );
+
+const tagsAPI = {
+  createTag,
+  getTag,
+  updateTag,
+  deleteTag,
+  searchTags,
+  mergeTags,
+  deleteBulkTags,
+  deleteTagIfNotUsedSilent,
+};
+
+export default tagsAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/types.js
+================================================
+import { get } from "./util/fetch";
+import { handleError } from "./util/handleError";
+
+/**
+ * Get Do not contact types.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getDoNotContactTypes = async (modalActions, iln) =>
+  await get("/donotcontacttypes").catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to get do not contact types."
+          )
+        : "There was an error while attempting to get do not contact types.",
+      error,
+      modalActions
+    )
+  );
+
+const typesAPI = {
+  getDoNotContactTypes,
+};
+
+export default typesAPI;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/userPreferences.js
+================================================
+import { deleteReq, get, patch, post } from "./util/fetch";
+
+import { handleError } from "./util/handleError";
+
+/**
+ * Get the logged in user's preferences.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - a func that handles translations.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const getUserPreferences = async (modalActions, iln) =>
+  await get("/user/preferences").catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to fetch user preferences."
+          )
+        : "There was an error while attempting to fetch user preferences.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * update the logged in user's preferences.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - a func that handles translations.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const updateUserPreferences = async (payload, modalActions, iln) =>
+  await patch("/user/preferences", payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to update user preferences."
+          )
+        : "There was an error while attempting to update user preferences.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Sends an email to the provided email address to validate it.
+ * @param {string} email - The email address requiring validation.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - a func that handles translations.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const requestSendFromAddress = async (email, modalActions, iln) =>
+  await post("/emails/from", { email }).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to request permission to send on behalf of an email address."
+          )
+        : "There was an error while attempting to request permission to send on behalf of an email address.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Validates that permission has been provided for the email adress to be used as a send from address.
+ * @param {string} uuid - The code provided in the email sent to the email address.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - a func that handles translations.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const validateSendFromAddress = async (uuid, modalActions, iln) =>
+  await post("/emails/from/validate", { uuid }).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to validate permission to send on behalf of an email address."
+          )
+        : "There was an error while attempting to validate permission to send on behalf of an email address.",
+      error,
+      modalActions
+    )
+  );
+
+/**
+ * Removes a send from address
+ * @param {string} email - The email to be removed.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @param {function} iln - a func that handles translations.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const removeSendFromAddress = async (email, modalActions, iln) =>
+  await deleteReq("/emails/from", { email }).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while attempting to remove a send from email address."
+          )
+        : "There was an error while attempting to remove a send from email address.",
+      error,
+      modalActions
+    )
+  );
+
+export default {
+  getUserPreferences,
+  updateUserPreferences,
+  requestSendFromAddress,
+  validateSendFromAddress,
+  removeSendFromAddress,
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/specialCases/fileDropUpload.js
+================================================
+import { handleError } from "../util/handleError";
+
+// Contains all file upload HTTP logic.
+// File uploads are not handled by the generic front-end HTTP handler.
+
+const developmentFileUploadUrl = "http://localhost:8080";
+const develop =
+  window.location.host.includes("localhost") ||
+  window.location.host.includes("cloudworkstations");
+const protocol = window.location.protocol;
+const domainName = location.host.substring(location.host.indexOf(".") + 1);
+
+const subdomain = (locale) => {
+  switch (locale) {
+    case "en_CA": {
+      return "uploader-ca";
+    }
+    case "en_KY": {
+      return "uploader-ca";
+    }
+    case "en_GB":
+    case "cy_GB":
+    case "en_AU": {
+      return "uploader";
+    }
+    default: {
+      return "uploader";
+    }
+  }
+};
+const getBaseUrl = (locale) => {
+  if (develop)
+    return (
+      developmentFileUploadUrl
+      )
+  if (!locale) throw new Error("Locale is required for file uploads");
+  return `${protocol}//${subdomain(locale)}.${domainName}`;
+};
+
+/**
+ * The main api wrapper that deals with authentication
+ * @private
+ */
+const rawApi = async (options, baseUrl) => {
+  // Try to access the JWT auth token from localStorage
+  const token = window.localStorage.getItem("token") || "";
+  // If we have found a token then we can inject it into the request header
+  if (token.length > 0) {
+    options.headers = Object.assign({}, options.headers, {
+      Authorization: token,
+    });
+  }
+  // Call the endpoint and wait for the response
+  const response = await fetch(baseUrl, options);
+
+  if (!response.ok) {
+    // If something went wrong throw the response text which should be an error message
+    throw response;
+  }
+
+  // If everything is ok then update the auth token with the new one from the API if it exists
+  if (response.headers.has("Authorization")) {
+    window.localStorage.setItem("token", response.headers.get("Authorization"));
+  }
+  // Then return the response
+  return response;
+};
+
+/**
+ * Simple fetch API wrapper that only ever returns parsed JSON responses.
+ * @private
+ * @param {Object} options - The options that will be passed to the request.
+ * @param {string} baseUrl - The URL to use when uploading files.
+ * @param {Object} options.headers - Any headers for the request, this is required even if empty.
+ * @param {String} options.method - The method to be used for the request.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API
+ */
+const callApi = async (options, baseUrl) => {
+  const response = await rawApi(options, baseUrl);
+  return response.json();
+};
+
+/**
+ * Exposed interface to callApi that uses a POST request. Data will be passed through JSON.stringify and the 'application/json' Content-Type header will be applied.
+ * @param {Object} data - The data to be posted to the API.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API.
+ */
+const postForm = async ({ file, locale, ...rest }) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  Object.entries(rest).forEach(([key, value]) => fd.append(key, value));
+  const baseUrl = getBaseUrl(locale);
+
+  return await callApi(
+    {
+      method: "POST",
+      body: fd,
+    },
+    baseUrl
+  );
+};
+
+/**
+ * Upload a file from a drop event
+ * @param {Object} payload - The payload passed to the backend.
+ * @param {Number} payload.caseID - The ID of the case.
+ * @param {Number} payload.mailboxID - The ID of the constituent.
+ * @param {Number} payload.file - The file to be uploaded.
+ * @param {Number} payload.subdomain - The subdomain of the installation.
+ * @param {Number} payload.locale - The locale of the user.
+ * @param {function} modalActions - a func that sets the global modal content.
+ * @returns {Promise} A promise that resolves to the response from the API.
+ * @throws {String} An error message returned by the API.
+ */
+const uploadDroppedFile = async (payload, modalActions, iln) => {
+  return await postForm(payload).catch((error) =>
+    handleError(
+      iln
+        ? iln.gettext(
+            "There was an error while trying to upload a dropped file."
+          )
+        : "There was an error while trying to upload a dropped file.",
+
+      error,
+      modalActions
+    )
+  );
+};
+
+export default { uploadDroppedFile };
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/util/fetch.js
+================================================
+/* global loginTimer, popupAutoLogout */
+/// * global BASE_URL */
+/** @module fetch */
+
+import { addEvent } from "./logging";
+
+const BASE_URL =
+  window.location.protocol + "//" + window.location.host + "/api/ajax";
+
+/**
+ * The main api wrapper that deals with authentication and URL formatting
+ * @private
+ */
+const rawApi = async (endpoint, options) => {
+  // Try to access the JWT auth token from localStorage
+  const token = window.localStorage.getItem("token") || "";
+  // If we have found a token then we can inject it into the request header
+  options.headers = Object.assign({}, options.headers, {
+    Authorization: token && token.length > 0 ? token : "",
+  });
+
+  // Call the endpoint and wait for the response
+  const response = await fetch(BASE_URL + endpoint, options);
+
+  if (!response.ok) {
+    // If something went wrong throw the response text which should be an error message
+    addEvent({
+      datetime: new Date().toISOString(),
+      event: "HTTP Fail",
+    });
+    throw response;
+  } else {
+    // otherwise clear auto logout timeout
+    if (
+      typeof loginTimer !== "undefined" &&
+      typeof popupAutoLogout !== "undefined"
+    ) {
+      clearTimeout(loginTimer);
+      addEvent({
+        datetime: new Date().toISOString(),
+        event: "Cleared timeout",
+      });
+
+      // eslint-disable-next-line no-global-assign
+      loginTimer = setTimeout(function () {
+        addEvent({
+          datetime: new Date().toISOString(),
+          event: "Showed Auto Logout - fetch.js",
+        });
+        popupAutoLogout();
+      }, 1801000);
+    }
+  }
+
+  // If everything is ok then update the auth token with the new one from the API if it exists
+  if (response.headers.has("Authorization")) {
+    window.localStorage.setItem("token", response.headers.get("Authorization"));
+    addEvent({
+      datetime: new Date().toISOString(),
+      event: "Updated token",
+    });
+  }
+  // Then return the response
+  return response;
+};
+
+/**
+ * Simple fetch API wrapper that only ever returns parsed JSON responses.
+ * @private
+ * @param {String} endpoint - The URI to send the request to.
+ * @param {Object} options - The options that will be passed to the request.
+ * @param {Object} options.headers - Any headers for the request, this is required even if empty.
+ * @param {String} options.method - The method to be used for the request.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API
+ */
+const callApi = async (endpoint, options) => {
+  const response = await rawApi(endpoint, options);
+  return response.json();
+};
+
+/**
+ * Exposed interface to callApi that uses a GET request.
+ * @param {String} url - The URL to be requested.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API.
+ */
+const get = async (url, signal) => await callApi(url, { headers: {}, signal });
+
+/**
+ * Exposed interface to callApi that uses a POST request. Data will be passed through JSON.stringify and the 'application/json' Content-Type header will be applied.
+ * @param {String} url - The URL to be requested.
+ * @param {Object} data - The data to be posted to the API.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API.
+ */
+const post = async (url, data, signal) =>
+  await callApi(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    signal,
+    body: JSON.stringify(data),
+  });
+
+/**
+ * Exposed interface to callApi that uses a PUT request. Data will be passed through JSON.stringify and the 'application/json' Content-Type header will be applied.
+ * @param {String} url - The URL to be requested.
+ * @param {Object} data - The data to be posted to the API.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API.
+ */
+const put = async (url, data, signal) =>
+  await callApi(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    signal,
+    body: JSON.stringify(data),
+  });
+
+/**
+ * Exposed interface to callApi that uses a PATCH request. Data will be passed through JSON.stringify and the 'application/json' Content-Type header will be applied.
+ * @param {String} url - The URL to be requested.
+ * @param {Object} data - The data to be posted to the API.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API.
+ */
+const patch = async (url, data, signal) =>
+  await callApi(url, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    signal,
+    body: JSON.stringify(data),
+  });
+
+/**
+ * Exposed interface to callApi that uses a DELETE request.
+ * @function get
+ * @param {String} url - The URL to be requested.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API.
+ */
+const deleteReq = async (url, data, signal) =>
+  await callApi(url, {
+    method: "DELETE",
+    headers: {},
+    signal,
+    body: JSON.stringify(data),
+  });
+
+/**
+ * Exposed interface to callApi that uses a POST request to send a File as FormData with the ID 'file'.
+ * @param {String} url - The URL to be requested.
+ * @param {File} f - The file to be PUT to the API.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API.
+ */
+const file = async (url, f, data = {}, signal) => {
+  // The file is sent as FormData to the endpoint. This is due to the nuances of Flask and how it handles file uploads.
+  const body = new FormData();
+  body.append("file", f);
+  body.append("json", JSON.stringify(data));
+  return await callApi(url, {
+    method: "POST",
+    headers: {},
+    signal,
+    body,
+  });
+};
+
+/**
+ * Authentication function that will authenticate against the API and return the auth JWT.
+ * @param {Object} credentials - The authentication credentials to be used.
+ * @param {String} credentials.username - The username to authenticate against.
+ * @param {String} credentials.passwordHash - A SHA256 hex digest of the password.
+ * @param {String} credentials.legacyHash - An MD5 hex digest of the password.
+ * @param {String} credentials.otp - The One Time Passcode to authenticate with.
+ * @returns {Promise} A promise that resolves to the response from the authentication endpoint.
+ * @throws {String} An error message returned by the API.
+ */
+const authenticate = async (credentials) => {
+  const options = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(credentials),
+  };
+
+  const response = await fetch(BASE_URL + "auth", options);
+  if (!response.ok) {
+    // If something went wrong throw the response text which should be an error message
+    throw await response.text();
+  }
+  return await response.text();
+};
+
+/**
+ * Unauthenticated POST function that will issue a POST request without any authentication.
+ * Typically used for new user setup or password resets.
+ * @param {String} url - The URL to be requested.
+ * @param {Object} data - The data to be posted to the API.
+ * @returns {Promise} A promise that resolves to returned JSON data.
+ * @throws {String} An error message returned by the API.
+ */
+const unauthPost = async (url, data) => {
+  const options = {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  };
+
+  const response = await fetch(BASE_URL + url, options);
+
+  if (!response.ok) {
+    throw await response.text();
+  }
+
+  return response.json();
+};
+
+/**
+ * A function to download files from the API
+ * @param {String} url - The URL to be requested.
+ * @param {Object} data - The data to be posted to the API.
+ * @returns {Promise} A promise that resolves to returned Blob data.
+ * @throws {String} An error message returned by the API.
+ */
+const downloadFile = async (url) => {
+  const response = await rawApi(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  return await response.blob();
+};
+
+/**
+ * A function to download a pdf from the API
+ * @param {String} url - The URL to be requested.
+ * @param {Object} data - The data to be posted to the API.
+ * @returns {Promise} A promise that resolves to returned Blob data.
+ * @throws {String} An error message returned by the API.
+ */
+const getPDF = async (url, data) => {
+  const response = await rawApi(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/pdf",
+    },
+    body: JSON.stringify(data),
+  });
+  return await response.blob();
+};
+
+export {
+  get,
+  post,
+  put,
+  patch,
+  deleteReq,
+  file,
+  authenticate,
+  unauthPost,
+  downloadFile,
+  getPDF,
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/util/flattenAPIs.js
+================================================
+const flattenApis = (...apiList) => {
+  const totalEndpoints = apiList.reduce(
+    (acc, cur) => acc + Object.keys(cur).length,
+    0
+  );
+
+  const flattenedApi = apiList.reduce((acc, cur) => ({ ...acc, ...cur }), {});
+
+  if (Object.keys(flattenedApi).length < totalEndpoints) {
+    const allNamedEndpoints = apiList
+      .reduce((acc, cur) => [...acc, ...Object.keys(cur)], [])
+      .sort();
+
+    const duplicates = allNamedEndpoints.reduce(
+      (acc, cur, idx, arr) => (cur === arr[idx + 1] ? [...acc, cur] : acc),
+      []
+    );
+
+    throw new Error(
+      `Api name conflict: ${duplicates.join(", ")} ${
+        duplicates.length === 1 ? "endpoint has" : "endpoints have"
+      } been declared twice or more times`
+    );
+  }
+
+  return flattenedApi;
+};
+
+export default flattenApis;
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/util/handleError.js
+================================================
+/* global popupAutoLogout */
+
+import { Button, FlexBox } from "@electedtech/electedtech-ui";
+
+import React from "react";
+import { addEvent } from "./logging";
+
+// import LoginBox from "../../../components/Login/LoginBox.jsx";
+// import authAPI from "../auth";
+
+const errorCodes = (code) =>
+  ({
+    400: "Bad Request",
+    401: "Unauthorized",
+    402: "Payment Required",
+    403: "Forbidden",
+    404: "Not Found",
+    405: "Method Not Allowed",
+    406: "Not Acceptable",
+    407: "Proxy Authentication Required",
+    408: "Request Timeout",
+    409: "Conflict",
+    410: "Gone",
+    411: "Length Required",
+    412: "Precondition Failed",
+    413: "Payload Too Large",
+    414: "URL Too Long",
+    415: "Unsupported Media Type",
+    416: "Range Not Satisfiable",
+    417: "Expectation Failed",
+    418: "I'm a Teapot",
+    421: "Misdirected Request",
+    422: "Unprocessable Entity",
+    423: "Locked",
+    424: "Failed Dependency",
+    425: "Too Early",
+    426: "Upgrade Required",
+    428: "Precondition Required",
+    429: "Too Many Requests",
+    431: "Request Header Fields Too Large",
+    451: "Unavailable For Legal Reasons",
+    500: "Internal Server Error",
+    501: "Not Implemented",
+    502: "Bad Gateway",
+    503: "Service Unavailable",
+    504: "Gateway Timeout",
+    505: "HTTP Version Not Supported",
+    506: "Variant Also Negotiates",
+    507: "Insufficient Storage ",
+    508: "Loop Detected",
+    510: "Not Extended",
+    511: "Network Authentication Required ",
+    undefined: "",
+  }[code]);
+
+/* 
+  ***Currently auto logout is handled by the legacy PHP modal***
+
+
+  const errorModal = (message, error, modalActions) => {
+  const modalID = `${error.status}${message}`;
+  // if 401 then show login box, otherwise generic error modal
+  return error.status === 401
+    ? {
+        id: modalID,
+        title: "You have been signed out due to inactivity",
+        allowClose: false,
+        allowCloseOnBgClick: false,
+        blurBackground: true,
+        component: (
+          <LoginBox
+            onSuccess={() => modalActions.removeById(modalID)}
+            api={authAPI}
+          />
+        ),
+      }
+    : {
+        id: modalID,
+        title: `Error ${error.status} - ${errorCodes(error.status)}`,
+        allowClose: false,
+        allowCloseOnBgClick: false,
+        blurBackground: true,
+        component: (
+          <React.Fragment>
+            <p style={{ color: "red" }}>{message}</p>
+            <FlexBox hAlign="flex-end">
+              <Button onClick={() => modalActions.removeById(modalID)}>
+                OK
+              </Button>
+            </FlexBox>
+          </React.Fragment>
+        ),
+      };
+};
+  
+*/
+
+const errorModal = async (message, error, modalActions) => {
+  const modalID = `${error.status}${message}`;
+  let httpErrorMessage;
+
+  try {
+    httpErrorMessage = await error.text();
+  } catch {
+    httpErrorMessage = undefined;
+  }
+  // if 401 then show login box, otherwise generic error modal
+  // leaving this here for when Ashnazg is a SPA
+  return {
+    id: modalID,
+    title: `${error.status} - ${errorCodes(error.status)}`,
+    allowClose: false,
+    allowCloseOnBgClick: false,
+    blurBackground: true,
+    component: (
+      <React.Fragment>
+        {typeof message === "string" && (
+          <p style={{ color: "red", textAlign: "center" }}>{message}</p>
+        )}
+        {typeof httpErrorMessage === "string" && (
+          <p style={{ color: "red", textAlign: "center" }}>
+            {httpErrorMessage}
+          </p>
+        )}
+        <FlexBox hAlign="center">
+          <Button onClick={() => modalActions.removeById(modalID)}>OK</Button>
+        </FlexBox>
+      </React.Fragment>
+    ),
+  };
+};
+
+export const handleError = async (message, error, modalActions) => {
+  if (error?.name !== "AbortError") {
+    if (error.status === 401) {
+      popupAutoLogout && popupAutoLogout();
+      addEvent({
+        datetime: new Date().toISOString(),
+        event: "Showed Auto Logout - handleError.js",
+      });
+    } else if (modalActions) {
+      modalActions.add(await errorModal(message, error, modalActions));
+    }
+  }
+  if (error) throw error;
+};
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/util/logging.js
+================================================
+const DB_NAME = "logging";
+const DB_VERSION = 1;
+const STORE_NAME = "tokenEvents";
+
+// Open or create the database
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, {
+          keyPath: "id",
+          autoIncrement: true,
+        });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+// Add a event
+export async function addEvent(event) {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, "readwrite");
+  const store = tx.objectStore(STORE_NAME);
+  store.add(event);
+  return tx.complete;
+}
+
+// Get a event by ID
+export async function getEvent(id) {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, "readonly");
+  const store = tx.objectStore(STORE_NAME);
+  return store.get(id);
+}
+
+// Update a event
+export async function updateEvent(event) {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, "readwrite");
+  const store = tx.objectStore(STORE_NAME);
+  store.put(event); // overwrites if key exists
+  return tx.complete;
+}
+
+// Delete a event
+export async function deleteEvent(id) {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, "readwrite");
+  const store = tx.objectStore(STORE_NAME);
+  store.delete(id);
+  return tx.complete;
+}
+
+
+
+================================================
+FILE: rebuild_workspace/src_final/scripts/api/src/util/parseEmailLegacyFormatting.js
+================================================
+/**
+ * Removes emails that do not adhere to the standard shape expected on the front-end
+ * Legacy emails: to, cc, bcc and from fields are returned as an Array<String>
+ * The front-end expects <Array<Object{name<String>, email<String>}>> for To, Cc and Bcc fields.
+ * The front-end expects <Object{name<String>, email<String>}> for From fields.
+ *
+ * Addition: Emails that are received from the door knocking or canvassing systems are returning the from field as a string.
+ * Those emails are reformatted adhering to the above format.
+ */
+const emailHasCorrectShape = (email) => {
+  if (!email) return false;
+
+  return !!(
+    typeof email === "object" ||
+    email.hasOwnProperty("name") ||
+    email.hasOwnProperty("email")
+  );
+};
+const removeEmailsWithLegacyFormatting = (emails) => {
+  if (!Array.isArray(emails)) return [];
+  if (emails.length === 0) return emails;
+  return emails.filter((email) => {
+    return emailHasCorrectShape(email);
+  });
+};
+const removeFromAddressWithLegacyFormatting = (fromAddress) => {
+  if (Array.isArray(fromAddress)) return {};
+  return emailHasCorrectShape(fromAddress) ? fromAddress : {};
+};
+
+const parseFrom = (fromAddress) => {
+  if (typeof fromAddress === "string") return { email: fromAddress, name: "" };
+  return removeFromAddressWithLegacyFormatting(fromAddress);
+};
+
+/**
+ * Removes emails that do not adhere to the standard shape expected on the front-end.
+ * If an email contains a from that is a string, reformats from into standard format.
+ * @param {Promise} emailGetPromise - The promise that is returned from the backend [GET] /emails/${emailId}.
+ * @returns {Promise} Email is wrapped in a Promise as though it was returned from the backend.
+ */
+export const parseEmailsForLegacyEmailFormatting = (emailGetPromise) => {
+  return emailGetPromise.then((email) => {
+    const { to, cc, bcc, from } = email;
+    const addresses = [to, cc, bcc];
+    const parsedEmailAddress = addresses.map((emails) =>
+      removeEmailsWithLegacyFormatting(emails)
+    );
+    const parsedFrom = parseFrom(from);
+
+    return Promise.resolve({
+      ...email,
+      to: parsedEmailAddress[0],
+      cc: parsedEmailAddress[1],
+      bcc: parsedEmailAddress[2],
+      from: parsedFrom,
+    });
+  });
+};
+
+
