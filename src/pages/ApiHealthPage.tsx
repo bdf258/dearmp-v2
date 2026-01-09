@@ -370,17 +370,7 @@ export default function ApiHealthPage() {
 
   // Generate bookmarklet
   const generateBookmarklet = useCallback((endpointKey: string) => {
-    const endpoint = ENDPOINTS[endpointKey];
     const baseUrl = window.location.origin;
-
-    let bodyJson: string;
-    if (endpointKey === 'auth') {
-      bodyJson = authBody;
-    } else if (endpointKey === 'casesSearch') {
-      bodyJson = casesSearchBody;
-    } else {
-      bodyJson = tagsSearchBody;
-    }
 
     // Create a bookmarklet that opens the API Health page with pre-filled data
     const bookmarkletCode = `javascript:(function(){
@@ -389,7 +379,7 @@ export default function ApiHealthPage() {
     })();`;
 
     return bookmarkletCode.replace(/\s+/g, ' ');
-  }, [subdomain, authToken, authBody, casesSearchBody, tagsSearchBody]);
+  }, [subdomain, authToken]);
 
   // Endpoint Card Component
   const EndpointCard = ({
@@ -831,13 +821,13 @@ export default function ApiHealthPage() {
                     </div>
 
                     {/* Request body */}
-                    {entry.requestBody && (
+                    {entry.requestBody != null && (
                       <div className="mb-2">
                         <span className="text-slate-500">Request:</span>
                         <pre className="text-cyan-400 ml-2 whitespace-pre-wrap break-all">
-                          {typeof entry.requestBody === 'string'
+                          {String(typeof entry.requestBody === 'string'
                             ? entry.requestBody
-                            : JSON.stringify(entry.requestBody, null, 2)}
+                            : JSON.stringify(entry.requestBody, null, 2))}
                         </pre>
                       </div>
                     )}
