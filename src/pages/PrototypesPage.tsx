@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, Layers, Mail, FolderOpen, LayoutDashboard, Component } from 'lucide-react';
+import { ArrowRight, Layers, Mail, FolderOpen, LayoutDashboard, Component, Settings } from 'lucide-react';
 
 interface PrototypeLink {
   path: string;
@@ -71,6 +71,24 @@ const prototypes: PrototypeLink[] = [
     description: 'All triage workspace components in their various states (empty, AI, approved)',
     category: 'Components',
   },
+  {
+    path: '/prototypes/settings/user',
+    title: 'User Settings',
+    description: 'Clean, simple settings page for regular staff members with card-based layout',
+    category: 'Settings',
+  },
+  {
+    path: '/prototypes/settings/admin',
+    title: 'Admin Settings',
+    description: 'Comprehensive admin dashboard with tabbed layout for full office management',
+    category: 'Settings',
+  },
+  {
+    path: '/prototypes/settings/sidebar',
+    title: 'Settings with Sidebar',
+    description: 'Alternative layout with persistent sidebar navigation for settings sections',
+    category: 'Settings',
+  },
 ];
 
 const categoryIcons: Record<string, React.ReactNode> = {
@@ -78,6 +96,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
   Case: <FolderOpen className="h-4 w-4" />,
   Dashboard: <LayoutDashboard className="h-4 w-4" />,
   Components: <Component className="h-4 w-4" />,
+  Settings: <Settings className="h-4 w-4" />,
 };
 
 const categoryColors: Record<string, string> = {
@@ -85,6 +104,7 @@ const categoryColors: Record<string, string> = {
   Case: 'bg-purple-100 text-purple-700 border-purple-200',
   Dashboard: 'bg-green-100 text-green-700 border-green-200',
   Components: 'bg-orange-100 text-orange-700 border-orange-200',
+  Settings: 'bg-slate-100 text-slate-700 border-slate-200',
 };
 
 export default function PrototypesPage() {

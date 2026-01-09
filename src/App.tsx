@@ -36,9 +36,13 @@ import CasePrototypeColumns from '@/pages/prototypes/case/CasePrototypeColumns';
 import CasePrototypeCards from '@/pages/prototypes/case/CasePrototypeCards';
 import DashboardPrototype from '@/pages/prototypes/DashboardPrototype';
 import ComponentPrototypePage from '@/pages/prototypes/ComponentPrototypePage';
+import SettingsPrototypeUser from '@/pages/prototypes/settings/SettingsPrototypeUser';
+import SettingsPrototypeAdmin from '@/pages/prototypes/settings/SettingsPrototypeAdmin';
+import SettingsPrototypeSidebar from '@/pages/prototypes/settings/SettingsPrototypeSidebar';
 import PrototypesPage from '@/pages/PrototypesPage';
 import NotFoundPage from '@/pages/NotFoundPage';
 import TestTriagePage from '@/pages/TestTriagePage';
+import TestApiPage from '@/pages/TestApiPage';
 import { TriageDashboard, CampaignDashboard, TriageWorkspace, TriageRedirect } from '@/pages/triage';
 
 function LoadingScreen() {
@@ -154,6 +158,8 @@ function AuthenticatedLayout() {
 
             {/* Test Page - For testing triage pipeline with uploaded .eml files */}
             <Route path="/test" element={<PageLayout><TestTriagePage /></PageLayout>} />
+            {/* Test API Page - For testing Caseworker API endpoints */}
+            <Route path="/test-api" element={<PageLayout><TestApiPage /></PageLayout>} />
 
             {/* Prototypes Index */}
             <Route path="/prototypes" element={<PageLayout><PrototypesPage /></PageLayout>} />
@@ -170,6 +176,9 @@ function AuthenticatedLayout() {
             <Route path="/prototypes/case/cards" element={<PageLayout><CasePrototypeCards /></PageLayout>} />
             <Route path="/prototypes/dashboard" element={<PageLayout><DashboardPrototype /></PageLayout>} />
             <Route path="/prototypes/components" element={<PageLayout><ComponentPrototypePage /></PageLayout>} />
+            <Route path="/prototypes/settings/user" element={<PageLayout><SettingsPrototypeUser /></PageLayout>} />
+            <Route path="/prototypes/settings/admin" element={<PageLayout><SettingsPrototypeAdmin /></PageLayout>} />
+            <Route path="/prototypes/settings/sidebar" element={<PageLayout><SettingsPrototypeSidebar /></PageLayout>} />
 
             {/* 404 Catch-all Route */}
             <Route path="*" element={<PageLayout><NotFoundPage /></PageLayout>} />
@@ -188,6 +197,11 @@ function RootLayout() {
   // Always show landing page at /landing route (public page)
   if (location.pathname === '/landing') {
     return <LandingPage />;
+  }
+
+  // Test API page is public (developer tool)
+  if (location.pathname === '/test-api') {
+    return <TestApiPage />;
   }
 
   if (loading) {
