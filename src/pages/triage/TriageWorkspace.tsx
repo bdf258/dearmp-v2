@@ -409,6 +409,12 @@ export function TriageWorkspace() {
   const handleApprove = useCallback(async () => {
     if (!message) return;
 
+    // Capture the next message ID BEFORE approving, so we can navigate immediately
+    // regardless of whether the data has refreshed yet
+    const nextMessageId = messageIndex < allMessages.length - 1
+      ? allMessages[messageIndex + 1].id
+      : null;
+
     let constituentId = triageState.constituentId;
     let caseId = triageState.caseId;
 
@@ -486,16 +492,18 @@ export function TriageWorkspace() {
       // Reset creating state for next message
       setIsCreatingConstituent(false);
       setIsCreatingCase(false);
-      // Move to next message or go back
-      if (messageIndex < allMessages.length - 1) {
-        goToNext();
+
+      // Immediately navigate to the next message (captured before approval)
+      // This ensures smooth workflow even if data refresh is slow
+      if (nextMessageId) {
+        navigate(`/triage/messages/${nextMessageId}`);
       } else {
         goBack();
       }
     } else {
       toast.error(result.error || 'Failed to triage message');
     }
-  }, [message, triageState, isCreatingConstituent, constituentDetails, createConstituentWithContacts, isCreatingCase, caseDetails, createCaseForMessage, approveTriage, messageIndex, allMessages.length, goToNext, goBack, suggestion, userModifiedFields, recordDecision]);
+  }, [message, triageState, isCreatingConstituent, constituentDetails, createConstituentWithContacts, isCreatingCase, caseDetails, createCaseForMessage, approveTriage, messageIndex, allMessages, navigate, goBack, suggestion, userModifiedFields, recordDecision]);
 
   // Handle campaign unlink
   const handleUnlinkCampaign = useCallback(async () => {

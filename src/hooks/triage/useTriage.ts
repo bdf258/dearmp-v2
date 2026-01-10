@@ -291,7 +291,7 @@ export function useConstituentSearch() {
 // ============= CASE SEARCH =============
 
 export function useCaseSearch(constituentId?: string | null) {
-  const { cases } = useSupabase();
+  const { cases, caseParties } = useSupabase();
   const [searchQuery, setSearchQuery] = useState('');
 
   const searchResults = useMemo(() => {
@@ -299,10 +299,17 @@ export function useCaseSearch(constituentId?: string | null) {
 
     // If constituent is selected, prioritize their cases but show all
     if (constituentId) {
+      // Find cases where this constituent is a party
+      const constituentCaseIds = new Set(
+        caseParties
+          .filter(cp => cp.constituent_id === constituentId)
+          .map(cp => cp.case_id)
+      );
+
       filtered = [...cases].sort((a, b) => {
-        // Cases with no assigned constituent or matching constituent come first
-        const aMatch = !a.assigned_to || a.assigned_to === constituentId;
-        const bMatch = !b.assigned_to || b.assigned_to === constituentId;
+        // Cases where the constituent is a party come first
+        const aMatch = constituentCaseIds.has(a.id);
+        const bMatch = constituentCaseIds.has(b.id);
         if (aMatch && !bMatch) return -1;
         if (!aMatch && bMatch) return 1;
         return 0;
@@ -317,7 +324,7 @@ export function useCaseSearch(constituentId?: string | null) {
       c.reference_number?.toString().includes(query) ||
       c.description?.toLowerCase().includes(query)
     ).slice(0, 20);
-  }, [cases, constituentId, searchQuery]);
+  }, [cases, caseParties, constituentId, searchQuery]);
 
   return {
     searchQuery,
@@ -745,9 +752,9 @@ export function useMessageBody(messageId: string | null) {
   }, [messageId]);
 
   // Auto-fetch when messageId changes
-  useState(() => {
+  useEffect(() => {
     fetchBody();
-  });
+  }, [fetchBody]);
 
   return { body, isLoading, error, refetch: fetchBody };
 }

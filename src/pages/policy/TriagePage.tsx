@@ -337,7 +337,6 @@ export default function TriagePage() {
               <Button variant="outline" onClick={() => setSelectedMessage(null)}>
                 Close
               </Button>
-              <Button>Take Action</Button>
             </div>
           </div>
         </DialogContent>

@@ -105,14 +105,15 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
       const officeId = authReq.officeId;
 
       // Query emails from legacy schema using RPC to avoid type issues
+      // Note: RPC functions don't support .eq() chaining - pass office_id as parameter
       const { data, error, count } = await supabase
         .rpc('get_legacy_triage_queue', {
+          p_office_id: officeId,
           p_limit: query.limit,
           p_offset: query.offset,
           p_order_by: query.orderBy,
           p_order_dir: query.orderDir,
-        })
-        .eq('office_id', officeId);
+        });
 
       if (error) {
         // Fallback to direct query if RPC doesn't exist
