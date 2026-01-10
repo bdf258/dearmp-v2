@@ -68,24 +68,24 @@ export interface TriageRoutesDependencies {
   queueService: QueueService;
 }
 
-// Email record type from the database
-interface EmailRecord {
+// Email record type from the database (public.messages schema)
+interface MessageRecord {
   id: string;
   office_id: string;
-  external_id: number;
   subject: string | null;
-  html_body: string | null;
-  from_address: string | null;
-  to_addresses: string[] | null;
-  cc_addresses: string[] | null;
-  bcc_addresses: string[] | null;
-  type: string | null;
-  actioned: boolean;
+  body_html: string | null;
+  body: string | null;
+  snippet: string | null;
+  from_email: string | null;
+  from_name: string | null;
+  to_email: string | null;
+  direction: string | null;
+  is_triage_needed: boolean;
   received_at: string | null;
-  sent_at: string | null;
   created_at: string;
-  constituent_id: string | null;
   case_id: string | null;
+  campaign_id: string | null;
+  metadata: Record<string, unknown> | null;
 }
 
 /**
@@ -104,66 +104,43 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
       const query = GetTriageQueueSchema.parse(authReq.query);
       const officeId = authReq.officeId;
 
-      // Query emails from legacy schema using RPC to avoid type issues
-      // Note: RPC functions don't support .eq() chaining - pass office_id as parameter
+      // Query from public.messages (synced from legacy.emails via trigger)
+      // This ensures UI and API use the same data source
       const { data, error, count } = await supabase
-        .rpc('get_legacy_triage_queue', {
-          p_office_id: officeId,
-          p_limit: query.limit,
-          p_offset: query.offset,
-          p_order_by: query.orderBy,
-          p_order_dir: query.orderDir,
-        });
+        .from('messages')
+        .select('*', { count: 'exact' })
+        .eq('office_id', officeId)
+        .eq('is_triage_needed', true)
+        .eq('direction', 'inbound')
+        .is('case_id', null) // Not yet assigned to a case
+        .order(query.orderBy, { ascending: query.orderDir === 'asc' })
+        .range(query.offset, query.offset + query.limit - 1);
 
-      if (error) {
-        // Fallback to direct query if RPC doesn't exist
-        const directQuery = await supabase
-          .from('emails')
-          .select('*', { count: 'exact' })
-          .eq('office_id', officeId)
-          .eq('actioned', false)
-          .eq('type', 'received')
-          .order(query.orderBy, { ascending: query.orderDir === 'asc' })
-          .range(query.offset, query.offset + query.limit - 1);
+      if (error) throw error;
 
-        if (directQuery.error) throw directQuery.error;
-
-        const emails = (directQuery.data || []) as EmailRecord[];
-        const response: ApiResponse = {
-          success: true,
-          data: emails.map((email) => ({
-            id: email.id,
-            officeId: email.office_id,
-            externalId: email.external_id,
-            subject: email.subject,
-            snippet: email.html_body?.substring(0, 200) ?? null,
-            fromAddress: email.from_address,
-            toAddresses: email.to_addresses,
-            receivedAt: email.received_at,
-            createdAt: email.created_at,
-            actioned: email.actioned,
-            caseId: email.case_id,
-            constituentId: email.constituent_id,
-          })),
-          meta: {
-            offset: query.offset,
-            limit: query.limit,
-            total: directQuery.count ?? 0,
-            hasMore: (directQuery.count ?? 0) > query.offset + query.limit,
-          },
-        };
-        res.json(response);
-        return;
-      }
-
+      const messages = (data || []) as MessageRecord[];
       const response: ApiResponse = {
         success: true,
-        data: data || [],
+        data: messages.map((msg) => ({
+          id: msg.id,
+          officeId: msg.office_id,
+          externalId: msg.metadata?.legacy_external_id ?? null,
+          subject: msg.subject,
+          snippet: msg.snippet ?? msg.body?.substring(0, 200) ?? null,
+          fromAddress: msg.from_email,
+          fromName: msg.from_name,
+          toAddress: msg.to_email,
+          receivedAt: msg.received_at,
+          createdAt: msg.created_at,
+          isTriageNeeded: msg.is_triage_needed,
+          caseId: msg.case_id,
+          campaignId: msg.campaign_id,
+        })),
         meta: {
           offset: query.offset,
           limit: query.limit,
-          total: count ?? data?.length ?? 0,
-          hasMore: (count ?? data?.length ?? 0) > query.offset + query.limit,
+          total: count ?? 0,
+          hasMore: (count ?? 0) > query.offset + query.limit,
         },
       };
       res.json(response);
@@ -176,7 +153,7 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
 
   /**
    * GET /triage/email/:id
-   * Get details for a specific email
+   * Get details for a specific email/message
    */
   const getEmailHandler: RequestHandler = async (req, res, next) => {
     try {
@@ -185,7 +162,7 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
       const officeId = authReq.officeId;
 
       const { data, error } = await supabase
-        .from('emails')
+        .from('messages')
         .select('*')
         .eq('id', id)
         .eq('office_id', officeId)
@@ -194,30 +171,29 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
       if (error && error.code !== 'PGRST116') throw error;
 
       if (!data) {
-        throw ApiError.notFound('Email not found');
+        throw ApiError.notFound('Message not found');
       }
 
-      const email = data as EmailRecord;
+      const msg = data as MessageRecord;
       const response: ApiResponse = {
         success: true,
         data: {
-          id: email.id,
-          officeId: email.office_id,
-          externalId: email.external_id,
-          subject: email.subject,
+          id: msg.id,
+          officeId: msg.office_id,
+          externalId: msg.metadata?.legacy_external_id ?? null,
+          subject: msg.subject,
           // Sanitize HTML to prevent XSS (defense-in-depth with frontend DOMPurify)
-          htmlBody: sanitizeEmailHtml(email.html_body),
-          fromAddress: email.from_address,
-          toAddresses: email.to_addresses,
-          ccAddresses: email.cc_addresses,
-          bccAddresses: email.bcc_addresses,
-          type: email.type,
-          actioned: email.actioned,
-          receivedAt: email.received_at,
-          sentAt: email.sent_at,
-          createdAt: email.created_at,
-          constituentId: email.constituent_id,
-          caseId: email.case_id,
+          htmlBody: sanitizeEmailHtml(msg.body_html),
+          body: msg.body,
+          fromAddress: msg.from_email,
+          fromName: msg.from_name,
+          toAddress: msg.to_email,
+          direction: msg.direction,
+          isTriageNeeded: msg.is_triage_needed,
+          receivedAt: msg.received_at,
+          createdAt: msg.created_at,
+          caseId: msg.case_id,
+          campaignId: msg.campaign_id,
         },
       };
       res.json(response);
@@ -238,17 +214,20 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
       const body = ConfirmTriageSchema.parse(authReq.body);
       const officeId = authReq.officeId;
 
-      // Update emails to mark as actioned
+      // Update messages to mark as triaged (this triggers sync back to legacy.emails)
       const updateData: Record<string, unknown> = {
-        actioned: true,
+        is_triage_needed: false,
         updated_at: new Date().toISOString(),
       };
       if (body.caseId) {
         updateData.case_id = body.caseId;
       }
+      if (body.assigneeId) {
+        updateData.assigned_to_user_id = body.assigneeId;
+      }
 
       const { error: updateError } = await supabase
-        .from('emails')
+        .from('messages')
         .update(updateData)
         .eq('office_id', officeId)
         .in('id', body.messageIds);
@@ -258,15 +237,16 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
       // If creating a new case, queue a job
       if (body.createCase && body.newCase) {
         for (const messageId of body.messageIds) {
-          // Get email details
-          const { data: email } = await supabase
-            .from('emails')
-            .select('external_id, from_address, subject')
+          // Get message details (includes legacy external_id in metadata)
+          const { data: message } = await supabase
+            .from('messages')
+            .select('metadata, from_email, subject')
             .eq('id', messageId)
             .single();
 
-          if (email) {
-            const emailData = email as { external_id: number; from_address: string | null; subject: string | null };
+          if (message) {
+            const msgData = message as { metadata: Record<string, unknown> | null; from_email: string | null; subject: string | null };
+            const legacyExternalId = (msgData.metadata?.legacy_external_id as number) ?? 0;
             type TriageDecisionPayload = {
               action: 'add_to_case' | 'ignore' | 'create_new';
               constituentId?: string;
@@ -280,7 +260,7 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
               newCase: {
                 caseTypeId: body.newCase.caseTypeExternalId ?? 1,
                 statusId: body.newCase.statusExternalId ?? 1,
-                summary: body.newCase.summary ?? emailData.subject ?? 'New case from email',
+                summary: body.newCase.summary ?? msgData.subject ?? 'New case from email',
               },
               markActioned: true,
             };
@@ -291,7 +271,7 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
                 email: body.newCase.newConstituent.email ?? '',
               };
             }
-            await queueService.submitTriageDecision(officeId, messageId, emailData.external_id, decision);
+            await queueService.submitTriageDecision(officeId, messageId, legacyExternalId, decision);
           }
         }
       }
@@ -326,7 +306,7 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
 
   /**
    * POST /triage/dismiss
-   * Dismiss emails from triage queue
+   * Dismiss messages from triage queue
    */
   const dismissHandler: RequestHandler = async (req, res, next) => {
     try {
@@ -334,11 +314,12 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
       const body = DismissTriageSchema.parse(authReq.body);
       const officeId = authReq.officeId;
 
-      // Mark emails as actioned (dismissed)
+      // Mark messages as dismissed (this triggers sync back to legacy.emails)
       const { error } = await supabase
-        .from('emails')
+        .from('messages')
         .update({
-          actioned: true,
+          is_triage_needed: false,
+          email_type: 'spam', // Mark as spam when dismissed
           updated_at: new Date().toISOString(),
         })
         .eq('office_id', officeId)
@@ -383,41 +364,41 @@ export function createTriageRoutes({ supabase, queueService }: TriageRoutesDepen
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Get pending count
+      // Get pending count (messages needing triage)
       const { count: pendingCount } = await supabase
-        .from('emails')
+        .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('office_id', officeId)
-        .eq('actioned', false)
-        .eq('type', 'received');
+        .eq('is_triage_needed', true)
+        .eq('direction', 'inbound');
 
-      // Get actioned today count
+      // Get triaged today count
       const { count: actionedTodayCount } = await supabase
-        .from('emails')
+        .from('messages')
         .select('*', { count: 'exact', head: true })
         .eq('office_id', officeId)
-        .eq('actioned', true)
-        .eq('type', 'received')
+        .eq('is_triage_needed', false)
+        .eq('direction', 'inbound')
         .gte('updated_at', today.toISOString());
 
-      // Get emails by date range for the last 7 days
+      // Get messages by date range for the last 7 days
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const { data: weekData } = await supabase
-        .from('emails')
-        .select('received_at, actioned')
+        .from('messages')
+        .select('received_at, is_triage_needed')
         .eq('office_id', officeId)
-        .eq('type', 'received')
+        .eq('direction', 'inbound')
         .gte('received_at', weekAgo.toISOString());
 
-      const weekEmails = (weekData || []) as Array<{ received_at: string | null; actioned: boolean }>;
+      const weekMessages = (weekData || []) as Array<{ received_at: string | null; is_triage_needed: boolean }>;
 
       const response: ApiResponse = {
         success: true,
         data: {
           pendingCount: pendingCount ?? 0,
           actionedTodayCount: actionedTodayCount ?? 0,
-          totalThisWeek: weekEmails.length,
-          actionedThisWeek: weekEmails.filter((e) => e.actioned).length,
+          totalThisWeek: weekMessages.length,
+          actionedThisWeek: weekMessages.filter((m) => !m.is_triage_needed).length,
         },
       };
       res.json(response);
